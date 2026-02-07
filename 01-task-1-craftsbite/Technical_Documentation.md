@@ -157,13 +157,13 @@ CraftsBite is an internal web application designed to modernize the current Exce
 
 | Component | Technology | Version | Justification |
 |-----------|-----------|---------|---------------|
-| Core Framework | React | 18.x | Industry standard, large ecosystem, team familiarity |
+| Core Framework | React | 19.x | Industry standard, large ecosystem, team familiarity |
 | Language | TypeScript | 5.x | Type safety, better IDE support, reduced runtime errors |
-| Build Tool | Vite | 5.x | Fast development server, optimized production builds |
-| UI Framework | Tailwind CSS | 3.x | Utility-first, rapid development, consistent design |
-| State Management | Zustand | 4.x | Lightweight, simple API, better than Context API for global state |
+| Build Tool | Vite | 7.x | Fast development server, optimized production builds |
+| UI Framework | Tailwind CSS | 4.x | Utility-first, rapid development, consistent design |
+| State Management | Zustand | 5.x | Lightweight, simple API, better than Context API for global state |
 | HTTP Client | Axios | 1.x | Interceptors, request/response transformation, better error handling |
-| Routing | React Router | 6.x | Standard React routing solution, type-safe routes |
+| Routing | React Router | 7.x | Standard React routing solution, type-safe routes |
 | Form Handling | React Hook Form | 7.x | Performance, easy validation, TypeScript support |
 | Date Handling | date-fns | 3.x | Lightweight, modular, immutable, tree-shakeable |
 | Error Boundaries | react-error-boundary | 4.x | Production error handling, graceful failure recovery |
@@ -180,13 +180,13 @@ CraftsBite is an internal web application designed to modernize the current Exce
 
 | Component | Technology | Version | Justification |
 |-----------|-----------|---------|---------------|
-| Language | Go | 1.22.x | Performance, concurrency, simple deployment (single binary) |
+| Language | Go | 1.23.x | Performance, concurrency, simple deployment (single binary) |
 | Web Framework | Gin | 1.10.x | Fast, minimal, excellent routing, security patches |
-| Database | PostgreSQL | 16.x | ACID compliance, reliability, JSON improvements, proven at scale |
+| Database | PostgreSQL | 17.x | ACID compliance, reliability, JSON improvements, proven at scale |
 | ORM | GORM | 1.25.x | Most popular Go ORM, migrations support, clean API |
 | Database Driver | pgx | 5.x | High-performance PostgreSQL driver, better than lib/pq |
 | Database Migrations | golang-migrate/migrate | 4.x | Version control for schema changes, rollback support |
-| Authentication | golang-jwt/jwt | 5.2.x | Stateless, scalable, industry standard |
+| Authentication | golang-jwt/jwt | 5.x | Stateless, scalable, industry standard |
 | Password Hashing | bcrypt (golang.org/x/crypto) | Latest | Secure password storage with configurable cost |
 | Validation | go-playground/validator | 10.x | Declarative validation, struct tags, custom validators |
 | Configuration | Viper | 1.x | Environment-based config, multiple formats support |
