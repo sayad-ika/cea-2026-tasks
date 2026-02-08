@@ -61,6 +61,7 @@ type LoggingConfig struct {
 type MealConfig struct {
 	CutoffTime     string
 	CutoffTimezone string
+	WeekendDays    []string // e.g., ["Saturday", "Sunday"]
 }
 
 // CleanupConfig holds history cleanup configuration
@@ -130,6 +131,7 @@ func LoadConfig() (*Config, error) {
 		Meal: MealConfig{
 			CutoffTime:     viper.GetString("MEAL_CUTOFF_TIME"),
 			CutoffTimezone: viper.GetString("MEAL_CUTOFF_TIMEZONE"),
+			WeekendDays:    parseCommaSeparated(viper.GetString("MEAL_WEEKEND_DAYS")),
 		},
 		Cleanup: CleanupConfig{
 			RetentionMonths: viper.GetInt("HISTORY_RETENTION_MONTHS"),
@@ -179,6 +181,7 @@ func setDefaults() {
 	// Meal defaults
 	viper.SetDefault("MEAL_CUTOFF_TIME", "11:00")
 	viper.SetDefault("MEAL_CUTOFF_TIMEZONE", "Asia/Dhaka")
+	viper.SetDefault("MEAL_WEEKEND_DAYS", "Saturday,Sunday")
 
 	// Cleanup defaults
 	viper.SetDefault("HISTORY_RETENTION_MONTHS", 3)
