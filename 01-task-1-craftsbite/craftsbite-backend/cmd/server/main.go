@@ -71,12 +71,13 @@ func main() {
 	scheduleRepo := repository.NewScheduleRepository(db)
 	bulkOptOutRepo := repository.NewBulkOptOutRepository(db)
 	historyRepo := repository.NewHistoryRepository(db)
+	teamRepo := repository.NewTeamRepository(db)
 
 	// Initialize services
 	authService := services.NewAuthService(userRepo, cfg)
 	userService := services.NewUserService(userRepo)
 	participationResolver := services.NewParticipationResolver(mealRepo, scheduleRepo, bulkOptOutRepo, userRepo, cfg)
-	mealService := services.NewMealService(mealRepo, scheduleRepo, historyRepo, userRepo, participationResolver, cfg)
+	mealService := services.NewMealService(mealRepo, scheduleRepo, historyRepo, userRepo, teamRepo, participationResolver, cfg)
 	scheduleService := services.NewScheduleService(scheduleRepo)
 	headcountService := services.NewHeadcountService(userRepo, scheduleRepo, participationResolver)
 
@@ -144,8 +145,8 @@ func main() {
 			meals.GET("/participation/:date", mealHandler.GetParticipationByDate)
 			meals.POST("/participation", mealHandler.SetParticipation)
 
-			// Admin only routes
-			meals.POST("/participation/override", middleware.RequireRoles(models.RoleAdmin), mealHandler.OverrideParticipation)
+			// Override routes - Admin, Team Lead, or Logistics
+			meals.POST("/participation/override", middleware.RequireRoles(models.RoleAdmin, models.RoleTeamLead, models.RoleLogistics), mealHandler.OverrideParticipation)
 		}
 
 		// Protected schedule routes (Admin only)
