@@ -67,14 +67,26 @@ func main() {
 
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(db)
+	mealRepo := repository.NewMealRepository(db)
+	scheduleRepo := repository.NewScheduleRepository(db)
+	bulkOptOutRepo := repository.NewBulkOptOutRepository(db)
+	historyRepo := repository.NewHistoryRepository(db)
+	teamRepo := repository.NewTeamRepository(db)
 
 	// Initialize services
 	authService := services.NewAuthService(userRepo, cfg)
 	userService := services.NewUserService(userRepo)
+	participationResolver := services.NewParticipationResolver(mealRepo, scheduleRepo, bulkOptOutRepo, userRepo, cfg)
+	mealService := services.NewMealService(mealRepo, scheduleRepo, historyRepo, userRepo, teamRepo, participationResolver, cfg)
+	scheduleService := services.NewScheduleService(scheduleRepo)
+	headcountService := services.NewHeadcountService(userRepo, scheduleRepo, participationResolver)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
 	userHandler := handlers.NewUserHandler(userService)
+	mealHandler := handlers.NewMealHandler(mealService)
+	scheduleHandler := handlers.NewScheduleHandler(scheduleService)
+	headcountHandler := handlers.NewHeadcountHandler(headcountService)
 
 	// Set Gin mode based on environment
 	if cfg.IsProduction() {
@@ -122,6 +134,43 @@ func main() {
 			// Admin or Self routes
 			users.GET("/:id", userHandler.GetUser)
 			users.PUT("/:id", userHandler.UpdateUser)
+		}
+
+		// Protected meal routes
+		meals := v1.Group("/meals")
+		meals.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+		{
+			// User routes - any authenticated user
+			meals.GET("/today", mealHandler.GetTodayMeals)
+			meals.GET("/participation/:date", mealHandler.GetParticipationByDate)
+			meals.POST("/participation", mealHandler.SetParticipation)
+
+			// Override routes - Admin, Team Lead, or Logistics
+			meals.POST("/participation/override", middleware.RequireRoles(models.RoleAdmin, models.RoleTeamLead, models.RoleLogistics), mealHandler.OverrideParticipation)
+		}
+
+		// Protected schedule routes (Admin only)
+		schedules := v1.Group("/schedules")
+		schedules.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+		{
+			// Read routes - all authenticated users
+			schedules.GET("/:date", scheduleHandler.GetSchedule)
+			schedules.GET("/range", scheduleHandler.GetScheduleRange)
+
+			// Write routes - admin only
+			schedules.POST("", middleware.RequireRoles(models.RoleAdmin), scheduleHandler.CreateSchedule)
+			schedules.PUT("/:date", middleware.RequireRoles(models.RoleAdmin), scheduleHandler.UpdateSchedule)
+			schedules.DELETE("/:date", middleware.RequireRoles(models.RoleAdmin), scheduleHandler.DeleteSchedule)
+		}
+
+		// Protected headcount routes (Admin only)
+		headcount := v1.Group("/headcount")
+		headcount.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+		headcount.Use(middleware.RequireRoles(models.RoleAdmin))
+		{
+			headcount.GET("/today", headcountHandler.GetTodayHeadcount)
+			headcount.GET("/:date", headcountHandler.GetHeadcountByDate)
+			headcount.GET("/:date/:meal_type", headcountHandler.GetDetailedHeadcount)
 		}
 	}
 

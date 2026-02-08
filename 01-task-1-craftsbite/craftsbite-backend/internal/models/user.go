@@ -17,6 +17,9 @@ type User struct {
 	DefaultMealPreference string    `gorm:"type:varchar(20);not null;default:'opt_in'" json:"default_meal_preference"`
 	CreatedAt             time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt             time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+
+	// Relationships
+	Teams []Team `gorm:"many2many:team_members" json:"teams,omitempty"` // Many-to-many: user can belong to multiple teams
 }
 
 // TableName specifies the table name for GORM
