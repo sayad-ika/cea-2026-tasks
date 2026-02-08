@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // MealRepository defines the interface for meal participation data access
@@ -29,22 +28,32 @@ func NewMealRepository(db *gorm.DB) MealRepository {
 
 // CreateOrUpdate creates or updates a meal participation (upsert)
 func (r *mealRepository) CreateOrUpdate(participation *models.MealParticipation) error {
-	// Use GORM's Clauses with OnConflict to handle upsert
-	// The unique constraint is on (user_id, date, meal_type)
-	err := r.db.Clauses(clause.OnConflict{
-		Columns: []clause.Column{
-			{Name: "user_id"},
-			{Name: "date"},
-			{Name: "meal_type"},
-		},
-		DoUpdates: clause.AssignmentColumns([]string{
-			"is_participating",
-			"opted_out_at",
-			"override_by",
-			"override_reason",
-			"updated_at",
-		}),
-	}).Create(participation).Error
+	// Check if this is a new record (ID will be set if existing record)
+	var existing models.MealParticipation
+	err := r.db.Where("id = ?", participation.ID).First(&existing).Error
+
+	switch err {
+	case gorm.ErrRecordNotFound:
+		// New record - use map to explicitly set all values including false booleans
+		err = r.db.Table("meal_participations").Create(map[string]interface{}{
+			"id":               participation.ID,
+			"user_id":          participation.UserID,
+			"date":             participation.Date,
+			"meal_type":        participation.MealType,
+			"is_participating": participation.IsParticipating,
+			"opted_out_at":     participation.OptedOutAt,
+			"override_by":      participation.OverrideBy,
+			"override_reason":  participation.OverrideReason,
+		}).Error
+	case nil:
+		// Existing record - use map to explicitly update all fields
+		err = r.db.Table("meal_participations").Where("id = ?", participation.ID).Updates(map[string]interface{}{
+			"is_participating": participation.IsParticipating,
+			"opted_out_at":     participation.OptedOutAt,
+			"override_by":      participation.OverrideBy,
+			"override_reason":  participation.OverrideReason,
+		}).Error
+	}
 
 	if err != nil {
 		return fmt.Errorf("failed to create or update meal participation: %w", err)
