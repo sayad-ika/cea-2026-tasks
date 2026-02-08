@@ -1,10 +1,23 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"craftsbite-backend/internal/config"
+	"craftsbite-backend/internal/database"
+	"craftsbite-backend/internal/handlers"
+	"craftsbite-backend/internal/middleware"
+	"craftsbite-backend/internal/models"
+	"craftsbite-backend/internal/repository"
+	"craftsbite-backend/internal/services"
+	"craftsbite-backend/pkg/logger"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,6 +28,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
+
+	// Initialize logger
+	logFormat := "console"
+	if cfg.IsProduction() {
+		logFormat = "json"
+	}
+	if err := logger.Init(cfg.Logging.Level, logFormat); err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer logger.Sync()
 
 	// Print configuration (for verification during development)
 	if cfg.IsDevelopment() {
@@ -32,39 +55,105 @@ func main() {
 		fmt.Printf("JWT Expiration: %s\n", cfg.JWT.Expiration)
 		fmt.Printf("CORS Allowed Origins: %v\n", cfg.CORS.AllowedOrigins)
 		fmt.Printf("Log Level: %s\n", cfg.Logging.Level)
-		fmt.Printf("Meal Cutoff Time: %s (%s)\n", cfg.Meal.CutoffTime, cfg.Meal.CutoffTimezone)
-		fmt.Printf("History Retention: %d months\n", cfg.Cleanup.RetentionMonths)
-		fmt.Printf("Rate Limiting: %t (%d req/min)\n", cfg.RateLimit.Enabled, cfg.RateLimit.RequestsPerMinute)
 		fmt.Println("=================================\n")
 	}
+
+	// Initialize database
+	db, err := database.Connect(&cfg.Database)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer database.Close(db)
+
+	// Initialize repositories
+	userRepo := repository.NewUserRepository(db)
+
+	// Initialize services
+	authService := services.NewAuthService(userRepo, cfg)
+	userService := services.NewUserService(userRepo)
+
+	// Initialize handlers
+	authHandler := handlers.NewAuthHandler(authService)
+	userHandler := handlers.NewUserHandler(userService)
 
 	// Set Gin mode based on environment
 	if cfg.IsProduction() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	// Initialize router
-	router := gin.Default()
+	// Initialize router without default middleware
+	router := gin.New()
 
-	// Basic ping endpoint
-	router.GET("/ping", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "pong",
-		})
-	})
+	// Apply global middleware in order
+	router.Use(middleware.RecoveryMiddleware())
+	router.Use(middleware.RequestIDMiddleware())
+	router.Use(middleware.LoggerMiddleware())
+	router.Use(middleware.CORSMiddleware(cfg.CORS.AllowedOrigins))
+
+	// Health check endpoint (public)
+	router.GET("/health", healthCheck(cfg))
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
 	{
-		v1.GET("/health", healthCheck(cfg))
+		// Public auth routes
+		auth := v1.Group("/auth")
+		{
+			auth.POST("/login", authHandler.Login)
+		}
+
+		// Protected auth routes
+		authProtected := v1.Group("/auth")
+		authProtected.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+		{
+			authProtected.GET("/me", authHandler.GetCurrentUser)
+			authProtected.POST("/logout", authHandler.Logout)
+		}
+
+		// Protected user routes
+		users := v1.Group("/users")
+		users.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+		{
+			// Admin only routes
+			users.GET("", middleware.RequireRoles(models.RoleAdmin), userHandler.ListUsers)
+			users.POST("", middleware.RequireRoles(models.RoleAdmin), userHandler.CreateUser)
+			users.DELETE("/:id", middleware.RequireRoles(models.RoleAdmin), userHandler.DeactivateUser)
+
+			// Admin or Self routes
+			users.GET("/:id", userHandler.GetUser)
+			users.PUT("/:id", userHandler.UpdateUser)
+		}
 	}
 
-	// Start server
-	addr := cfg.Server.GetServerAddress()
-	log.Printf("Starting CraftsBite API server on %s", addr)
-	if err := router.Run(addr); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+	// Create HTTP server
+	srv := &http.Server{
+		Addr:    cfg.Server.GetServerAddress(),
+		Handler: router,
 	}
+
+	// Start server in a goroutine
+	go func() {
+		logger.Info(fmt.Sprintf("Starting CraftsBite API server on %s", srv.Addr))
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Failed to start server: %v", err)
+		}
+	}()
+
+	// Wait for interrupt signal to gracefully shutdown the server
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	logger.Info("Shutting down server...")
+
+	// Graceful shutdown with 5 second timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("Server forced to shutdown: %v", err)
+	}
+
+	logger.Info("Server exited")
 }
 
 func healthCheck(cfg *config.Config) gin.HandlerFunc {

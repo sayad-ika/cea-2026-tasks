@@ -63,3 +63,9 @@ Thumbs.db
 # Database
 *.db
 *.sqlite
+
+
+### Git Ignore for AI tools
+
+# AI agent configuration and data
+.agent
