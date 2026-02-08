@@ -68,7 +68,7 @@ func (h *MealHandler) GetParticipationByDate(c *gin.Context) {
 type SetParticipationRequest struct {
 	Date          string `json:"date" binding:"required"`
 	MealType      string `json:"meal_type" binding:"required"`
-	Participating bool   `json:"participating"`
+	Participating *bool  `json:"participating" binding:"required"`
 }
 
 // SetParticipation sets or updates a user's participation
@@ -88,8 +88,8 @@ func (h *MealHandler) SetParticipation(c *gin.Context) {
 		return
 	}
 
-	// Set participation
-	err := h.mealService.SetParticipation(userID.(string), req.Date, req.MealType, req.Participating)
+	// Set participation (dereference the pointer)
+	err := h.mealService.SetParticipation(userID.(string), req.Date, req.MealType, *req.Participating)
 	if err != nil {
 		utils.ErrorResponse(c, 400, "SET_PARTICIPATION_ERROR", err.Error())
 		return
@@ -103,7 +103,7 @@ type OverrideParticipationRequest struct {
 	UserID        string `json:"user_id" binding:"required"`
 	Date          string `json:"date" binding:"required"`
 	MealType      string `json:"meal_type" binding:"required"`
-	Participating bool   `json:"participating"`
+	Participating *bool  `json:"participating" binding:"required"`
 	Reason        string `json:"reason" binding:"required"`
 }
 
@@ -124,13 +124,13 @@ func (h *MealHandler) OverrideParticipation(c *gin.Context) {
 		return
 	}
 
-	// Override participation
+	// Override participation (dereference the pointer)
 	err := h.mealService.OverrideParticipation(
 		adminID.(string),
 		req.UserID,
 		req.Date,
 		req.MealType,
-		req.Participating,
+		*req.Participating,
 		req.Reason,
 	)
 	if err != nil {
