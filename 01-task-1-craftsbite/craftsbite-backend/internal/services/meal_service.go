@@ -39,6 +39,7 @@ type mealService struct {
 	scheduleRepo   repository.ScheduleRepository
 	historyRepo    repository.HistoryRepository
 	userRepo       repository.UserRepository
+	teamRepo       repository.TeamRepository
 	resolver       ParticipationResolver
 	cutoffTime     string
 	cutoffTimezone string
@@ -50,6 +51,7 @@ func NewMealService(
 	scheduleRepo repository.ScheduleRepository,
 	historyRepo repository.HistoryRepository,
 	userRepo repository.UserRepository,
+	teamRepo repository.TeamRepository,
 	resolver ParticipationResolver,
 	cfg *config.Config,
 ) MealService {
@@ -58,6 +60,7 @@ func NewMealService(
 		scheduleRepo:   scheduleRepo,
 		historyRepo:    historyRepo,
 		userRepo:       userRepo,
+		teamRepo:       teamRepo,
 		resolver:       resolver,
 		cutoffTime:     cfg.Meal.CutoffTime,
 		cutoffTimezone: cfg.Meal.CutoffTimezone,
@@ -203,18 +206,37 @@ func (s *mealService) SetParticipation(userID, date, mealType string, participat
 	return s.historyRepo.Create(history)
 }
 
-// OverrideParticipation allows an admin to override a user's participation
-func (s *mealService) OverrideParticipation(adminID, userID, date, mealType string, participating bool, reason string) error {
+// OverrideParticipation allows an admin or team lead to override a user's participation
+// Team leads can only override their own team members
+func (s *mealService) OverrideParticipation(requesterID, userID, date, mealType string, participating bool, reason string) error {
 	// Validate date format
 	if _, err := time.Parse("2006-01-02", date); err != nil {
 		return fmt.Errorf("invalid date format, expected YYYY-MM-DD: %w", err)
 	}
 
-	// Parse admin UUID
-	adminUUID, err := uuid.Parse(adminID)
+	// Parse requester UUID
+	requesterUUID, err := uuid.Parse(requesterID)
 	if err != nil {
-		return fmt.Errorf("invalid admin ID: %w", err)
+		return fmt.Errorf("invalid requester ID: %w", err)
 	}
+
+	// Get requester's role to validate permissions
+	requester, err := s.userRepo.FindByID(requesterID)
+	if err != nil {
+		return fmt.Errorf("failed to find requester: %w", err)
+	}
+
+	// If requester is a team lead, verify they manage the target user
+	if requester.Role == models.RoleTeamLead {
+		isMember, err := s.teamRepo.IsUserInAnyTeamLedBy(requesterID, userID)
+		if err != nil {
+			return fmt.Errorf("failed to check team membership: %w", err)
+		}
+		if !isMember {
+			return fmt.Errorf("team lead can only override participation for their own team members")
+		}
+	}
+	// Admin and Logistics roles can override anyone (no additional check needed)
 
 	// Check if existing record exists to get its ID for proper upsert
 	existing, err := s.mealRepo.FindByUserDateMeal(userID, date, mealType)
@@ -236,7 +258,7 @@ func (s *mealService) OverrideParticipation(adminID, userID, date, mealType stri
 		Date:            date,
 		MealType:        models.MealType(mealType),
 		IsParticipating: participating,
-		OverrideBy:      &adminUUID,
+		OverrideBy:      &requesterUUID,
 		OverrideReason:  &reason,
 	}
 
@@ -256,7 +278,7 @@ func (s *mealService) OverrideParticipation(adminID, userID, date, mealType stri
 		Date:            date,
 		MealType:        models.MealType(mealType),
 		Action:          action,
-		ChangedByUserID: &adminUUID,
+		ChangedByUserID: &requesterUUID,
 	}
 
 	return s.historyRepo.Create(history)
