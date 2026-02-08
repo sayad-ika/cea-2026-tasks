@@ -32,7 +32,8 @@ func (r *mealRepository) CreateOrUpdate(participation *models.MealParticipation)
 	var existing models.MealParticipation
 	err := r.db.Where("id = ?", participation.ID).First(&existing).Error
 
-	if err == gorm.ErrRecordNotFound {
+	switch err {
+	case gorm.ErrRecordNotFound:
 		// New record - use map to explicitly set all values including false booleans
 		err = r.db.Table("meal_participations").Create(map[string]interface{}{
 			"id":               participation.ID,
@@ -44,7 +45,7 @@ func (r *mealRepository) CreateOrUpdate(participation *models.MealParticipation)
 			"override_by":      participation.OverrideBy,
 			"override_reason":  participation.OverrideReason,
 		}).Error
-	} else if err == nil {
+	case nil:
 		// Existing record - use map to explicitly update all fields
 		err = r.db.Table("meal_participations").Where("id = ?", participation.ID).Updates(map[string]interface{}{
 			"is_participating": participation.IsParticipating,

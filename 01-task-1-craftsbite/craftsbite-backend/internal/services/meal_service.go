@@ -216,9 +216,22 @@ func (s *mealService) OverrideParticipation(adminID, userID, date, mealType stri
 		return fmt.Errorf("invalid admin ID: %w", err)
 	}
 
+	// Check if existing record exists to get its ID for proper upsert
+	existing, err := s.mealRepo.FindByUserDateMeal(userID, date, mealType)
+	if err != nil {
+		return fmt.Errorf("failed to check existing participation: %w", err)
+	}
+
 	// Create or update participation record with override info
+	var participationID uuid.UUID
+	if existing != nil {
+		participationID = existing.ID // Reuse existing ID for UPDATE
+	} else {
+		participationID = uuid.New() // New ID for INSERT
+	}
+
 	participation := &models.MealParticipation{
-		ID:              uuid.New(),
+		ID:              participationID,
 		UserID:          uuid.MustParse(userID),
 		Date:            date,
 		MealType:        models.MealType(mealType),
