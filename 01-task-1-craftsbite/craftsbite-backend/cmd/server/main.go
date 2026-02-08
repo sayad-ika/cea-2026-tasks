@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"log"
 
-	"craftsbite-backend/config"
+	"craftsbite-backend/internal/config"
 
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
 	// Load configuration
-	cfg, err := config.Load()
+	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
@@ -27,7 +27,7 @@ func main() {
 			cfg.Database.User,
 			cfg.Database.Host,
 			cfg.Database.Port,
-			cfg.Database.DBName,
+			cfg.Database.Name,
 		)
 		fmt.Printf("JWT Expiration: %s\n", cfg.JWT.Expiration)
 		fmt.Printf("CORS Allowed Origins: %v\n", cfg.CORS.AllowedOrigins)
