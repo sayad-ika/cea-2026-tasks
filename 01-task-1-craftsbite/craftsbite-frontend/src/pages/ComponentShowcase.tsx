@@ -12,6 +12,9 @@ import {
     Header,
     Navbar,
     BottomActionButtons,
+    Footer,
+    Dropdown,
+    InteractiveCard,
     type MealType,
 } from '../components';
 
@@ -23,6 +26,7 @@ export const ComponentShowcase: React.FC = () => {
     const [notifyKitchen, setNotifyKitchen] = useState(false);
     const [activeNavItem, setActiveNavItem] = useState('dashboard');
     const [isDarkMode, setIsDarkMode] = useState(false);
+    const [selectedDepartment, setSelectedDepartment] = useState('engineering');
 
 
     // Sample meal data
@@ -345,6 +349,100 @@ export const ComponentShowcase: React.FC = () => {
                                 },
                             ]}
                         />
+                    </div>
+                </section>
+
+                {/* Dropdown Component Section */}
+                <section>
+                    <div className="mb-6">
+                        <h2 className="text-2xl font-bold text-[var(--color-background-dark)] mb-2">
+                            Dropdown
+                        </h2>
+                        <p className="text-[var(--color-text-sub)]">
+                            Claymorphism-styled dropdown with smooth animations and hover effects
+                        </p>
+                    </div>
+                    <div
+                        className="bg-white/40 rounded-3xl p-8 border border-white/60"
+                        style={{ boxShadow: 'var(--shadow-clay-inset)' }}
+                    >
+                        <Dropdown
+                            label="Department"
+                            value={selectedDepartment}
+                            onChange={setSelectedDepartment}
+                            options={[
+                                { id: '1', label: 'Design', value: 'design' },
+                                { id: '2', label: 'Engineering', value: 'engineering' },
+                                { id: '3', label: 'Marketing', value: 'marketing' },
+                                { id: '4', label: 'Human Resources', value: 'hr' },
+                            ]}
+                        />
+                        <div className="mt-4 text-sm text-[var(--color-text-sub)] text-center">
+                            Selected: <span className="font-bold text-[var(--color-primary)]">{selectedDepartment}</span>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Interactive Card Component Section */}
+                <section>
+                    <div className="mb-6">
+                        <h2 className="text-2xl font-bold text-[var(--color-background-dark)] mb-2">
+                            Interactive Card
+                        </h2>
+                        <p className="text-[var(--color-text-sub)]">
+                            Clickable card with lift animation on hover for selection grids
+                        </p>
+                    </div>
+                    <div
+                        className="bg-white/40 rounded-3xl p-8 border border-white/60"
+                        style={{ boxShadow: 'var(--shadow-clay-inset)' }}
+                    >
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <InteractiveCard
+                                icon={<span className="material-symbols-outlined text-3xl">local_cafe</span>}
+                                title="Snack Bar"
+                                description="Grab a quick bite or coffee from the pantry."
+                                buttonLabel="View Menu"
+                                onButtonClick={() => console.log('Snack Bar menu clicked')}
+                                onClick={() => console.log('Snack Bar card clicked')}
+                            />
+                            <InteractiveCard
+                                icon={<span className="material-symbols-outlined text-3xl">restaurant</span>}
+                                iconColor="#22c55e"
+                                iconBgColor="#dcfce7"
+                                title="Main Dining"
+                                description="Full course meals prepared by our chefs."
+                                buttonLabel="Reserve"
+                                onButtonClick={() => console.log('Main Dining reserve clicked')}
+                            />
+                            <InteractiveCard
+                                icon={<span className="material-symbols-outlined text-3xl">fastfood</span>}
+                                iconColor="#8b5cf6"
+                                iconBgColor="#ede9fe"
+                                title="Quick Bites"
+                                description="Fast and delicious options on the go."
+                                buttonLabel="Order Now"
+                                onButtonClick={() => console.log('Quick Bites order clicked')}
+                            />
+                        </div>
+                    </div>
+                </section>
+
+                {/* Footer Component Section */}
+                <section>
+                    <div className="mb-6">
+                        <h2 className="text-2xl font-bold text-[var(--color-background-dark)] mb-2">
+                            Footer
+                        </h2>
+                        <p className="text-[var(--color-text-sub)]">
+                            Application footer with brand, copyright, and navigation links
+                        </p>
+                    </div>
+                    <div
+                        className="bg-white/40 rounded-3xl border border-white/60 overflow-hidden"
+                        style={{ boxShadow: 'var(--shadow-clay-inset)' }}
+                    >
+                        <Footer />
                     </div>
                 </section>
 
