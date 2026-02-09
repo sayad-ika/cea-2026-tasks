@@ -1,1 +1,48 @@
 @import "tailwindcss";
+
+@theme {
+    /* Color Palette - Claymorphism Orange Theme */
+    --color-primary: #fa8c47;
+    --color-background-light: #fff5e6;
+    --color-background-dark: #23170f;
+    --color-clay-light: #ffffff;
+    --color-clay-shadow: #e6dccf;
+    --color-text-main: #4a4a4a;
+    --color-text-sub: #8c705f;
+    --color-footer-text: #636e72;
+
+    /* Additional semantic colors */
+    --color-clay-shadow-dark: #d1c0b0;
+    --color-emoji-breakfast: #fff9e6;
+    --color-emoji-lunch: #fff0e6;
+    --color-emoji-dinner: #ffe6e6;
+
+    /* Font Family */
+    --font-family-display: "Inter", sans-serif;
+
+    /* Custom Box Shadows - Claymorphism */
+    --shadow-clay: 20px 20px 60px #e6dccf, -20px -20px 60px #ffffff;
+    --shadow-clay-inset: inset 6px 6px 12px #e6dccf, inset -6px -6px 12px #ffffff;
+    --shadow-clay-button: 8px 8px 16px #e6dccf, -8px -8px 16px #ffffff;
+    --shadow-clay-button-active: inset 4px 4px 8px #d1c0b0, inset -4px -4px 8px #ffffff;
+}
+
+/* Custom scrollbar styling */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--color-primary);
+    border-radius: 4px;
+}
+
+/* Body default styles */
+body {
+    background-color: var(--color-background-light);
+    font-family: var(--font-family-display);
+}
