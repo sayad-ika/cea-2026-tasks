@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Header, Footer, EmployeeMenuCard, LoadingSpinner } from '../components';
+import { Header, Footer, EmployeeMenuCard, LoadingSpinner, Navbar } from '../components';
 import type { MealType as MealTypeEnum } from '../types';
 import type { MealType } from '../components/cards/EmployeeMenuCard';
 import * as mealService from '../services/mealService';
@@ -120,7 +120,7 @@ export const Home: React.FC = () => {
                 onThemeToggle={() => { }}
                 isDarkMode={false}
             />
-
+            <Navbar />
             {/* Main Content */}
             <main className="flex-grow container mx-auto px-6 py-8 md:px-12 flex flex-col justify-center">
                 {/* Page Title */}

@@ -7,7 +7,7 @@ export interface MealType {
 }
 
 // Updated Component
-interface EmployeeMenuCardProps {
+export interface EmployeeMenuCardProps {
     meal: MealType;
     onToggle: (mealType: string) => void;
 }

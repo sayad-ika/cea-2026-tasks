@@ -49,7 +49,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     };
 
     return (
-        <div className="w-full mb-10 border-b border-[#e6dccf] relative">
+        <div className="w-full mb-10 border-b border-[#e6dccf] relative px-12">
             <nav aria-label="Tabs" className="flex gap-8 overflow-x-auto no-scrollbar">
                 {items.map((item) => {
                     const isActive = item.id === activeItemId;
@@ -79,8 +79,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                             {/* Active/Hover Underline */}
                             <span
                                 className={`absolute bottom-0 left-0 w-full h-0.5 bg-[#fa8c47] rounded-t-full transition-transform duration-200 origin-left ${isActive
-                                        ? ''
-                                        : 'scale-x-0 group-hover:scale-x-100'
+                                    ? ''
+                                    : 'scale-x-0 group-hover:scale-x-100'
                                     }`}
                             />
                         </a>
