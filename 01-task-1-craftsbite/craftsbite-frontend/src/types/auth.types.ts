@@ -19,8 +19,17 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
-    token: string;
-    user: User;
+    success: string;
+    data: {
+        token: string,
+        user: {
+            id: string,
+            employee_id: string,
+            name: string,
+            role: string,
+        }
+    },
+    message: string
 }
 
 export interface AuthState {
