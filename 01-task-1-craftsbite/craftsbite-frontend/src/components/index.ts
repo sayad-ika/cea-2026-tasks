@@ -27,3 +27,12 @@ export type { NavbarProps, NavItem } from './Navbar';
 
 export { BottomActionButtons } from './BottomActionButtons';
 export type { BottomActionButtonsProps, ActionButton } from './BottomActionButtons';
+
+export { Footer } from './Footer';
+export type { FooterProps, FooterLink } from './Footer';
+
+export { Dropdown } from './Dropdown';
+export type { DropdownProps, DropdownOption } from './Dropdown';
+
+export { InteractiveCard } from './InteractiveCard';
+export type { InteractiveCardProps } from './InteractiveCard';
