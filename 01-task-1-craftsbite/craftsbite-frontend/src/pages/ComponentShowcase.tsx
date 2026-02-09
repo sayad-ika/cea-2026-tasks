@@ -34,28 +34,19 @@ export const ComponentShowcase: React.FC = () => {
     // Sample meal data
     const meals: MealType[] = [
         {
-            id: 'breakfast',
-            name: 'Breakfast',
-            emoji: '🥞',
-            timeRange: '07:00 AM - 10:00 AM',
-            isOptedIn: true,
-            backgroundColor: '#fff9e6',
+            meal_type: 'lunch',
+            is_participating: true,
+            opted_out_at: null,
         },
         {
-            id: 'lunch',
-            name: 'Lunch',
-            emoji: '🍱',
-            timeRange: '12:00 PM - 02:00 PM',
-            isOptedIn: true,
-            backgroundColor: '#fff0e6',
+            meal_type: 'snacks',
+            is_participating: true,
+            opted_out_at: null,
         },
         {
-            id: 'dinner',
-            name: 'Dinner',
-            emoji: '🍝',
-            timeRange: '07:00 PM - 09:00 PM',
-            isOptedIn: false,
-            backgroundColor: '#ffe6e6',
+            meal_type: 'optional_dinner',
+            is_participating: false,
+            opted_out_at: new Date().toISOString(),
         },
     ];
 
@@ -243,7 +234,7 @@ export const ComponentShowcase: React.FC = () => {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                         {meals.map((meal) => (
-                            <EmployeeMenuCard key={meal.id} meal={meal} onToggle={handleMealToggle} />
+                            <EmployeeMenuCard meal={meal} onToggle={handleMealToggle} />
                         ))}
                     </div>
                 </section>
