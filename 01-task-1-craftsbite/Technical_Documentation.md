@@ -4,7 +4,7 @@
 **Version:** 2.1
 **Date:** February 6, 2026
 **Last Updated:** February 9, 2026
-**Author:** Lead Software Architect
+**Author:** Sayad Ibn Khairul Alam
 **Project Status:** Iteration 1 - Enhanced Development (with User Preference & History Features)
 
 ---
