@@ -4,13 +4,20 @@ import { useAuth } from '../contexts/AuthContext';
 
 export const Login: React.FC = () => {
     const navigate = useNavigate();
-    const { login, isLoading } = useAuth();
+    const { login, isLoading, isAuthenticated } = useAuth();
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [emailError, setEmailError] = useState('');
     const [passwordError, setPasswordError] = useState('');
+
+    // Redirect if already authenticated
+    React.useEffect(() => {
+        if (isAuthenticated) {
+            navigate('/home');
+        }
+    }, [isAuthenticated, navigate]);
 
     // Email validation
     const validateEmail = (email: string): boolean => {
