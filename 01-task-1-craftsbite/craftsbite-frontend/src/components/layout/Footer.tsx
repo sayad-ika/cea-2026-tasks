@@ -25,8 +25,8 @@ const defaultLinks: FooterLink[] = [
  */
 export const Footer: React.FC<FooterProps> = ({
     brandName = 'CraftsBite',
-    copyrightYear = '2023',
-    companyName = 'CraftsBite Inc.',
+    copyrightYear = '2026',
+    companyName = 'Craftsmen Ltd.',
     links = defaultLinks,
     className = '',
 }) => {
