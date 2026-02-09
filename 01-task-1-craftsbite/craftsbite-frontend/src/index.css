@@ -69,3 +69,14 @@ body {
     background-color: var(--color-background-light);
     font-family: var(--font-family-display);
 }
+
+/* Shimmer animation for skeleton loading */
+@keyframes shimmer {
+    0% {
+        background-position: -1000px 0;
+    }
+
+    100% {
+        background-position: 1000px 0;
+    }
+}
