@@ -17,14 +17,34 @@
     --color-emoji-lunch: #fff0e6;
     --color-emoji-dinner: #ffe6e6;
 
+    /* Button specific colors */
+    --color-primary-dark: #e57a36;
+    --color-danger: #ef4444;
+    --color-danger-gradient-start: #ff7575;
+    --color-danger-gradient-end: #d12e2e;
+
     /* Font Family */
     --font-family-display: "Inter", sans-serif;
 
     /* Custom Box Shadows - Claymorphism */
     --shadow-clay: 20px 20px 60px #e6dccf, -20px -20px 60px #ffffff;
+    --shadow-clay-md: 10px 10px 20px #e6dccf, -10px -10px 20px #ffffff;
     --shadow-clay-inset: inset 6px 6px 12px #e6dccf, inset -6px -6px 12px #ffffff;
     --shadow-clay-button: 8px 8px 16px #e6dccf, -8px -8px 16px #ffffff;
+    --shadow-clay-button-hover: 10px 10px 20px #e6dccf, -10px -10px 20px #ffffff;
     --shadow-clay-button-active: inset 4px 4px 8px #d1c0b0, inset -4px -4px 8px #ffffff;
+
+    /* Danger-specific shadows */
+    --shadow-clay-danger: 8px 8px 16px #ffcccc, -8px -8px 16px #ffffff;
+    --shadow-clay-danger-hover: 10px 10px 20px #ffcccc, -10px -10px 20px #ffffff;
+    --shadow-clay-danger-active: inset 4px 4px 8px #a62424, inset -4px -4px 8px #ff9999;
+
+    /* Primary button shadows */
+    --shadow-primary-active: inset 4px 4px 8px #c26629, inset -4px -4px 8px #ffb275;
+
+    /* Icon button shadows */
+    --shadow-icon-button: 6px 6px 12px #e6dccf, -6px -6px 12px #ffffff;
+    --shadow-icon-button-active: inset 3px 3px 6px #c26629, inset -3px -3px 6px #ffb275;
 }
 
 /* Custom scrollbar styling */
