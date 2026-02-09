@@ -81,12 +81,30 @@ func main() {
 	scheduleService := services.NewScheduleService(scheduleRepo)
 	headcountService := services.NewHeadcountService(userRepo, scheduleRepo, participationResolver)
 
+	// Phase 4: Initialize advanced feature services
+	preferenceService := services.NewPreferenceService(userRepo, historyRepo)
+	bulkOptOutService := services.NewBulkOptOutService(bulkOptOutRepo, historyRepo)
+	historyService := services.NewHistoryService(historyRepo)
+
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
 	userHandler := handlers.NewUserHandler(userService)
 	mealHandler := handlers.NewMealHandler(mealService)
 	scheduleHandler := handlers.NewScheduleHandler(scheduleService)
 	headcountHandler := handlers.NewHeadcountHandler(headcountService)
+
+	// Phase 4: Initialize advanced feature handlers
+	preferenceHandler := handlers.NewPreferenceHandler(preferenceService)
+	bulkOptOutHandler := handlers.NewBulkOptOutHandler(bulkOptOutService)
+	historyHandler := handlers.NewHistoryHandler(historyService)
+
+	// Phase 4: Initialize cleanup job
+	// cleanupJob := jobs.NewCleanupJob(historyRepo, cfg.Cleanup.RetentionMonths)
+	// cleanupScheduler, err := cleanupJob.StartScheduler(cfg.Cleanup.CronSchedule)
+	// if err != nil {
+	// 	log.Printf("Warning: Failed to start cleanup scheduler: %v", err)
+	// }
+	// defer jobs.StopScheduler(cleanupScheduler)
 
 	// Set Gin mode based on environment
 	if cfg.IsProduction() {
@@ -134,6 +152,10 @@ func main() {
 			// Admin or Self routes
 			users.GET("/:id", userHandler.GetUser)
 			users.PUT("/:id", userHandler.UpdateUser)
+
+			// Phase 4: User preferences routes
+			users.GET("/me/preferences", preferenceHandler.GetPreferences)
+			users.PUT("/me/preferences", preferenceHandler.UpdatePreferences)
 		}
 
 		// Protected meal routes
@@ -147,6 +169,15 @@ func main() {
 
 			// Override routes - Admin, Team Lead, or Logistics
 			meals.POST("/participation/override", middleware.RequireRoles(models.RoleAdmin, models.RoleTeamLead, models.RoleLogistics), mealHandler.OverrideParticipation)
+
+			// Phase 4: Bulk opt-out routes
+			meals.GET("/bulk-optouts", bulkOptOutHandler.GetBulkOptOuts)
+			meals.POST("/bulk-optouts", bulkOptOutHandler.CreateBulkOptOut)
+			meals.DELETE("/bulk-optouts/:id", bulkOptOutHandler.DeleteBulkOptOut)
+
+			// Phase 4: History routes
+			meals.GET("/history", historyHandler.GetHistory)
+			meals.GET("/participation-audit", historyHandler.GetAuditTrail)
 		}
 
 		// Protected schedule routes (Admin only)
@@ -171,6 +202,14 @@ func main() {
 			headcount.GET("/today", headcountHandler.GetTodayHeadcount)
 			headcount.GET("/:date", headcountHandler.GetHeadcountByDate)
 			headcount.GET("/:date/:meal_type", headcountHandler.GetDetailedHeadcount)
+		}
+
+		// Phase 4: Admin history routes
+		admin := v1.Group("/admin")
+		admin.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+		admin.Use(middleware.RequireRoles(models.RoleAdmin, models.RoleTeamLead))
+		{
+			admin.GET("/meals/history/:user_id", historyHandler.GetUserHistoryAdmin)
 		}
 	}
 
