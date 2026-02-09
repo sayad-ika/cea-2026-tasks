@@ -15,6 +15,8 @@ import {
     Footer,
     Dropdown,
     InteractiveCard,
+    StandardCard,
+    AccentBorderCard,
     type MealType,
 } from '../components';
 
@@ -425,6 +427,91 @@ export const ComponentShowcase: React.FC = () => {
                                 onButtonClick={() => console.log('Quick Bites order clicked')}
                             />
                         </div>
+                    </div>
+                </section>
+
+                {/* Standard Card Component Section */}
+                <section>
+                    <div className="mb-6">
+                        <h2 className="text-2xl font-bold text-[var(--color-background-dark)] mb-2">
+                            Standard Card
+                        </h2>
+                        <p className="text-[var(--color-text-sub)]">
+                            Base card style for static content groups like summaries or informational panels
+                        </p>
+                    </div>
+                    <div
+                        className="bg-white/40 rounded-3xl p-8 border border-white/60"
+                        style={{ boxShadow: 'var(--shadow-clay-inset)' }}
+                    >
+                        <StandardCard
+                            title="Nutritional Info"
+                            subtitle="Daily intake summary"
+                            icon={<span className="material-symbols-outlined">pie_chart</span>}
+                            iconBgColor="#f0f9ff"
+                            iconColor="#3b82f6"
+                        >
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm font-medium text-text-sub">Calories</span>
+                                    <span className="font-bold text-[#23170f]">2,100 kcal</span>
+                                </div>
+                                <div className="h-2 w-full bg-[#e6dccf] rounded-full overflow-hidden shadow-inner">
+                                    <div className="h-full bg-blue-400 w-3/4 rounded-full"></div>
+                                </div>
+                                <div className="flex justify-between items-center mt-2">
+                                    <span className="text-sm font-medium text-text-sub">Protein</span>
+                                    <span className="font-bold text-[#23170f]">120g</span>
+                                </div>
+                                <div className="h-2 w-full bg-[#e6dccf] rounded-full overflow-hidden shadow-inner">
+                                    <div className="h-full bg-green-400 w-1/2 rounded-full"></div>
+                                </div>
+                            </div>
+                        </StandardCard>
+                    </div>
+                </section>
+
+                {/* Accent Border Card Component Section */}
+                <section>
+                    <div className="mb-6">
+                        <h2 className="text-2xl font-bold text-[var(--color-background-dark)] mb-2">
+                            Accent Border Card
+                        </h2>
+                        <p className="text-[var(--color-text-sub)]">
+                            Highlighted state for active items or featured content with pulse indicator
+                        </p>
+                    </div>
+                    <div
+                        className="bg-white/40 rounded-3xl p-8 border border-white/60"
+                        style={{ boxShadow: 'var(--shadow-clay-inset)' }}
+                    >
+                        <AccentBorderCard
+                            title="Chef's Special"
+                            badge="TODAY"
+                            avatarUrl="https://lh3.googleusercontent.com/aida-public/AB6AXuDttB-Zd88STJy72M0f6YLArBV0Tl6JcqsbvalmTAy_8AywOe4phVL02tIDhmBzF_0en7PxQymXKbuWs2ZmYTeA5h17TdH_T0CECPuSQMs_7Cuslryyjv-n7bG8lVMl9tZ9EePyF-WJQamvjji2HePEm22UcTO3MIOqv41gtGMGEXGZtE6lDv86hD3Y70w-RcQCy8mfewQdK4dEh4csDJ4TTzjE1Y3UdYxTEheOhJC3ApTbqT-BpQDOsIb0KgRR7XtrQHCNGpthJvHv"
+                            avatarAlt="Chef Avatar"
+                            showPulse={true}
+                            footer={
+                                <div className="flex justify-between items-center">
+                                    <div className="flex -space-x-2">
+                                        <div className="w-8 h-8 rounded-full bg-gray-200 border-2 border-white"></div>
+                                        <div className="w-8 h-8 rounded-full bg-gray-300 border-2 border-white"></div>
+                                        <div className="w-8 h-8 rounded-full bg-gray-400 border-2 border-white flex items-center justify-center text-[10px] text-white font-bold">
+                                            +12
+                                        </div>
+                                    </div>
+                                    <button className="text-[#fa8c47] font-bold text-sm hover:underline">
+                                        Details
+                                    </button>
+                                </div>
+                            }
+                        >
+                            <div className="bg-[#FFF5E6] rounded-xl p-4 shadow-clay-inset mb-4">
+                                <p className="text-[#23170f] font-medium text-sm italic">
+                                    "Grilled Salmon with Asparagus"
+                                </p>
+                            </div>
+                        </AccentBorderCard>
                     </div>
                 </section>
 
