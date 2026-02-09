@@ -7,3 +7,6 @@ export type { ButtonProps, ButtonVariant, ButtonSize } from './Button';
 export { IconButton } from './IconButton';
 export type { IconButtonProps, IconButtonVariant, IconButtonShape } from './IconButton';
 
+export { MealModal } from './MealModal';
+export type { MealModalProps } from './MealModal';
+
