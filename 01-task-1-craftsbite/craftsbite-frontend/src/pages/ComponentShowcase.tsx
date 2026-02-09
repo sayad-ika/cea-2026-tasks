@@ -9,14 +9,21 @@ import {
     LoadingSpinner,
     MealCardSkeleton,
     MealOptOutModal,
+    Header,
+    Navbar,
+    BottomActionButtons,
     type MealType,
 } from '../components';
+
 
 export const ComponentShowcase: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isOptOutModalOpen, setIsOptOutModalOpen] = useState(false);
     const [showLoading, setShowLoading] = useState(false);
     const [notifyKitchen, setNotifyKitchen] = useState(false);
+    const [activeNavItem, setActiveNavItem] = useState('dashboard');
+    const [isDarkMode, setIsDarkMode] = useState(false);
+
 
     // Sample meal data
     const meals: MealType[] = [
@@ -249,6 +256,95 @@ export const ComponentShowcase: React.FC = () => {
                         <MealCardSkeleton />
                         <MealCardSkeleton />
                         <MealCardSkeleton />
+                    </div>
+                </section>
+
+                {/* Header Component Section */}
+                <section>
+                    <div className="mb-6">
+                        <h2 className="text-2xl font-bold text-[var(--color-background-dark)] mb-2">
+                            Header
+                        </h2>
+                        <p className="text-[var(--color-text-sub)]">
+                            Application header with logo, user info, theme toggle, and profile avatar
+                        </p>
+                    </div>
+                    <div
+                        className="bg-white/40 rounded-3xl p-8 border border-white/60"
+                        style={{ boxShadow: 'var(--shadow-clay-inset)' }}
+                    >
+                        <Header
+                            userName="Sarah Johnson"
+                            userRole="Software Engineer"
+                            isDarkMode={isDarkMode}
+                            onThemeToggle={() => setIsDarkMode(!isDarkMode)}
+                        />
+                    </div>
+                </section>
+
+                {/* Navbar Component Section */}
+                <section>
+                    <div className="mb-6">
+                        <h2 className="text-2xl font-bold text-[var(--color-background-dark)] mb-2">
+                            Navigation Bar
+                        </h2>
+                        <p className="text-[var(--color-text-sub)]">
+                            Tab-based navigation with smooth animations and hover effects
+                        </p>
+                    </div>
+                    <div
+                        className="bg-white/40 rounded-3xl p-8 border border-white/60"
+                        style={{ boxShadow: 'var(--shadow-clay-inset)' }}
+                    >
+                        <Navbar
+                            activeItemId={activeNavItem}
+                            onNavItemClick={(itemId) => {
+                                setActiveNavItem(itemId);
+                                console.log('Nav item clicked:', itemId);
+                            }}
+                        />
+                        <div className="mt-4 text-sm text-[var(--color-text-sub)] text-center">
+                            Current Active Tab: <span className="font-bold text-[var(--color-primary)]">{activeNavItem}</span>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Bottom Action Buttons Section */}
+                <section>
+                    <div className="mb-6">
+                        <h2 className="text-2xl font-bold text-[var(--color-background-dark)] mb-2">
+                            Bottom Action Buttons
+                        </h2>
+                        <p className="text-[var(--color-text-sub)]">
+                            Claymorphism-styled action buttons with icons and hover animations
+                        </p>
+                    </div>
+                    <div
+                        className="bg-white/40 rounded-3xl p-8 border border-white/60"
+                        style={{ boxShadow: 'var(--shadow-clay-inset)' }}
+                    >
+                        <BottomActionButtons
+                            buttons={[
+                                {
+                                    id: 'calendar',
+                                    label: 'View Calendar',
+                                    icon: 'calendar_month',
+                                    onClick: () => console.log('Calendar clicked'),
+                                },
+                                {
+                                    id: 'history',
+                                    label: 'History',
+                                    icon: 'history',
+                                    onClick: () => console.log('History clicked'),
+                                },
+                                {
+                                    id: 'preferences',
+                                    label: 'Preferences',
+                                    icon: 'settings',
+                                    onClick: () => console.log('Preferences clicked'),
+                                },
+                            ]}
+                        />
                     </div>
                 </section>
 
