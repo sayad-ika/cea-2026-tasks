@@ -197,10 +197,10 @@ func main() {
 			schedules.DELETE("/:date", middleware.RequireRoles(models.RoleAdmin), scheduleHandler.DeleteSchedule)
 		}
 
-		// Protected headcount routes (Admin only)
+		// Protected headcount routes (Admin and Logistics)
 		headcount := v1.Group("/headcount")
 		headcount.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
-		headcount.Use(middleware.RequireRoles(models.RoleAdmin))
+		headcount.Use(middleware.RequireRoles(models.RoleAdmin, models.RoleLogistics))
 		{
 			headcount.GET("/today", headcountHandler.GetTodayHeadcount)
 			headcount.GET("/:date", headcountHandler.GetHeadcountByDate)

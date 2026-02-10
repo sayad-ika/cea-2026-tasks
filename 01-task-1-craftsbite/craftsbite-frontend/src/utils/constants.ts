@@ -31,12 +31,13 @@ export const USER_ROLES: Record<UserRole, string> = {
 };
 
 // Cutoff Times (in 24-hour format HH:mm)
+// Cutoff is at 9:00 PM the day before — after 9 PM today, you can't change tomorrow's meals
 export const CUTOFF_TIMES: Record<MealType, string> = {
-    lunch: '10:00',
-    snacks: '14:00',
-    iftar: '16:00',
-    event_dinner: '14:00',
-    optional_dinner: '14:00',
+    lunch: '21:00',
+    snacks: '21:00',
+    iftar: '21:00',
+    event_dinner: '21:00',
+    optional_dinner: '21:00',
 };
 
 // Storage Keys
