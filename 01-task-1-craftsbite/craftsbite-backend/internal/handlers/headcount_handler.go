@@ -19,7 +19,7 @@ func NewHeadcountHandler(headcountService services.HeadcountService) *HeadcountH
 	}
 }
 
-// GetTodayHeadcount returns today's headcount summary
+// GetTodayHeadcount returns today's and tomorrow's headcount summary
 // GET /api/headcount/today
 func (h *HeadcountHandler) GetTodayHeadcount(c *gin.Context) {
 	summary, err := h.headcountService.GetTodayHeadcount()
@@ -28,7 +28,7 @@ func (h *HeadcountHandler) GetTodayHeadcount(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessResponse(c, 200, summary, "Today's headcount retrieved successfully")
+	utils.SuccessResponse(c, 200, summary, "Today's and tomorrow's headcount retrieved successfully")
 }
 
 // GetHeadcountByDate returns headcount summary for a specific date
