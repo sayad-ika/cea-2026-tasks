@@ -179,7 +179,7 @@ func setDefaults() {
 	viper.SetDefault("LOG_FORMAT", "json")
 
 	// Meal defaults
-	viper.SetDefault("MEAL_CUTOFF_TIME", "11:00")
+	viper.SetDefault("MEAL_CUTOFF_TIME", "21:00")
 	viper.SetDefault("MEAL_CUTOFF_TIMEZONE", "Asia/Dhaka")
 	viper.SetDefault("MEAL_WEEKEND_DAYS", "Saturday,Sunday")
 

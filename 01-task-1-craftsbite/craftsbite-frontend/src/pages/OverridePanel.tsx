@@ -23,9 +23,11 @@ export const OverridePanel: React.FC = () => {
 
     // Form state
     const [selectedUserId, setSelectedUserId] = useState('');
-    const [selectedDate, setSelectedDate] = useState(
-        new Date().toISOString().split('T')[0] // YYYY-MM-DD
-    );
+    const [selectedDate, setSelectedDate] = useState(() => {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        return tomorrow.toISOString().split('T')[0]; // YYYY-MM-DD
+    });
     const [selectedMealType, setSelectedMealType] = useState<MealTypeEnum>('lunch');
     const [participating, setParticipating] = useState(false);
     const [reason, setReason] = useState('');
