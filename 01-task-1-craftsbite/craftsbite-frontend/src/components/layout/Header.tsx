@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { ProfileDropdown } from './ProfileDropdown';
 
 export interface HeaderProps {
     userName?: string;
@@ -11,7 +12,7 @@ export interface HeaderProps {
 
 /**
  * Header component for CraftsBite application
- * Displays logo, user information, theme toggle, and profile avatar
+ * Displays logo, user information, theme toggle, and profile avatar with dropdown
  */
 export const Header: React.FC<HeaderProps> = ({
     userName = 'John Doe',
@@ -57,15 +58,12 @@ export const Header: React.FC<HeaderProps> = ({
                     </span>
                 </button>
 
-                {/* User Avatar */}
-                <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-[var(--color-clay-light)] cursor-pointer hover:scale-105 transition-transform duration-200"
-                    style={{ boxShadow: 'var(--shadow-clay-button)' }}>
-                    <img
-                        alt={`${userName} profile avatar`}
-                        className="w-full h-full object-cover"
-                        src={userAvatarUrl}
-                    />
-                </div>
+                {/* User Avatar with Dropdown */}
+                <ProfileDropdown
+                    userName={userName}
+                    userRole={userRole}
+                    userAvatarUrl={userAvatarUrl}
+                />
             </div>
         </header>
     );
