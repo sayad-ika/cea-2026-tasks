@@ -46,8 +46,6 @@ export const HeadcountDashboard: React.FC = () => {
             <Header
                 userName={user?.name || 'User'}
                 userRole={user?.role || 'admin'}
-                onThemeToggle={() => { }}
-                isDarkMode={false}
             />
             <Navbar />
 
@@ -92,7 +90,7 @@ export const HeadcountDashboard: React.FC = () => {
 
                 {/* Headcount Cards Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
-                    {headcount && Object.keys(headcount.meals).length > 0 ? (
+                    {headcount?.meals && Object.keys(headcount.meals).length > 0 ? (
                         Object.entries(headcount.meals).map(([mealType, counts]) => {
                             const total = counts.participating + counts.opted_out;
                             const participationRate = total > 0
