@@ -9,7 +9,7 @@ import (
 
 // HeadcountService defines the interface for headcount calculations
 type HeadcountService interface {
-	GetTodayHeadcount() (*DailyHeadcountSummary, error)
+	GetTodayHeadcount() ([]*DailyHeadcountSummary, error)
 	GetHeadcountByDate(date string) (*DailyHeadcountSummary, error)
 	GetDetailedHeadcount(date, mealType string) (*DetailedHeadcount, error)
 }
@@ -66,10 +66,22 @@ func NewHeadcountService(
 	}
 }
 
-// GetTodayHeadcount gets today's headcount summary
-func (s *headcountService) GetTodayHeadcount() (*DailyHeadcountSummary, error) {
+// GetTodayHeadcount gets today's and tomorrow's headcount summary
+func (s *headcountService) GetTodayHeadcount() ([]*DailyHeadcountSummary, error) {
 	today := time.Now().Format("2006-01-02")
-	return s.GetHeadcountByDate(today)
+	tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+	
+	todaySummary, err := s.GetHeadcountByDate(today)
+	if err != nil {
+		return nil, err
+	}
+	
+	tomorrowSummary, err := s.GetHeadcountByDate(tomorrow)
+	if err != nil {
+		return nil, err
+	}
+	
+	return []*DailyHeadcountSummary{todaySummary, tomorrowSummary}, nil
 }
 
 // GetHeadcountByDate gets headcount summary for a specific date
