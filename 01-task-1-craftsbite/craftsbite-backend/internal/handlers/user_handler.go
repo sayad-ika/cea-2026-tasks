@@ -111,3 +111,25 @@ func (h *UserHandler) DeactivateUser(c *gin.Context) {
 
 	utils.SuccessResponse(c, 200, nil, "User deactivated successfully")
 }
+
+// GetMyTeamMembers returns the team members for the authenticated team lead
+// GET /api/v1/users/me/team-members
+func (h *UserHandler) GetMyTeamMembers(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		utils.ErrorResponse(c, 401, "UNAUTHORIZED", "User not authenticated")
+		return
+	}
+
+	response, err := h.userService.GetMyTeamMembers(userID.(string))
+	if err != nil {
+		if err.Error() == "user is not a team lead" {
+			utils.ErrorResponse(c, 403, "FORBIDDEN", "Only team leads can access this endpoint")
+			return
+		}
+		utils.ErrorResponse(c, 500, "INTERNAL_ERROR", err.Error())
+		return
+	}
+
+	utils.SuccessResponse(c, 200, response, "Team members retrieved successfully")
+}
