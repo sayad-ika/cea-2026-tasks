@@ -1,7 +1,11 @@
-// Meal Service - API calls for meal management
-
 import api from './api';
-import type { MealType, MealParticipation } from '../types';
+import type {
+    MealType,
+    MealParticipation,
+    ApiResponse,
+    SetParticipationRequest,
+    OverrideParticipationRequest,
+} from '../types';
 
 export interface TodaysMealsResponse {
     success: boolean;
@@ -50,5 +54,27 @@ export async function updateMealParticipation(
         mealType,
         isParticipating,
     });
+    return response.data;
+}
+
+/**
+ * Set meal participation explicitly
+ * POST /meals/participation
+ */
+export async function setMealParticipation(
+    payload: SetParticipationRequest
+): Promise<ApiResponse<null>> {
+    const response = await api.post<ApiResponse<null>>('/meals/participation', payload);
+    return response.data;
+}
+
+/**
+ * Override participation (Admin/Team Lead only)
+ * POST /meals/participation/override
+ */
+export async function overrideParticipation(
+    payload: OverrideParticipationRequest
+): Promise<ApiResponse<null>> {
+    const response = await api.post<ApiResponse<null>>('/meals/participation/override', payload);
     return response.data;
 }
