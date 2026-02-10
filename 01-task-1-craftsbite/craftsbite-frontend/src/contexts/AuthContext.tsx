@@ -90,12 +90,43 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         initialize();
     }, []);
 
+    // Register function
+    const register = async (name: string, email: string, role: any, password: string) => {
+        setIsLoading(true);
+        try {
+            const response = await authService.register(name, email, role, password);
+
+            // Get token from the nested data object
+            const { token } = response.data;
+
+            // Save token immediately so subsequent requests work
+            setToken(token);
+            setTokenState(token);
+
+            // Fetch full user details since login response might be partial
+            const fullUser = await authService.getCurrentUser();
+
+            // Save full user data
+            saveUser(fullUser);
+            setUserState(fullUser);
+        } catch (error) {
+            // Clean up if getting user fails
+            clearAuthData();
+            setTokenState(null);
+            setUserState(null);
+            throw error;
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const value: AuthState = {
         user,
         token,
         isAuthenticated: !!token && !!user,
         isLoading,
         login,
+        register,
         logout,
         setUser,
         checkAuth,
