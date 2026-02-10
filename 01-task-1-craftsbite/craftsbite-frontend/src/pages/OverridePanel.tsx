@@ -1,15 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Header, Footer, Navbar, LoadingSpinner } from '../components';
-import type { User, MealType as MealTypeEnum } from '../types';
+import type { MealType as MealTypeEnum } from '../types';
 import { MEAL_TYPES } from '../utils/constants';
 import * as userService from '../services/userService';
 import * as mealService from '../services/mealService';
 import toast from 'react-hot-toast';
 
+// Normalized user entry for the dropdown (works for both admin and team_lead)
+interface SelectableUser {
+    id: string;
+    name: string;
+    email: string;
+}
+
 export const OverridePanel: React.FC = () => {
     const { user } = useAuth();
-    const [users, setUsers] = useState<User[]>([]);
+    const [selectableUsers, setSelectableUsers] = useState<SelectableUser[]>([]);
+    const [teamName, setTeamName] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -23,13 +31,33 @@ export const OverridePanel: React.FC = () => {
     const [reason, setReason] = useState('');
     const [error, setError] = useState('');
 
-    // Fetch users
+    const isTeamLead = user?.role === 'team_lead';
+
+    // Fetch users — admin gets all, team_lead gets only team members
     useEffect(() => {
         const fetchUsers = async () => {
             try {
-                const res = await userService.getUsers();
-                if (res.success && res.data) {
-                    setUsers(Array.isArray(res.data) ? res.data : []);
+                if (isTeamLead) {
+                    const res = await userService.getTeamMembers();
+                    if (res.success && res.data) {
+                        setSelectableUsers(
+                            res.data.members.map((m) => ({
+                                id: m.id,
+                                name: m.name,
+                                email: m.email,
+                            }))
+                        );
+                        setTeamName(res.data.members[0]?.team_name || null);
+                    }
+                } else {
+                    // Admin flow
+                    const res = await userService.getUsers();
+                    if (res.success && res.data) {
+                        const list = Array.isArray(res.data) ? res.data : [];
+                        setSelectableUsers(
+                            list.map((u) => ({ id: u.id, name: u.name, email: u.email }))
+                        );
+                    }
                 }
             } catch (err: any) {
                 setError(err?.error?.message || 'Failed to load users.');
@@ -38,7 +66,7 @@ export const OverridePanel: React.FC = () => {
             }
         };
         fetchUsers();
-    }, []);
+    }, [isTeamLead]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -97,8 +125,17 @@ export const OverridePanel: React.FC = () => {
                         Override Participation
                     </h2>
                     <p className="text-lg text-[var(--color-text-sub)] font-medium">
-                        Mark meal participation on behalf of an employee.
+                        {isTeamLead
+                            ? 'Override meal participation for your team members.'
+                            : 'Mark meal participation on behalf of an employee.'}
                     </p>
+                    {isTeamLead && teamName && (
+                        <div className="mt-3 inline-flex items-center gap-2 bg-[var(--color-background-light)] rounded-2xl px-4 py-2 text-sm font-bold text-[var(--color-primary)]"
+                            style={{ boxShadow: 'var(--shadow-clay-button)' }}>
+                            <span className="material-symbols-outlined text-base">groups</span>
+                            Team: {teamName}
+                        </div>
+                    )}
                 </div>
 
                 {/* Override Form Card */}
@@ -117,7 +154,7 @@ export const OverridePanel: React.FC = () => {
                         {/* User Selector */}
                         <div className="space-y-2">
                             <label className="block text-sm font-bold text-[var(--color-text-main)] ml-1">
-                                Employee
+                                {isTeamLead ? 'Team Member' : 'Employee'}
                             </label>
                             <select
                                 value={selectedUserId}
@@ -125,8 +162,8 @@ export const OverridePanel: React.FC = () => {
                                 className="w-full px-4 py-4 rounded-2xl bg-[var(--color-background-light)] border-none text-[var(--color-text-main)] outline-none transition-all duration-200 focus:ring-2 focus:ring-[var(--color-primary)]/50 cursor-pointer"
                                 style={{ boxShadow: 'var(--shadow-clay-inset)' }}
                             >
-                                <option value="">Select an employee...</option>
-                                {users.map((u) => (
+                                <option value="">{isTeamLead ? 'Select a team member...' : 'Select an employee...'}</option>
+                                {selectableUsers.map((u) => (
                                     <option key={u.id} value={u.id}>
                                         {u.name} ({u.email})
                                     </option>
