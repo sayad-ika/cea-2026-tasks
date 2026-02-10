@@ -50,6 +50,47 @@
     --shadow-clay-modal: 30px 30px 70px #d4c9bc, -30px -30px 70px #ffffff;
 }
 
+/* ── Dark Mode overrides ───────────────────────────────── */
+.dark {
+    --color-primary: #ff9f5f;
+    --color-background-light: #1a1210;
+    --color-background-dark: #f5e6d0;
+    --color-clay-light: #2a1f18;
+    --color-clay-shadow: #100c08;
+    --color-text-main: #e8ddd0;
+    --color-text-sub: #b09880;
+    --color-footer-text: #8a8a8a;
+
+    --color-clay-shadow-dark: #0d0a07;
+    --color-emoji-breakfast: #2a2418;
+    --color-emoji-lunch: #2a1f15;
+    --color-emoji-dinner: #2a1515;
+
+    --color-primary-dark: #e5843a;
+    --color-danger: #ff6b6b;
+    --color-danger-gradient-start: #ff8a8a;
+    --color-danger-gradient-end: #cc3333;
+
+    /* Dark Claymorphism Shadows */
+    --shadow-clay: 20px 20px 60px #0d0a07, -20px -20px 60px #2a1f18;
+    --shadow-clay-md: 10px 10px 20px #0d0a07, -10px -10px 20px #2a1f18;
+    --shadow-clay-inset: inset 6px 6px 12px #0d0a07, inset -6px -6px 12px #2a1f18;
+    --shadow-clay-button: 8px 8px 16px #0d0a07, -8px -8px 16px #2a1f18;
+    --shadow-clay-button-hover: 10px 10px 20px #0d0a07, -10px -10px 20px #2a1f18;
+    --shadow-clay-button-active: inset 4px 4px 8px #0d0a07, inset -4px -4px 8px #2a1f18;
+
+    --shadow-clay-danger: 8px 8px 16px #2a0000, -8px -8px 16px #2a1f18;
+    --shadow-clay-danger-hover: 10px 10px 20px #2a0000, -10px -10px 20px #2a1f18;
+    --shadow-clay-danger-active: inset 4px 4px 8px #1a0000, inset -4px -4px 8px #3a1515;
+
+    --shadow-primary-active: inset 4px 4px 8px #1a0f05, inset -4px -4px 8px #3a2515;
+
+    --shadow-icon-button: 6px 6px 12px #0d0a07, -6px -6px 12px #2a1f18;
+    --shadow-icon-button-active: inset 3px 3px 6px #1a0f05, inset -3px -3px 6px #3a2515;
+
+    --shadow-clay-modal: 30px 30px 70px #0a0705, -30px -30px 70px #2a1f18;
+}
+
 /* Custom scrollbar styling */
 ::-webkit-scrollbar {
     width: 8px;
@@ -68,6 +109,7 @@
 body {
     background-color: var(--color-background-light);
     font-family: var(--font-family-display);
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Shimmer animation for skeleton loading */
