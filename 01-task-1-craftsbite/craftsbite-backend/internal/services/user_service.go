@@ -26,6 +26,24 @@ type UpdateUserInput struct {
 	Password              *string      `json:"password" validate:"omitempty,min=8"`
 }
 
+// TeamMemberResponse represents a single team member in the response
+type TeamMemberResponse struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Role     string `json:"role"`
+	TeamID   string `json:"team_id"`
+	TeamName string `json:"team_name"`
+}
+
+// TeamMembersResponse represents the response for the team members endpoint
+type TeamMembersResponse struct {
+	TeamLeadID   string               `json:"team_lead_id"`
+	TeamLeadName string               `json:"team_lead_name"`
+	TotalMembers int                  `json:"total_members"`
+	Members      []TeamMemberResponse `json:"members"`
+}
+
 // UserService defines the interface for user management operations
 type UserService interface {
 	CreateUser(input CreateUserInput) (*models.User, error)
@@ -33,16 +51,18 @@ type UserService interface {
 	UpdateUser(id string, input UpdateUserInput) (*models.User, error)
 	DeactivateUser(id string) error
 	ListUsers(filters map[string]interface{}) ([]models.User, error)
+	GetMyTeamMembers(teamLeadID string) (*TeamMembersResponse, error)
 }
 
 // userService implements UserService
 type userService struct {
 	userRepo repository.UserRepository
+	teamRepo repository.TeamRepository
 }
 
 // NewUserService creates a new user service
-func NewUserService(userRepo repository.UserRepository) UserService {
-	return &userService{userRepo: userRepo}
+func NewUserService(userRepo repository.UserRepository, teamRepo repository.TeamRepository) UserService {
+	return &userService{userRepo: userRepo, teamRepo: teamRepo}
 }
 
 // CreateUser creates a new user
@@ -131,4 +151,53 @@ func (s *userService) DeactivateUser(id string) error {
 // ListUsers lists all users with optional filters
 func (s *userService) ListUsers(filters map[string]interface{}) ([]models.User, error) {
 	return s.userRepo.FindAll(filters)
+}
+
+// GetMyTeamMembers returns all members of teams led by the given team lead
+func (s *userService) GetMyTeamMembers(teamLeadID string) (*TeamMembersResponse, error) {
+	// Verify the user exists and is a team lead
+	teamLead, err := s.userRepo.FindByID(teamLeadID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find team lead: %w", err)
+	}
+
+	if teamLead.Role != models.RoleTeamLead {
+		return nil, fmt.Errorf("user is not a team lead")
+	}
+
+	// Get all teams led by this user (members are preloaded)
+	teams, err := s.teamRepo.FindByTeamLeadID(teamLeadID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find teams: %w", err)
+	}
+
+	// Aggregate members across all teams, avoid duplicates
+	seen := make(map[string]bool)
+	var members []TeamMemberResponse
+
+	for _, team := range teams {
+		for _, member := range team.Members {
+			memberID := member.ID.String()
+			if seen[memberID] {
+				continue
+			}
+			seen[memberID] = true
+
+			members = append(members, TeamMemberResponse{
+				ID:       memberID,
+				Name:     member.Name,
+				Email:    member.Email,
+				Role:     string(member.Role),
+				TeamID:   team.ID.String(),
+				TeamName: team.Name,
+			})
+		}
+	}
+
+	return &TeamMembersResponse{
+		TeamLeadID:   teamLead.ID.String(),
+		TeamLeadName: teamLead.Name,
+		TotalMembers: len(members),
+		Members:      members,
+	}, nil
 }
