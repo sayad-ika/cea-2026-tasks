@@ -9,7 +9,8 @@ import { CUTOFF_TIMES } from '../utils/constants';
 import toast from 'react-hot-toast';
 
 /**
- * Returns true if the cutoff time for a given meal type has passed today.
+ * Returns true if the cutoff time (9 PM) has passed today.
+ * After 9 PM today, you can no longer change tomorrow's meals.
  */
 function isCutoffPassed(mealType: MealTypeEnum): boolean {
     const cutoff = CUTOFF_TIMES[mealType];
@@ -76,12 +77,14 @@ export const Home: React.FC = () => {
 
         // Cutoff guard
         if (isCutoffPassed(mealTypeEnum)) {
-            toast.error(`Cutoff time for ${mealType.replace('_', ' ')} has passed.`);
+            toast.error(`Cutoff time (9 PM) has passed. You can no longer change tomorrow's ${mealType.replace('_', ' ')}.`);
             return;
         }
 
         const currentMeal = meals.find((m) => m.meal_type === mealType);
-        const newStatus = !currentMeal?.is_participating;
+        if (!currentMeal) return;
+
+        const newStatus = !currentMeal.is_participating;
 
         // Optimistic update
         setMeals((prev) =>
@@ -100,8 +103,8 @@ export const Home: React.FC = () => {
             });
             toast.success(
                 newStatus
-                    ? `Opted in to ${mealType.replace('_', ' ')} ✓`
-                    : `Opted out of ${mealType.replace('_', ' ')}`
+                    ? `You're now eating ${mealType.replace('_', ' ')}`
+                    : `You've opted out of ${mealType.replace('_', ' ')}`
             );
         } catch (err: any) {
             console.error('Error toggling meal:', err);
@@ -115,7 +118,8 @@ export const Home: React.FC = () => {
                 )
             );
 
-            const msg = err?.error?.message || 'Failed to update meal status.';
+            const msg = err?.error?.message || 'Failed to update participation.';
+            setError(msg);
             toast.error(msg);
         }
     };
@@ -148,13 +152,14 @@ export const Home: React.FC = () => {
                 {/* Page Title */}
                 <div className="mb-10 text-center md:text-left">
                     <h2 className="text-4xl md:text-5xl font-black text-[var(--color-background-dark)] mb-2 tracking-tight">
-                        Today's Menu
+                        Tomorrow's Menu
                     </h2>
                     <p className="text-lg text-[var(--color-text-sub)] font-medium">
-                        Manage your daily meals for{' '}
+                        Manage your meals for{' '}
                         <span className="text-[var(--color-primary)] font-bold">
-                            {currentDate ? formatDate(currentDate) : 'Today'}
+                            {currentDate ? formatDate(currentDate) : 'Tomorrow'}
                         </span>
+                        {' '} — cutoff is 9 PM today
                     </p>
                 </div>
 
@@ -192,7 +197,7 @@ export const Home: React.FC = () => {
                                 no_meals
                             </span>
                             <p className="text-[var(--color-text-sub)] text-lg">
-                                No meals available for today.
+                                No meals available for tomorrow.
                             </p>
                         </div>
                     )}
