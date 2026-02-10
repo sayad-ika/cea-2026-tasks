@@ -1,415 +1,313 @@
-# CraftsBite
-## Technical Architecture & Design Document
+# CraftsBite Technical Document
 
-**Version:** 2.1
-**Date:** February 6, 2026
+**Project:** CraftsBite
+**Version:** 3.0
+**Status:** Iteration 1
 **Last Updated:** February 9, 2026
 **Author:** Sayad Ibn Khairul Alam
-**Project Status:** Iteration 1 - Enhanced Development (with User Preference & History Features)
 
 ---
 
-## Table of Contents
-1. [Executive Summary](#executive-summary)
-2. [System Overview](#system-overview)
-3. [Architecture Design](#architecture-design)
-4. [Technology Stack](#technology-stack)
-5. [System Components](#system-components)
-6. [Data Model](#data-model)
-7. [API Design](#api-design)
-8. [Security Architecture](#security-architecture)
-9. [Frontend Architecture](#frontend-architecture)
-10. [Deployment Strategy](#deployment-strategy)
-11. [Development Guidelines](#development-guidelines)
-12. [Testing Strategy](#testing-strategy)
-13. [Future Iterations](#future-iterations)
-14. [Risk Assessment](#risk-assessment)
-15. [Timeline & Milestones](#timeline--milestones)
+## 1. Summary
+
+CraftsBite is an internal web application that modernizes the Excel-based meal planning process for 100+ employees. The system implements a flexible participation model where employees set default meal preferences (opt-in or opt-out) and manage exceptions as needed, with a comprehensive audit trail for all changes.
+
+**Key Features:**
+- User default meal preferences with flexible exception management
+- Bulk opt-out for date ranges (vacations, business trips)
+- Real-time headcount calculation for logistics
+- Role-based access control (Employee, Team Lead, Admin, Logistics)
+- Comprehensive participation history tracking
+- Day schedule management (holidays, celebrations, office closures)
 
 ---
 
-## 1. Executive Summary
 
-### 1.1 Project Overview
-CraftsBite is an internal web application designed to modernize the current Excel-based meal planning process for 100+ employees. The system implements a flexible participation model where employees can set their default meal preference (opt-in or opt-out) and manage exceptions as needed. The system maintains a comprehensive audit trail of all participation changes for accountability and transparency.
+## 2. Problem Statement
 
-### 1.2 Business Objectives
-- Replace manual Excel-based meal tracking with an automated digital solution
-- Reduce administrative overhead for logistics team
-- Improve accuracy of daily meal headcount
-- Provide real-time visibility into meal participation
-- Enable self-service for employees to manage their meal preferences
-- Empower users with flexible default preferences and bulk management
-- Maintain transparent audit trail for all participation changes
+**Current State:**
+The meal planning process relies on manual Excel spreadsheet tracking, which creates significant operational challenges:
+- High administrative burden on logistics team (daily manual updates)
+- Frequent errors in headcount leading to meal wastage or shortages
+- No self-service capability for employees to manage preferences
+- Lack of audit trail for participation changes
+- Inefficient communication for exceptions (vacations, business trips)
+- Time-consuming reconciliation between multiple data sources
 
-### 1.3 Key Success Metrics
-- 100% employee onboarding within first 2 weeks
-- Daily usage rate >95% for meal opt-out updates
-- Reduction in meal wastage by accurate headcount prediction
-- Administrative time savings of 70% for logistics team
-- User satisfaction score >4.5/5 for preference management features
+**Impact:**
+- Wasted logistics team time that could be spent on strategic activities
+- Food wastage due to inaccurate headcounts
+- Employee frustration with rigid opt-out process
+- No accountability for last-minute changes
 
 ---
 
-## 2. System Overview
+## 3. Goals and Non-Goals
 
-### 2.1 High-Level Architecture
+### Goals
+1. **Automate meal tracking** - Replace Excel-based process with digital solution
+2. **Empower employees** - Enable self-service preference management
+3. **Improve accuracy** - Provide real-time, accurate headcount to logistics
+4. **Reduce overhead** - Minimize administrative burden by 70%
+5. **Maintain transparency** - Comprehensive audit trail for all changes
+6. **Flexible participation** - Support default preferences and bulk exception management
+
+### Non-Goals
+1. **External vendor integration** - Not integrating with external catering systems (future iteration)
+2. **Mobile apps** - Responsive web only, no native mobile apps
+3. **Menu management** - Not managing actual meal menus or recipes
+4. **Payment processing** - No meal payment or billing functionality
+5. **Nutritional tracking** - Not tracking dietary restrictions or nutrition info
+6. **Multi-organization support** - Single organization only
+
+---
+
+## 4. Tech Stack and Rationale
+
+### Frontend
+
+| Technology | Version | Rationale |
+|-----------|---------|-----------|
+| **React** | 19.x | Industry standard, team familiarity, large ecosystem |
+| **TypeScript** | 5.x | Type safety, reduced runtime errors, better IDE support |
+| **Vite** | 7.x | Fast dev server, optimized builds |
+| **Tailwind CSS** | 4.x | Rapid development, utility-first, consistent design |
+| **Zustand** | 5.x | Lightweight state management, simple API |
+| **Axios** | 1.x | Interceptors, better error handling |
+| **React Router** | 7.x | Standard routing solution, type-safe |
+| **React Hook Form** | 7.x | Performant form handling, easy validation |
+| **date-fns** | 3.x | Lightweight, modular, tree-shakeable |
+
+### Backend
+
+| Technology | Version | Rationale |
+|-----------|---------|-----------|
+| **Go** | 1.23.x | Performance, concurrency, simple deployment |
+| **Gin** | 1.10.x | Fast, minimal, excellent routing |
+| **PostgreSQL** | 17.x | ACID compliance, reliability, JSON support |
+| **GORM** | 1.25.x | Popular Go ORM, migration support |
+| **JWT** | 5.x | Stateless authentication, scalable |
+| **bcrypt** | Latest | Secure password hashing |
+| **Zap** | 1.x | Structured logging, high performance |
+
+**Architecture Pattern:** Three-tier architecture with clean architecture principles (Handler → Service → Repository → Model layers)
+
+---
+
+## 5. Scope of Changes
+
+### In Scope (Iteration 1)
+- ✅ User authentication with JWT and role-based access control
+- ✅ User default meal preference (opt-in or opt-out)
+- ✅ Daily meal participation management with flexible defaults
+- ✅ Bulk opt-out for date ranges (vacations, business trips)
+- ✅ Real-time headcount calculation
+- ✅ Admin/Team Lead override capabilities
+- ✅ Day schedule management (holidays, celebrations, office closures)
+- ✅ Comprehensive participation history tracking
+- ✅ Personal meal history view for users
+- ✅ Automatic 3-month audit trail cleanup
+- ✅ Change tracking for accountability
+
+### Out of Scope (Future Iterations)
+- ❌ Menu planning and recipes
+- ❌ Dietary restrictions tracking
+- ❌ Mobile applications
+- ❌ Email/SMS notifications
+- ❌ Analytics dashboard
+
+---
+
+## 6. Requirements
+
+### Functional Requirements
+
+**FR1: User Authentication**
+- Users log in with email and password
+- JWT-based session management (24-hour expiry)
+- Role-based access control (Employee, Team Lead, Admin, Logistics)
+
+**FR2: Default Meal Preferences**
+- Users set default preference: opt-in (default) or opt-out
+- Default applies to all meals unless explicitly overridden
+- Users can change default preference at any time
+
+**FR3: Daily Meal Participation**
+- View current meal participation status (based on default + exceptions)
+- Toggle participation for specific dates/meals
+- Cutoff time enforcement (9 AM for lunch/snacks)
+- Visual indicators for participation status
+
+**FR4: Bulk Opt-Out Management**
+- Create opt-out for date ranges (e.g., vacation Feb 10-20)
+- View all active bulk opt-outs
+- Delete bulk opt-outs
+- Bulk opt-outs override default preference
+
+**FR5: Participation History**
+- Users view their own participation changes (last 3 months)
+- Track who made changes and when
+- Automatic cleanup after 3 months
+
+**FR6: Admin/Team Lead Features**
+- Override employee participation
+- View team headcount
+- Manage day schedules (mark days as holidays, celebrations, office closed)
+- View audit trail with change attribution
+
+**FR7: Day Schedule Management**
+- Mark days as: Normal, Office Closed, Government Holiday, Celebration
+- Define available meals for special days
+- System prevents opt-in/out on office closed days
+
+**FR8: Real-Time Headcount**
+- Admins/Logistics view current headcount per meal
+- Breakdown: participating count, opted-out count, total employees
+- Filter by date and meal type
+
+### Non-Functional Requirements
+
+**NFR1: Performance**
+- Page load time < 2 seconds
+- API response time < 500ms (95th percentile)
+- Support 100 concurrent users
+
+**NFR2: Availability**
+- 99% uptime
+- Graceful degradation on failures
+
+**NFR3: Security**
+- HTTPS only
+- JWT token expiry: 2-4 hours
+- Password: bcrypt with cost 12
+- RBAC enforcement at API level
+
+**NFR4: Usability**
+- Mobile-responsive design
+- Accessibility: WCAG 2.1 AA compliance
+- Intuitive UI requiring minimal training
+
+---
+
+## 7. User Flows
+
+### Flow 1: Employee Sets Default Preference
+1. Employee logs in
+2. Navigates to Settings
+3. Selects default meal preference (opt-in or opt-out)
+4. Saves changes
+5. System updates `users.default_meal_preference`
+6. Confirmation displayed
+
+### Flow 2: Employee Manages Daily Meals
+1. Employee views meal calendar
+2. System shows participation status (based on: day schedule → specific record → bulk opt-out → default preference)
+3. Employee toggles participation for specific date/meal
+4. System checks cutoff time
+5. If before cutoff: update `meal_participations` table, log to `meal_participation_history`
+6. If after cutoff: show error message
+7. Display updated status
+
+### Flow 3: Employee Creates Bulk Opt-Out
+1. Employee navigates to "Bulk Opt-Out" section
+2. Selects date range (start date, end date)
+3. Submits request
+4. System creates record in `bulk_opt_outs` table
+5. System applies opt-out to all meals in range
+6. Confirmation with summary displayed
+
+### Flow 4: Team Lead Overrides Participation
+1. Team Lead views team member list
+2. Selects member and date
+3. Toggles participation status
+4. System updates `meal_participations` with `overridden_by` field
+5. Logs change to `meal_participation_history`
+6. Notification shown
+
+### Flow 5: Admin Views Headcount
+1. Admin navigates to Headcount page
+2. Selects date and meal type
+3. System calculates:
+   - Checks `day_schedules` (if office closed, return 0)
+   - Queries `meal_participations` for explicit records
+   - For users without explicit records, checks `bulk_opt_outs`
+   - For users without records or bulk opt-outs, uses `default_meal_preference`
+4. Returns aggregated counts
+5. Display breakdown with drill-down capability
+
+---
+
+## 8. Design
+
+### System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     Client Layer (Browser)                  │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │         React + TypeScript SPA                        │  │
-│  │  (State Management: Zustand for global state)         │  │
-│  └───────────────────────────────────────────────────────┘  │
-└──────────────────────┬──────────────────────────────────────┘
-                       │ HTTPS/REST API
-                       │
-┌──────────────────────▼──────────────────────────────────────┐
-│                  Application Layer                          │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │         Go + Gin Framework (Backend API)              │  │
-│  │                                                       │  │
-│  │  ├─ Authentication Middleware (JWT)                   │  │
-│  │  ├─ Authorization Middleware (RBAC)                   │  │
-│  │  ├─ API Handlers                                      │  │
-│  │  ├─ Business Logic Layer                              │  │
-│  │  └─ Data Access Layer                                 │  │
-│  └───────────────────────────────────────────────────────┘  │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-┌──────────────────────▼──────────────────────────────────────┐
-│                   Data Layer                                │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │  PostgreSQL Database                                  │  │
-│  │  - users table (with default_meal_preference)         │  │
-│  │  - teams table                                        │  │
-│  │  - team_members table                                 │  │
-│  │  - meal_participations table                          │  │
-│  │  - meal_participation_history table (audit trail)     │  │
-│  │  - bulk_opt_outs table (date range management)        │  │
-│  │  - day_schedules table                                │  │
-│  │                                                       │  │
-│  │  Accessed via GORM (Go ORM)                           │  │
-│  └───────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────┐
+│         Client (Browser)                │
+│    React + TypeScript SPA               │
+│    State: Zustand (global)              │
+└──────────────┬──────────────────────────┘
+               │ HTTPS/REST API
+┌──────────────▼──────────────────────────┐
+│      Application Server (Go + Gin)      │
+│  ┌────────────────────────────────────┐ │
+│  │  Authentication Middleware (JWT)   │ │
+│  │  Authorization Middleware (RBAC)   │ │
+│  │  Handler → Service → Repository    │ │
+│  └────────────────────────────────────┘ │
+└──────────────┬──────────────────────────┘
+               │
+┌──────────────▼──────────────────────────┐
+│      PostgreSQL Database (17.x)         │
+│  - users (with default_meal_preference) │
+│  - teams                                │
+│  - team_members                         │
+│  - meal_participations                  │
+│  - meal_participation_history           │
+│  - bulk_opt_outs                        │
+│  - day_schedules                        │
+└─────────────────────────────────────────┘
 ```
 
-### 2.2 System Boundaries
-- **In Scope (Iteration 1):**
-  - User authentication and role-based access control
-  - Daily meal opt-in/out management with flexible defaults
-  - **User default meal preference (opt-in or opt-out)**
-  - **Bulk opt-out for date ranges (vacations, business trips)**
-  - **Comprehensive participation history tracking**
-  - **Personal meal history view for users**
-  - Real-time headcount calculation
-  - Admin/Team Lead override capabilities
-  - Day schedule management (office closed, government holidays, celebrations)
-  - Audit trail with automatic 3-month cleanup
-  - Change tracking for accountability and transparency
+### Entity Relationship Diagram
 
----
+![Entity Relationship Diagram](./technical_docs/images/entity_relation_diagram.png)
 
-## 3. Architecture Design
 
-### 3.1 Architectural Patterns
-
-#### 3.1.1 Overall Architecture Style
-- **Pattern:** Three-tier architecture with RESTful API
-- **Rationale:** Clear separation of concerns, scalability, maintainability
-
-#### 3.1.2 Backend Architecture
-- **Pattern:** Layered architecture (Clean Architecture principles)
-  - Handler Layer (HTTP handlers)
-  - Service Layer (Business logic)
-  - Repository Layer (Data access)
-  - Model Layer (Domain entities)
+### Frontend Component Structure
 
 ```
-┌─────────────────────────────────────────────────┐
-│            Handler Layer (Gin)                  │
-│  - HTTP request/response handling               │
-│  - Input validation                             │
-│  - Response formatting                          │
-└──────────────────┬──────────────────────────────┘
-                   │
-┌──────────────────▼──────────────────────────────┐
-│            Service Layer                        │
-│  - Business logic                               │
-│  - Transaction management                       │
-│  - Authorization checks                         │
-└──────────────────┬──────────────────────────────┘
-                   │
-┌──────────────────▼──────────────────────────────┐
-│         Repository Layer                        │
-│  - Data persistence                             │
-│  - Database queries (GORM)                      │
-│  - Data mapping                                 │
-└──────────────────┬──────────────────────────────┘
-                   │
-┌──────────────────▼──────────────────────────────┐
-│            Model Layer                          │
-│  - Domain entities                              │
-│  - Business rules                               │
-└─────────────────────────────────────────────────┘
-```
-
-#### 3.1.3 Frontend Architecture
-- **Pattern:** Component-based architecture with React
-- **State Management:** Zustand for global state (auth, user data), local state for component UI
-- **Routing:** React Router v6 for client-side navigation
-
-### 3.2 Design Principles
-1. **Separation of Concerns:** Clear boundaries between layers
-2. **DRY (Don't Repeat Yourself):** Reusable components and utilities
-3. **SOLID Principles:** Applied in backend service design
-4. **API-First Design:** Backend exposes well-defined REST API
-5. **Security by Default:** Authentication and authorization at every layer
-
----
-
-## 4. Technology Stack
-
-### 4.1 Frontend Stack
-
-| Component | Technology | Version | Justification |
-|-----------|-----------|---------|---------------|
-| Core Framework | React | 19.x | Industry standard, large ecosystem, team familiarity |
-| Language | TypeScript | 5.x | Type safety, better IDE support, reduced runtime errors |
-| Build Tool | Vite | 7.x | Fast development server, optimized production builds |
-| UI Framework | Tailwind CSS | 4.x | Utility-first, rapid development, consistent design |
-| State Management | Zustand | 5.x | Lightweight, simple API, better than Context API for global state |
-| HTTP Client | Axios | 1.x | Interceptors, request/response transformation, better error handling |
-| Routing | React Router | 7.x | Standard React routing solution, type-safe routes |
-| Form Handling | React Hook Form | 7.x | Performance, easy validation, TypeScript support |
-| Date Handling | date-fns | 3.x | Lightweight, modular, immutable, tree-shakeable |
-| Error Boundaries | react-error-boundary | 4.x | Production error handling, graceful failure recovery |
-| Toast Notifications | react-hot-toast | 2.x | Lightweight, accessible user feedback for actions |
-| Icons | lucide-react | Latest | Consistent, customizable icon library |
-| Environment Config | Vite Env Variables | Built-in | Type-safe build-time environment configuration |
-
-**State Management Strategy:**
-- **Zustand** for global state (authentication, user profile, preferences)
-- **Local state** (useState) for component-specific UI state
-- **React Hook Form** for form state management
-
-### 4.2 Backend Stack
-
-| Component | Technology | Version | Justification |
-|-----------|-----------|---------|---------------|
-| Language | Go | 1.23.x | Performance, concurrency, simple deployment (single binary) |
-| Web Framework | Gin | 1.10.x | Fast, minimal, excellent routing, security patches |
-| Database | PostgreSQL | 17.x | ACID compliance, reliability, JSON improvements, proven at scale |
-| ORM | GORM | 1.25.x | Most popular Go ORM, migrations support, clean API |
-| Database Driver | pgx | 5.x | High-performance PostgreSQL driver, better than lib/pq |
-| Database Migrations | golang-migrate/migrate | 4.x | Version control for schema changes, rollback support |
-| Authentication | golang-jwt/jwt | 5.x | Stateless, scalable, industry standard |
-| Password Hashing | bcrypt (golang.org/x/crypto) | Latest | Secure password storage with configurable cost |
-| Validation | go-playground/validator | 10.x | Declarative validation, struct tags, custom validators |
-| Configuration | Viper | 1.x | Environment-based config, multiple formats support |
-| Logging | Zap | 1.x | Structured logging, high performance, production-ready |
-| CORS Middleware | gin-contrib/cors | 1.x | Cross-origin request handling for SPA architecture |
-| Request ID Middleware | Custom | - | Request tracing and debugging across services |
-| Recovery Middleware | gin.Recovery() | Built-in | Graceful panic recovery, prevents server crashes |
-
-**Backend Architecture Notes:**
-- Connection pool size: 25 (max), 5 (min idle) - tuned for 100 concurrent users
-- JWT token expiry: 24 hours (configurable)
-- Password bcrypt cost: 12 (balance between security and performance)
-
-### 4.3 Testing Stack
-
-| Component | Technology | Version | Purpose |
-|-----------|-----------|---------|---------|
-| **Backend Testing** |
-| Unit Testing | Testify | 1.x | Assertions, mocking, suite support |
-| HTTP Testing | httptest (stdlib) | Built-in | API endpoint testing without network calls |
-| Database Testing | testcontainers-go | 0.28.x | Integration testing with real PostgreSQL instance |
-| Coverage Tool | go test -cover | Built-in | Code coverage analysis |
-| **Frontend Testing** |
-| Unit Testing | Vitest | 1.x | Fast, Vite-native testing framework |
-| Component Testing | React Testing Library | 14.x | User-centric component testing |
-| E2E Testing | Playwright | 1.x | Browser automation for critical user flows |
-| Coverage Tool | Vitest Coverage | Built-in | Istanbul-based coverage reporting |
-
-**Testing Targets:**
-- Backend: >80% code coverage
-- Frontend: >70% code coverage
-- E2E: Critical user paths (login, opt-out, admin override)
-
-### 4.4 Development Tools
-
-| Tool | Technology | Purpose |
-|------|-----------|---------|
-| Version Control | Git | Source code management |
-| IDE | VS Code | Recommended IDE with Go and TypeScript extensions |
-| API Testing | Postman / Insomnia | Manual API endpoint testing and documentation |
-| Code Formatting (Frontend) | ESLint + Prettier | Consistent code style, auto-formatting |
-| Code Linting (Backend) | golangci-lint | Static analysis, code quality enforcement |
-| Live Reload (Backend) | Air | Hot reload for Go development |
-| Containerization | Docker & Docker Compose | Local PostgreSQL, reproducible dev environment |
-| Database Management | DBeaver / pgAdmin 4 | GUI for database inspection and queries |
-| API Documentation | Swagger/OpenAPI | Auto-generated API documentation (optional) |
-| Git Hooks | Husky (Frontend) | Pre-commit linting and formatting |
-
-### 4.7 Database Configuration
-
-| Setting | Value | Rationale |
-|---------|-------|-----------|
-| Max Connections | 100 | PostgreSQL default, suitable for 100+ users |
-| Connection Pool (Max) | 25 | Prevents pool exhaustion under load |
-| Connection Pool (Min Idle) | 5 | Keeps connections warm for fast response |
-| Statement Timeout | 30s | Prevents long-running queries from blocking |
-| Idle Transaction Timeout | 10min | Cleans up abandoned transactions |
-| Work Memory | 4MB | Per-query memory for sorting/hashing |
-| Shared Buffers | 256MB | Cache for frequently accessed data |
-| WAL Level | replica | Enables point-in-time recovery |
-| Archive Mode | ON | Required for backup strategy |
-
-**Indexing Strategy:**
-- Primary keys on all tables (auto-indexed)
-- Foreign keys: `user_id`, `date` (composite index on meal_participations)
-- Composite index: `(user_id, date)` for fast user meal lookups
-- Index on `day_schedules.date` for holiday checks
-
-**Backup Strategy:**
-- Automated daily backups at 2 AM UTC via `pg_dump`
-- 30-day retention policy
-- WAL archiving for point-in-time recovery
-- Weekly full backups, daily incrementals (Iteration 2)
-
----
-
-## 5. System Components
-
-### 5.1 Frontend Components
-
-#### 5.1.1 Component Hierarchy
-
-```
-App
-├── Layout
-│   ├── Header
-│   │   ├── Navigation
-│   │   └── UserMenu
-│   ├── Sidebar (optional)
-│   └── Footer
-├── Pages
-│   ├── LoginPage
-│   ├── DashboardPage
-│   │   ├── TodayMealsCard
-│   │   ├── DefaultPreferenceIndicator
-│   ├── EmployeeMealPage
-│   │   ├── MealList
-│   │   ├── MealOptOutForm
-│   ├── Settings/UserPreferencesPage
-│   │   ├── DefaultPreferenceToggle
-│   ├── MealHistoryPage
-│   │   ├── HistoryCalendarView
-│   │   ├── HistoryListView
-│   ├── AdminHeadcountPage
-│   │   ├── HeadcountSummary
-│   │   └── DetailedBreakdown
-│   ├── AdminSchedulePage
-│   │   ├── ScheduleCalendar
-│   │   ├── ScheduleForm
-│   │   └── HolidayList
-│   └── TeamLeadManagementPage
-│       ├── EmployeeOverrideForm
-│       └── TeamMealHistoryView
+src/
 ├── components/
-│    ├── layout/
-│    │   ├── Header.tsx
-│    │   ├── Navbar.tsx
-│    │   ├── Footer.tsx
-│    │   ├── BottomActionButtons.tsx
-│    │   └── index.ts
-│    ├── cards/
-│    │   ├── EmployeeMenuCard.tsx
-│    │   ├── InteractiveCard.tsx
-│    │   ├── StandardCard.tsx
-│    │   ├── AccentBorderCard.tsx
-│    │   └── index.ts
-│    ├── forms/
-│    │   ├── Button.tsx
-│    │   ├── IconButton.tsx
-│    │   ├── Dropdown.tsx
-│    │   └── index.ts
-│    ├── feedback/
-│    │   ├── Toast.tsx
-│    │   ├── Loading.tsx
-│    │   └── index.ts
-│    ├── modals/
-│    │   ├── MealModal.tsx
-│    │   ├── MealOptOutModal.tsx
-│    │   └── index.ts
-│    └── index.ts (barrel export)
-└── Services
-    ├── authService
-    ├── mealService
-    ├── scheduleService
-    ├── userService
-    ├── preferenceService
-    ├── bulkOptOutService
-    └── historyService
+│   ├── layout/          # Page structure: Header, Navbar, Footer, BottomActionButtons
+│   ├── cards/           # Reusable card components: EmployeeMenuCard, InteractiveCard, StandardCard, AccentBorderCard
+│   ├── forms/           # Form controls: Button, IconButton, Dropdown, Input fields
+│   ├── modals/          # Modal dialogs: MealModal, MealOptOutModal, confirmation dialogs
+│   └── feedback/        # User feedback: Toast notifications, Loading spinners, error messages
+├── pages/
+│   ├── LoginPage.tsx                 # Authentication page
+│   ├── DashboardPage.tsx             # Main dashboard with overview
+│   ├── EmployeeMealPage.tsx          # Employee meal calendar and preference management
+│   ├── AdminHeadcountPage.tsx        # Admin/Logistics headcount view and reports
+│   └── TeamLeadManagementPage.tsx    # Team lead override and team management
+├── services/            # API service layer: HTTP client, API endpoint wrappers
+├── store/               # Zustand state management: Auth store, meal store, global state
+├── types/               # TypeScript type definitions: Interfaces, enums, API response types
+├── hooks/               # Custom React hooks: useAuth, useMeals, useToast, API data fetching
+└── utils/               # Helper functions: Date formatting, validators, constants, utility functions
 ```
 
-#### 5.1.2 Key Pages & Responsibilities
+**Key Directories:**
+- **components/**: Reusable UI components organized by category
+- **pages/**: Top-level route components (one per main route)
+- **services/**: Centralized API communication layer
+- **store/**: Global application state (authentication, user data)
+- **types/**: Shared TypeScript interfaces and types
+- **hooks/**: Custom React hooks for logic reuse
+- **utils/**: Pure utility functions and constants
 
-**LoginPage**
-- User authentication
-- Role-based redirection after login
-- Remember me functionality
 
-**DashboardPage (Employee)**
-- Today's date and meal schedule
-- Current participation status
-- Day status indicator (normal, holiday, office closed)
-- Quick opt-out actions
-- Display user's default meal preference
-- Show active bulk opt-outs affecting today
-
-**EmployeeMealPage**
-- Detailed view of all meals for the day
-- Opt-in/opt-out toggles
-- View cutoff times
-- Create bulk opt-outs for date ranges
-- Submission confirmation
-
-**UserPreferencesPage**
-- Set default meal preference (opt-in or opt-out)
-- Manage bulk opt-outs (create, view, delete)
-- View list of active bulk opt-outs with date ranges
-- Explanation of how preferences work
-
-**MealHistoryPage**
-- Calendar view of past 30/60/90 days participation
-- List view with filtering by date range and meal type
-- Participation summary statistics
-- Audit trail showing who changed what and when
-- Visual indicators for opted-in, opted-out, overrides
-
-**AdminHeadcountPage**
-- Real-time headcount per meal type
-- Export functionality (future)
-- Date selection for historical view (future)
-
-**AdminSchedulePage**
-- Calendar view of scheduled days
-- Create/edit day schedules (office closed, holidays, celebrations)
-- Set available meals for special days
-- Manage government holidays and company events
-
-**TeamLeadManagementPage**
-- View team members
-- Override meal participation
-- View team members' meal history
-- Bulk update capabilities (future)
-
-### 5.2 Backend Components
-
-#### 5.2.1 Package Structure
+### Backend package Structure
 
 ```
 cmd/
@@ -468,1428 +366,908 @@ internal/
     ├── password.go            # Password hashing
     ├── validator.go           # Custom validators
     └── response.go            # Standard response formats
-
-migrations/                    # Database migration files
-├── 000001_create_users_table.up.sql
-├── 000001_create_users_table.down.sql
-├── 000002_create_meal_participations_table.up.sql
-├── 000002_create_meal_participations_table.down.sql
-├── 000003_create_day_schedules_table.up.sql
-├── 000003_create_day_schedules_table.down.sql
-├── 000004_add_default_meal_preference.up.sql
-├── 000004_add_default_meal_preference.down.sql
-├── 000005_create_meal_participation_history_table.up.sql
-├── 000005_create_meal_participation_history_table.down.sql
-├── 000006_create_bulk_opt_outs_table.up.sql
-├── 000006_create_bulk_opt_outs_table.down.sql
-├── 000007_add_team_lead_relationship.up.sql
-└── 000007_add_team_lead_relationship.down.sql
-
-pkg/                           # Shared/public packages
-└── logger/
-    └── logger.go              # Logger configuration
 ```
 
 ---
 
-## 6. Data Model
+## 9. Key Decisions and Trade-offs
 
-### 6.1 Entity Relationship Diagram
+### Decision 1: Default Preference Model
+**Decision:** Implement user-level default preference (opt-in or opt-out) rather than requiring explicit opt-in/out for every meal.
 
-```
-┌─────────────────────────────┐
-│           User              │
-├─────────────────────────────┤
-│ id (string)                 │◄─────────┐
-│ email (string)              │          │
-│ name (string)               │          │
-│ password (hash)             │          │
-│ role (enum)                 │          │
-│ active (bool)               │          │
-│ default_meal_preference     │          │  
-│   (enum: opt_in/opt_out)    │          │
-│ created_at                  │          │
-│ updated_at                  │          │
-└─────────────────────────────┘          │
-        │                                │ user_id (FK)
-        │ user_id (FK)                   │
-        ▼                                │
-┌─────────────────────────────────────┐  │
-│            Team                     │  │  
-├─────────────────────────────────────┤  │
-│ id (string)                         │  │
-│ name (string)                       │  │
-│ description (string)                │  │
-│ team_lead_id (string)               │──┘
-│ active (bool)                       │
-│ created_at                          │
-│ updated_at                          │
-└─────────────────────────────────────┘
-        │
-        │ team_id (FK)
-        ▼
-┌─────────────────────────────────────┐
-│        TeamMember                   │  
-├─────────────────────────────────────┤
-│ team_id (string) PK                 │
-│ user_id (string) PK                 │
-│ joined_at (datetime)                │
-└─────────────────────────────────────┘
-        │
-        │ user_id (FK)
-        ▼
-┌─────────────────────────────────────┐
-│      MealParticipation              │
-├─────────────────────────────────────┤
-│ id (string)                         │
-│ user_id (string)                    │
-│ date (string)                       │──┐
-│ meal_type (enum)                    │  │
-│ is_participating (bool)             │  │
-│ opted_out_at (datetime)             │  │
-│ override_by (string)                │  │
-│ override_reason (string)            │  │
-│ created_at                          │  │
-│ updated_at                          │  │
-└─────────────────────────────────────┘  │ date (FK)
-        │                                │
-        │                                │
-        │ participation_id (FK)          │
-        │                                │
-┌─────────────────────────────────────┐  │
-│  MealParticipationHistory           │  │  
-├─────────────────────────────────────┤  │
-│ id (string)                         │  │
-│ user_id (string)                    │──┘
-│ date (string)                       │
-│ meal_type (enum)                    │
-│ action (enum: opted_in/opted_out)   │
-│ previous_value (enum)               │
-│ changed_by_user_id (string)         │
-│ reason (string)                     │
-│ ip_address (string)                 │
-│ created_at                          │
-└─────────────────────────────────────┘
+**Rationale:**
+- Reduces daily interaction burden for users
+- Matches real-world behavior (most people have consistent patterns)
+- Exceptions handled via specific records or bulk opt-outs
 
-┌─────────────────────────────────────┐
-│         BulkOptOut                  │  
-├─────────────────────────────────────┤
-│ id (string)                         │
-│ user_id (string)                    │──┐
-│ start_date (string)                 │  │
-│ end_date (string)                   │  │
-│ meal_type (enum)                    │  │
-│ is_active (bool)                    │  │
-│ created_at                          │  │
-│ updated_at                          │  │
-└─────────────────────────────────────┘  │
-                                         │
-                             ┌───────────┘
-                             │
-┌─────────────────────────────▼───────┐
-│         DaySchedule                 │
-├─────────────────────────────────────┤
-│ id (string)                         │
-│ date (string)                       │
-│ day_status (enum)                   │
-│ reason (string)                     │
-│ available_meals (array)             │
-│ created_by (string)                 │
-│ created_at                          │
-│ updated_at                          │
-└─────────────────────────────────────┘
+**Trade-offs:**
+- More complex participation resolution logic
+- Need to clearly communicate how defaults work
+- ✅ Chosen for better UX
 
-┌─────────────────────────┐
-│   MealPreference        │  (Enum/Constant) 
-├─────────────────────────┤
-│ OPT_IN (default)        │
-│ OPT_OUT                 │
-└─────────────────────────┘
+### Decision 2: Database Choice - PostgreSQL
+**Decision:** PostgreSQL over MySQL or MongoDB.
 
-┌─────────────────────────┐
-│   ParticipationAction   │  (Enum/Constant) 
-├─────────────────────────┤
-│ OPTED_IN                │
-│ OPTED_OUT               │
-│ OVERRIDE_IN             │
-│ OVERRIDE_OUT            │
-└─────────────────────────┘
+**Rationale:**
+- ACID compliance critical for meal counts
+- Strong JSON support for flexible data (day schedules)
+- Team familiarity
+- Excellent performance for this scale
 
-┌─────────────────┐
-│   MealType      │  (Enum/Constant)
-├─────────────────┤
-│ LUNCH           │
-│ SNACKS          │
-│ IFTAR           │
-│ EVENT_DINNER    │
-│ OPTIONAL_DINNER │
-└─────────────────┘
+**Trade-offs:**
+- More resource-intensive than MySQL
+- ✅ Chosen for reliability and features
 
-┌─────────────────┐
-│   DayStatus     │  (Enum/Constant)
-├─────────────────┤
-│ NORMAL          │
-│ OFFICE_CLOSED   │
-│ GOVT_HOLIDAY    │
-│ CELEBRATION     │
-└─────────────────┘
+### Decision 3: JWT for Authentication
+**Decision:** Stateless JWT tokens over session-based authentication.
 
-┌─────────────────┐
-│      Role       │  (Enum/Constant)
-├─────────────────┤
-│ EMPLOYEE        │
-│ TEAM_LEAD       │
-│ ADMIN           │
-│ LOGISTICS       │
-└─────────────────┘
-```
+**Rationale:**
+- Scalability (no server-side session storage)
+- Simpler deployment (no session store needed)
+- Standard approach for API-first design
 
-### 6.2 Data Models (Go Structs)
+**Trade-offs:**
+- Cannot revoke tokens before expiry (mitigated with 24-hour expiry)
+- ✅ Chosen for simplicity and scalability
 
-#### 6.2.1 User Model
+### Decision 4: Go + Gin for Backend
+**Decision:** Go with Gin framework over Node.js/Express or Python/Django.
 
-```go
-type Role string
+**Rationale:**
+- Better performance and concurrency
+- Single binary deployment (simpler operations)
+- Strong typing and compile-time checks
+- Team expanding Go expertise
 
-const (
-    RoleEmployee  Role = "employee"
-    RoleTeamLead  Role = "team_lead"
-    RoleAdmin     Role = "admin"
-    RoleLogistics Role = "logistics"
-)
+**Trade-offs:**
+- Smaller ecosystem than Node.js
+- Less team familiarity initially
+- ✅ Chosen for performance and operational simplicity
 
-// *** NEW: MealPreference Enum ***
-type MealPreference string
+### Decision 5: Zustand over Redux
+**Decision:** Zustand for state management instead of Redux or Context API.
 
-const (
-    MealPreferenceOptIn  MealPreference = "opt_in"  // Default: User participates unless they opt out
-    MealPreferenceOptOut MealPreference = "opt_out" // User doesn't participate unless they opt in
-)
+**Rationale:**
+- Much simpler API than Redux
+- Better performance than Context API
+- Smaller bundle size
+- Sufficient for application complexity
 
-type User struct {
-    ID                    string         `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
-    Email                 string         `gorm:"uniqueIndex;not null;size:255" json:"email" validate:"required,email"`
-    Name                  string         `gorm:"not null;size:255" json:"name" validate:"required"`
-    Password              string         `gorm:"not null" json:"-"` // Never expose in JSON
-    Role                  Role           `gorm:"type:varchar(50);not null;default:'employee'" json:"role" validate:"required"`
-    Active                bool           `gorm:"default:true" json:"active"`
-    DefaultMealPreference MealPreference `gorm:"type:varchar(20);not null;default:'opt_in'" json:"default_meal_preference"` // 
-    CreatedAt             time.Time      `gorm:"autoCreateTime" json:"created_at"`
-    UpdatedAt             time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
-}
+**Trade-offs:**
+- Less tooling/devtools than Redux
+- ✅ Chosen for simplicity and team velocity
 
-// TableName specifies the table name for GORM
-func (User) TableName() string {
-    return "users"
-}
-```
+### Decision 6: Automatic 3-Month History Cleanup
+**Decision:** Automatically delete participation history older than 3 months.
 
-#### 6.2.2 Meal Participation Model
+**Rationale:**
+- Limits database growth
+- Sufficient for accountability needs
+- Privacy consideration (minimize data retention)
 
-```go
-type MealType string
+**Trade-offs:**
+- Cannot retrieve older historical data
+- ✅ Chosen to balance retention needs with data minimization
 
-const (
-    MealTypeLunch          MealType = "lunch"
-    MealTypeSnacks         MealType = "snacks"
-    MealTypeIftar          MealType = "iftar"
-    MealTypeEventDinner    MealType = "event_dinner"
-    MealTypeOptionalDinner MealType = "optional_dinner"
-)
+---
 
-type DayStatus string
 
-const (
-    DayStatusNormal         DayStatus = "normal"          // Regular working day
-    DayStatusOfficeClosed   DayStatus = "office_closed"   // Office closed (no meals)
-    DayStatusGovtHoliday    DayStatus = "govt_holiday"    // Government holiday (no meals)
-    DayStatusCelebration    DayStatus = "celebration"     // Special celebration day
-)
+## 10. Security and Access Control
 
-type MealParticipation struct {
-    ID              string     `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
-    UserID          string     `gorm:"type:uuid;not null;index" json:"user_id" validate:"required"`
-    Date            string     `gorm:"type:date;not null;index" json:"date" validate:"required"` // Format: YYYY-MM-DD
-    MealType        MealType   `gorm:"type:varchar(50);not null" json:"meal_type" validate:"required"`
-    IsParticipating bool       `gorm:"default:true" json:"is_participating"`
-    OptedOutAt      *time.Time `gorm:"type:timestamp" json:"opted_out_at,omitempty"`
-    OverrideBy      string     `gorm:"type:uuid" json:"override_by,omitempty"` // User ID who made override
-    OverrideReason  string     `gorm:"type:text" json:"override_reason,omitempty"`
-    CreatedAt       time.Time  `gorm:"autoCreateTime" json:"created_at"`
-    UpdatedAt       time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
-    
-    // Foreign key relationship
-    User User `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
-}
+### Authentication
+- **Method:** JWT-based authentication
+- **Token Storage:** localStorage (client-side)
+- **Token Expiry:** 2-4 hours
+- **Password Hashing:** bcrypt with cost factor 12
+- **HTTPS Only:** All communications encrypted in transit
 
-// TableName specifies the table name for GORM
-func (MealParticipation) TableName() string {
-    return "meal_participations"
-}
+### Authorization (RBAC)
 
-// Composite unique index to prevent duplicate entries for same user/date/meal
-func (MealParticipation) TableIndexes() []string {
-    return []string{
-        "idx_user_date_meal:user_id,date,meal_type,unique",
-    }
-}
-```
+| Role | Permissions |
+|------|-------------|
+| **Employee** | View/update own preferences, view own participation, manage own bulk opt-outs, view own history |
+| **Team Lead** | All employee permissions + override team member participation, view team headcount |
+| **Admin** | All team lead permissions + manage day schedules, view all users, system-wide headcount |
+| **Logistics** | View headcounts, view schedules (read-only for planning) |
 
-#### 6.2.3 Day Schedule Model
+### Middleware Stack
+1. **CORS** - Whitelist allowed origins
+2. **Request ID** - Unique ID for request tracing
+3. **Authentication** - JWT validation
+4. **Authorization** - Role-based access checks
+5. **Rate Limiting** - 100 requests/minute per user
+6. **Recovery** - Graceful panic recovery
 
-```go
-type DaySchedule struct {
-    ID             string     `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
-    Date           string     `gorm:"type:date;uniqueIndex;not null" json:"date" validate:"required"` // Format: YYYY-MM-DD
-    DayStatus      DayStatus  `gorm:"type:varchar(50);not null;default:'normal'" json:"day_status" validate:"required"`
-    Reason         string     `gorm:"type:text" json:"reason,omitempty"` // Reason for office closure or holiday
-    AvailableMeals string     `gorm:"type:text" json:"-"` // Stored as JSON string in DB
-    CreatedBy      string     `gorm:"type:uuid;not null" json:"created_by"` // Admin who set the schedule
-    CreatedAt      time.Time  `gorm:"autoCreateTime" json:"created_at"`
-    UpdatedAt      time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
-    
-    // Transient field for available meals (populated from AvailableMeals JSON string)
-    AvailableMealsArray []MealType `gorm:"-" json:"available_meals"`
-}
+### Security Best Practices
+- Input validation on all API endpoints (using go-playground/validator)
+- SQL injection prevention (GORM parameterized queries)
+- XSS prevention (React's built-in escaping)
+- CSRF protection (SameSite cookie attribute)
+- Audit logging for sensitive operations
+- Password complexity requirements (min 8 chars, mix of upper/lower/numbers)
 
-// TableName specifies the table name for GORM
-func (DaySchedule) TableName() string {
-    return "day_schedules"
-}
-```
+### Data Privacy
+- Participation history limited to 3 months
+- No PII beyond name and email
+- Audit logs show "who changed what" for accountability
 
-#### 6.2.4 Meal Participation History Model
+---
 
-```go
-// ParticipationAction represents the action taken on meal participation
-type ParticipationAction string
+## 11. Testing Plan
 
-const (
-    ActionOptedIn     ParticipationAction = "opted_in"
-    ActionOptedOut    ParticipationAction = "opted_out"
-    ActionOverrideIn  ParticipationAction = "override_in"  // Admin/Team Lead overrode to opt-in
-    ActionOverrideOut ParticipationAction = "override_out" // Admin/Team Lead overrode to opt-out
-)
+### Unit Testing
 
-// MealParticipationHistory tracks all explicit changes to meal participation
-// Default behavior (following user preference) is NOT tracked
-// Records are automatically deleted after 3 months
-type MealParticipationHistory struct {
-    ID               string              `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
-    UserID           string              `gorm:"type:uuid;not null;index" json:"user_id" validate:"required"`
-    Date             string              `gorm:"type:date;not null;index" json:"date" validate:"required"` // Format: YYYY-MM-DD
-    MealType         MealType            `gorm:"type:varchar(50);not null" json:"meal_type" validate:"required"`
-    Action           ParticipationAction `gorm:"type:varchar(20);not null" json:"action" validate:"required"`
-    PreviousValue    string              `gorm:"type:varchar(20)" json:"previous_value,omitempty"` // Previous participation status
-    ChangedByUserID  string              `gorm:"type:uuid;not null" json:"changed_by_user_id"` // Who made the change (self or admin)
-    Reason           string              `gorm:"type:varchar(255)" json:"reason,omitempty"` // Optional reason for change
-    IPAddress        string              `gorm:"type:varchar(45)" json:"ip_address,omitempty"` // IPv4 or IPv6
-    CreatedAt        time.Time           `gorm:"autoCreateTime;index" json:"created_at"`
-    
-    // Foreign key relationships
-    User      User `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
-    ChangedBy User `gorm:"foreignKey:ChangedByUserID;constraint:OnDelete:SET NULL" json:"-"`
-}
+**Backend (Go)**
+- Framework: Go's built-in `testing` package + testify
+- Coverage Target: >80%
+- Focus Areas:
+  - Business logic in service layer
+  - Participation resolution algorithm
+  - Date/time calculations
+  - Permission checks
 
-// TableName specifies the table name for GORM
-func (MealParticipationHistory) TableName() string {
-    return "meal_participation_history"
-}
+**Frontend (React)**
+- Framework: Vitest + React Testing Library
+- Coverage Target: >70%
+- Focus Areas:
+  - Component rendering
+  - User interactions
+  - Form validation
+  - State management
 
-// Composite index for efficient querying
-func (MealParticipationHistory) TableIndexes() []string {
-    return []string{
-        "idx_history_user_date:user_id,date",
-        "idx_history_created_at:created_at", // For auto-cleanup queries
-    }
-}
-```
+### Integration Testing
 
-#### 6.2.5 Bulk Opt-Out Model
+**API Testing**
+- Framework: Go's httptest + testify
+- Test Scenarios:
+  - Full request/response cycles
+  - Middleware chain
+  - Database interactions
+  - Error handling
 
-```go
-// BulkOptOut represents a date range where user has opted out
-// Used for vacations, business trips, extended leave
-type BulkOptOut struct {
-    ID        string    `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
-    UserID    string    `gorm:"type:uuid;not null;index" json:"user_id" validate:"required"`
-    StartDate string    `gorm:"type:date;not null" json:"start_date" validate:"required"` // Format: YYYY-MM-DD
-    EndDate   string    `gorm:"type:date;not null" json:"end_date" validate:"required,gtfield=StartDate"` // Must be >= StartDate
-    MealType  MealType  `gorm:"type:varchar(50);not null" json:"meal_type" validate:"required"`
-    IsActive  bool      `gorm:"default:true" json:"is_active"` // Can be deactivated without deletion
-    CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
-    UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
-    
-    // Foreign key relationship
-    User User `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
-}
+**Database Testing**
+- Framework: testcontainers-go (PostgreSQL in Docker)
+- Test Scenarios:
+  - Schema migrations
+  - Complex queries
+  - Transaction rollbacks
+  - Constraint validation
 
-// TableName specifies the table name for GORM
-func (BulkOptOut) TableName() string {
-    return "bulk_opt_outs"
-}
+  
+### Integration Scenarios
 
-// Composite index for efficient date range queries
-func (BulkOptOut) TableIndexes() []string {
-    return []string{
-        "idx_bulk_user_dates:user_id,start_date,end_date",
-        "idx_bulk_active:is_active",
-    }
-}
+**Scenario 1: Authentication & Authorization Flow**
+- **Test:** User login → JWT generation → Protected resource access
+- **Steps:**
+  1. POST /api/auth/login with valid credentials
+  2. Verify JWT token returned with correct claims (user_id, role, expiry)
+  3. Use JWT to access protected endpoint (GET /api/meals/participation)
+  4. Verify authorization middleware allows access based on role
+  5. Attempt access with expired token → verify 401 response
+  6. Attempt access to admin endpoint as employee → verify 403 response
+- **Expected:** Proper authentication and role-based access control enforced
 
-// IsDateInRange checks if a given date falls within this bulk opt-out period
-func (b *BulkOptOut) IsDateInRange(date string) bool {
-    return b.IsActive && date >= b.StartDate && date <= b.EndDate
-}
-```
+**Scenario 2: Participation Resolution with Multiple Factors**
+- **Test:** System correctly resolves participation status with overlapping rules
+- **Steps:**
+  1. Set user default preference to "opt-in"
+  2. Create bulk opt-out for Feb 10-15
+  3. Create specific participation record (opt-in) for Feb 12
+  4. Query participation status for Feb 12
+  5. Verify specific record overrides bulk opt-out
+  6. Query participation for Feb 13 (no specific record)
+  7. Verify bulk opt-out applies (not participating)
+- **Expected:** Priority order respected: specific record > bulk opt-out > default preference
 
-#### 6.2.6 Team Models
+**Scenario 3: Bulk Opt-Out Creation and Cascade**
+- **Test:** Bulk opt-out affects all meals in date range
+- **Steps:**
+  1. User has default preference "opt-in"
+  2. POST /api/bulk-opt-outs with date range Feb 20-25
+  3. Verify bulk_opt_outs record created
+  4. Query participation for Feb 21, Feb 23 (different meals: lunch, dinner)
+  5. Verify all meals marked as "not participating"
+  6. DELETE bulk opt-out
+  7. Re-query participation → verify reverts to default (opt-in)
+- **Expected:** Bulk opt-out correctly applied and removed across all meals
 
-```go
-// Team represents a team within the organization
-type Team struct {
-    ID          uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-    Name        string    `gorm:"type:varchar(255);not null" json:"name" validate:"required"`
-    Description string    `gorm:"type:text" json:"description,omitempty"`
-    TeamLeadID  uuid.UUID `gorm:"type:uuid;not null;index" json:"team_lead_id" validate:"required"`
-    Active      bool      `gorm:"not null;default:true" json:"active"`
-    CreatedAt   time.Time `gorm:"autoCreateTime" json:"created_at"`
-    UpdatedAt   time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+**Scenario 4: Day Schedule Impact on Participation**
+- **Test:** Office closed day prevents participation
+- **Steps:**
+  1. Admin creates day schedule: Feb 18 = "office_closed"
+  2. Employee attempts to opt-in for Feb 18 lunch
+  3. Verify API returns error or blocks action
+  4. Query headcount for Feb 18 → verify returns 0
+  5. Admin changes day to "normal"
+  6. Re-query → verify participation allowed
+- **Expected:** Day schedule takes highest priority, blocking participation
 
-    // Relationships
-    TeamLead *User  `gorm:"foreignKey:TeamLeadID;constraint:OnDelete:CASCADE" json:"team_lead,omitempty"`
-    Members  []User `gorm:"many2many:team_members" json:"members,omitempty"`
-}
+**Scenario 5: Team Lead Override with Audit Trail**
+- **Test:** Override creates proper audit log
+- **Steps:**
+  1. Employee has participation = true for Feb 25 lunch
+  2. Team lead executes PUT /api/admin/override-participation (change to false)
+  3. Verify meal_participations updated with overridden_by = team_lead_id
+  4. Query meal_participation_history
+  5. Verify history record shows: old_value=true, new_value=false, changed_by=team_lead_id
+  6. Employee views own history → verify change visible
+- **Expected:** Override persisted, audit trail complete, employee notified
 
-// TableName specifies the table name for GORM
-func (Team) TableName() string {
-    return "teams"
-}
+**Scenario 6: Cutoff Time Enforcement**
+- **Test:** System blocks changes after cutoff time
+- **Steps:**
+  1. Set server time to 8:55 AM (before lunch cutoff)
+  2. Employee toggles lunch participation for today
+  3. Verify update succeeds
+  4. Set server time to 9:05 AM (after cutoff)
+  5. Employee attempts same action
+  6. Verify API returns 400/403 with "cutoff time passed" message
+- **Expected:** Cutoff time strictly enforced, clear error messages
 
-// TeamMember represents the junction table for team membership
-type TeamMember struct {
-    TeamID   uuid.UUID `gorm:"type:uuid;primaryKey" json:"team_id"`
-    UserID   uuid.UUID `gorm:"type:uuid;primaryKey" json:"user_id"`
-    JoinedAt time.Time `gorm:"not null;default:CURRENT_TIMESTAMP" json:"joined_at"`
+**Scenario 7: Default Preference Change Retroactive Effect**
+- **Test:** Changing default doesn't affect past specific records
+- **Steps:**
+  1. User default = "opt-in"
+  2. Create specific opt-out for Feb 10
+  3. Query Feb 10 → verify not participating
+  4. Change default to "opt-out"
+  5. Re-query Feb 10 → verify still not participating (specific record preserved)
+  6. Query Feb 11 (no specific record) → verify now uses new default (opt-out)
+- **Expected:** Default change only affects future/unspecified dates
 
-    // Relationships
-    Team *Team `gorm:"foreignKey:TeamID;constraint:OnDelete:CASCADE" json:"-"`
-    User *User `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
-}
+**Scenario 8: Headcount Calculation Accuracy**
+- **Test:** Admin headcount view shows correct aggregated data
+- **Steps:**
+  1. Setup: 10 users total
+     - 3 users: default "opt-in", no exceptions
+     - 2 users: default "opt-out", no exceptions
+     - 3 users: default "opt-in", bulk opt-out for Feb 15
+     - 2 users: default "opt-in", specific opt-out for Feb 15
+  2. Admin queries GET /api/admin/headcount?date=2026-02-15&mealType=lunch
+  3. Verify calculation:
+     - Participating: 3 (only those with default opt-in, no exceptions)
+     - Not participating: 7 (2 default opt-out + 3 bulk + 2 specific)
+     - Total: 10
+- **Expected:** Headcount matches manual calculation
 
-// TableName specifies the table name for GORM
-func (TeamMember) TableName() string {
-    return "team_members"
-}
-```
+**Scenario 9: History Auto-Cleanup Job**
+- **Test:** Scheduled job deletes old records
+- **Steps:**
+  1. Insert test history records with created_at dates:
+     - Record A: 2 months ago
+     - Record B: 3 months ago
+     - Record C: 4 months ago
+  2. Trigger cleanup job (or simulate cron)
+  3. Query meal_participation_history
+  4. Verify Records A and B exist, Record C deleted
+  5. Verify user can still view recent history (A, B)
+- **Expected:** Only records >3 months deleted, recent history preserved
 
-#### 6.2.7 Headcount Summary Model
+**Scenario 10: Concurrent Update Handling**
+- **Test:** Database handles simultaneous participation updates
+- **Steps:**
+  1. User A and Admin B both update same meal participation simultaneously
+  2. Verify database constraint (UNIQUE user_id, date, meal_type) prevents conflicts
+  3. Verify one transaction succeeds, other fails with proper error
+  4. Verify successful update logged to history
+- **Expected:** Data integrity maintained, last-write-wins or proper error handling
 
-```go
-type MealHeadcount struct {
-    Date               string            `json:"date"`
-    MealType           MealType          `json:"meal_type"`
-    ParticipatingCount int               `json:"participating_count"`
-    OptedOutCount      int               `json:"opted_out_count"`
-    TotalEmployees     int               `json:"total_employees"`
-    LastUpdated        time.Time         `json:"last_updated"`
-}
+### Manual QA Checklist
 
-type DailyHeadcountSummary struct {
-    Date      string          `json:"date"`
-    Meals     []MealHeadcount `json:"meals"`
-    GeneratedAt time.Time     `json:"generated_at"`
-}
-```
+#### Pre-Test Setup
+- [ ] Fresh database with test data (10 users, various roles)
+- [ ] System time set to known date (e.g., Feb 10, 2026, 8:00 AM)
+- [ ] Test user credentials available for each role
+- [ ] Browser cache cleared
 
-### 6.3 Database Schema
+---
 
-The application uses PostgreSQL as the relational database. GORM handles automatic migrations and schema creation.
+#### Test Suite 1: User Authentication & Authorization
 
-#### 6.3.1 users Table
+**TC1.1: Successful Login**
+- [ ] Navigate to login page (`/login`)
+- [ ] Enter valid employee credentials
+- [ ] Click "Login" button
+- [ ] **Verify:** Redirected to dashboard
+- [ ] **Verify:** User name displayed in header
+- [ ] **Verify:** JWT token stored in localStorage
+
+**TC1.2: Failed Login - Invalid Credentials**
+- [ ] Enter incorrect password
+- [ ] Click "Login"
+- [ ] **Verify:** Error message "Invalid credentials" displayed
+- [ ] **Verify:** No redirect occurs
+- [ ] **Verify:** No token stored
+
+**TC1.3: Session Persistence**
+- [ ] Login successfully
+- [ ] Refresh browser page
+- [ ] **Verify:** User remains logged in
+- [ ] **Verify:** Dashboard still accessible
+
+**TC1.4: Logout**
+- [ ] Click "Logout" button
+- [ ] **Verify:** Redirected to login page
+- [ ] **Verify:** Token removed from localStorage
+- [ ] Attempt to access `/meals` directly
+- [ ] **Verify:** Redirected to login page
+
+**TC1.5: Role-Based Access Control**
+- [ ] Login as Employee
+- [ ] Attempt to access `/admin/headcount`
+- [ ] **Verify:** 403 error or redirect to dashboard
+- [ ] Logout and login as Admin
+- [ ] Access `/admin/headcount`
+- [ ] **Verify:** Page loads successfully
+
+---
+
+#### Test Suite 2: Default Meal Preference
+
+**TC2.1: View Current Default Preference**
+- [ ] Login as employee
+- [ ] Navigate to Settings/Preferences page
+- [ ] **Verify:** Current default displayed (e.g., "Opt-In")
+- [ ] **Verify:** Radio buttons or toggle reflects current setting
+
+**TC2.2: Change Default from Opt-In to Opt-Out**
+- [ ] Select "Opt-Out" option
+- [ ] Click "Save" button
+- [ ] **Verify:** Success message displayed
+- [ ] Refresh page
+- [ ] **Verify:** Selection persisted to "Opt-Out"
+
+**TC2.3: Default Preference Applied to Future Meals**
+- [ ] Set default to "Opt-Out"
+- [ ] Navigate to meal calendar
+- [ ] View tomorrow's meals (no specific records)
+- [ ] **Verify:** All meals show "Not Participating" status
+- [ ] Change default to "Opt-In"
+- [ ] Refresh calendar
+- [ ] **Verify:** All meals now show "Participating" status
+
+---
+
+#### Test Suite 3: Daily Meal Participation
+
+**TC3.1: View Current Week Meal Calendar**
+- [ ] Navigate to `/meals` or meal calendar page
+- [ ] **Verify:** Current week displayed with all days
+- [ ] **Verify:** Each day shows available meals (lunch, snacks, dinner)
+- [ ] **Verify:** Participation status visible for each meal
+
+**TC3.2: Toggle Participation (Before Cutoff)**
+- [ ] Set system time to 8:30 AM
+- [ ] Find today's lunch meal
+- [ ] Click toggle/checkbox to opt-out
+- [ ] **Verify:** Status changes to "Not Participating"
+- [ ] **Verify:** Success toast notification appears
+- [ ] Refresh page
+- [ ] **Verify:** Change persisted
+
+**TC3.3: Attempt Toggle After Cutoff**
+- [ ] Set system time to 9:30 AM (after lunch cutoff)
+- [ ] Attempt to toggle today's lunch
+- [ ] **Verify:** Error message "Cutoff time has passed"
+- [ ] **Verify:** Status does not change
+- [ ] **Verify:** Toggle/button disabled or warning shown
+
+**TC3.4: Toggle for Future Date**
+- [ ] Select tomorrow's lunch
+- [ ] Toggle participation
+- [ ] **Verify:** Change allowed (no cutoff restriction)
+- [ ] **Verify:** Status updated successfully
+
+**TC3.5: Visual Indicators**
+- [ ] **Verify:** "Participating" meals have green checkmark or highlight
+- [ ] **Verify:** "Not Participating" meals have red X or different styling
+- [ ] **Verify:** Past dates are greyed out or read-only
+- [ ] **Verify:** Cutoff-passed meals show lock icon or disabled state
+
+---
+
+#### Test Suite 4: Bulk Opt-Out Management
+
+**TC4.1: Create Bulk Opt-Out for Vacation**
+- [ ] Navigate to "Bulk Opt-Out" or "Manage Exceptions" page
+- [ ] Click "Create Bulk Opt-Out" button
+- [ ] Enter start date: Feb 20, 2026
+- [ ] Enter end date: Feb 25, 2026
+- [ ] Enter reason: "Vacation"
+- [ ] Click "Submit"
+- [ ] **Verify:** Success message displayed
+- [ ] **Verify:** New entry appears in bulk opt-out list
+
+**TC4.2: Verify Bulk Opt-Out Applied to Calendar**
+- [ ] Navigate to meal calendar
+- [ ] View Feb 20-25 date range
+- [ ] **Verify:** All meals in range show "Not Participating"
+- [ ] **Verify:** Visual indicator (e.g., "Bulk Opt-Out" label) shown
+- [ ] Hover or click for details
+- [ ] **Verify:** Reason "Vacation" displayed
+
+**TC4.3: View All Active Bulk Opt-Outs**
+- [ ] Return to bulk opt-out page
+- [ ] **Verify:** List shows all active/upcoming bulk opt-outs
+- [ ] **Verify:** Each entry shows: date range, reason, created date
+- [ ] **Verify:** Past bulk opt-outs hidden or in separate section
+
+**TC4.4: Delete Bulk Opt-Out**
+- [ ] Locate previously created bulk opt-out
+- [ ] Click "Delete" or trash icon
+- [ ] Confirm deletion in modal
+- [ ] **Verify:** Entry removed from list
+- [ ] Navigate to calendar for affected dates
+- [ ] **Verify:** Meals revert to default preference status
+
+**TC4.5: Overlapping Bulk Opt-Outs (Edge Case)**
+- [ ] Create bulk opt-out: Feb 10-15
+- [ ] Create another: Feb 12-18
+- [ ] **Verify:** Both saved successfully
+- [ ] Check calendar for Feb 12-15 (overlap)
+- [ ] **Verify:** Meals still show "Not Participating"
+- [ ] Delete first bulk opt-out
+- [ ] **Verify:** Feb 12-18 still opted-out (second rule applies)
+
+---
+
+#### Test Suite 5: Participation History
+
+**TC5.1: View Personal History**
+- [ ] Navigate to "My History" or history tab
+- [ ] **Verify:** List of recent participation changes displayed
+- [ ] **Verify:** Each entry shows: date, meal type, old status, new status, timestamp
+- [ ] **Verify:** Changes from last 3 months visible
+
+**TC5.2: History After Manual Toggle**
+- [ ] Toggle tomorrow's lunch (opt-out)
+- [ ] Navigate to history page
+- [ ] **Verify:** New entry at top of list
+- [ ] **Verify:** Shows: changed_by = self, change_type = "manual"
+
+**TC5.3: History After Admin Override**
+- [ ] (Admin account) Override user's meal participation
+- [ ] (Employee account) View history
+- [ ] **Verify:** Entry shows changed_by = admin name
+- [ ] **Verify:** Change type = "override" or similar indicator
+
+**TC5.4: Filter/Sort History**
+- [ ] Use date filter to show last week only
+- [ ] **Verify:** Only relevant entries shown
+- [ ] Click column header to sort by date
+- [ ] **Verify:** List reorders correctly
+
+---
+
+#### Test Suite 6: Team Lead Override
+
+**TC6.1: View Team Members**
+- [ ] Login as Team Lead
+- [ ] Navigate to "Team Management" page
+- [ ] **Verify:** List of team members displayed
+- [ ] **Verify:** Each member shows current meal participation status
+
+**TC6.2: Override Team Member Participation**
+- [ ] Select team member "John Doe"
+- [ ] View his Feb 15 lunch status (currently "Participating")
+- [ ] Click "Override" button
+- [ ] Toggle to "Not Participating"
+- [ ] Add reason: "Team meeting scheduled"
+- [ ] Click "Save Override"
+- [ ] **Verify:** Success message displayed
+- [ ] **Verify:** John's status updated immediately
+
+**TC6.3: Verify Override Persisted**
+- [ ] Refresh page
+- [ ] **Verify:** John's Feb 15 lunch still shows "Not Participating"
+- [ ] **Verify:** Override indicator visible (e.g., "Overridden by Team Lead")
+- [ ] (Login as John Doe) View his own calendar
+- [ ] **Verify:** Feb 15 lunch shows "Not Participating" with override notice
+
+**TC6.4: Cannot Override Outside Team**
+- [ ] Attempt to access another team's member
+- [ ] **Verify:** User not in list OR
+- [ ] Attempt override via API directly
+- [ ] **Verify:** 403 Forbidden error
+
+---
+
+#### Test Suite 7: Admin Headcount View
+
+**TC7.1: View Today's Headcount**
+- [ ] Login as Admin or Logistics
+- [ ] Navigate to "Headcount" page
+- [ ] Select today's date
+- [ ] Select meal type: "Lunch"
+- [ ] Click "View Headcount"
+- [ ] **Verify:** Summary displays:
+  - Total employees: [number]
+  - Participating: [number]
+  - Not participating: [number]
+- [ ] **Verify:** Numbers add up correctly
+
+**TC7.2: Drill Down to User List**
+- [ ] Click "View Details" or expand participating users
+- [ ] **Verify:** List of participating employees shown
+- [ ] **Verify:** List shows user names
+- [ ] Click "Not Participating" tab
+- [ ] **Verify:** List of opted-out users shown
+
+**TC7.3: Export Headcount Report**
+- [ ] Click "Export" or "Download CSV" button
+- [ ] **Verify:** File downloads successfully
+- [ ] Open CSV file
+- [ ] **Verify:** Contains: date, meal type, user names, participation status
+
+**TC7.4: Headcount for Future Date**
+- [ ] Select date: Feb 25, 2026
+- [ ] View headcount
+- [ ] **Verify:** Shows projected numbers based on current opt-outs/preferences
+- [ ] Create new bulk opt-out affecting Feb 25
+- [ ] Refresh headcount
+- [ ] **Verify:** Numbers updated to reflect new opt-out
+
+---
+
+#### Test Suite 8: Day Schedule Management
+
+**TC8.1: Mark Day as Government Holiday**
+- [ ] Login as Admin
+- [ ] Navigate to "Day Schedules" page
+- [ ] Select date: Feb 26, 2026
+- [ ] Set status: "Government Holiday"
+- [ ] Enter reason: "Independence Day"
+- [ ] Set available meals: (none)
+- [ ] Click "Save"
+- [ ] **Verify:** Success message displayed
+
+**TC8.2: Verify Holiday Blocks Participation**
+- [ ] (Login as Employee)
+- [ ] Navigate to calendar for Feb 26
+- [ ] **Verify:** Day marked as "Government Holiday - Independence Day"
+- [ ] **Verify:** No meal toggles available
+- [ ] Attempt to opt-in via API (if accessible)
+- [ ] **Verify:** 400/403 error returned
+
+**TC8.3: View Headcount for Holiday**
+- [ ] (Login as Admin) View headcount for Feb 26
+- [ ] **Verify:** Shows 0 participating
+- [ ] **Verify:** Message "Office closed - no meals scheduled"
+
+**TC8.4: Change Day Status Back to Normal**
+- [ ] Edit Feb 26 schedule
+- [ ] Change status to "Normal"
+- [ ] **Verify:** Employees can now manage participation for that day
+
+**TC8.5: Mark Day as Celebration (Special Meals)**
+- [ ] Select date: Feb 28
+- [ ] Set status: "Celebration"
+- [ ] Reason: "Company Anniversary"
+- [ ] Available meals: ["lunch", "event_dinner"]
+- [ ] Save
+- [ ] **Verify:** Calendar shows special indicator
+- [ ] **Verify:** Only lunch and event dinner available for opt-in
+
+---
+
+#### Test Suite 9: UI/UX Validation
+
+**TC9.1: Responsive Design - Mobile**
+- [ ] Resize browser to mobile width (375px)
+- [ ] **Verify:** Navigation collapses to hamburger menu
+- [ ] **Verify:** Calendar cards stack vertically
+- [ ] **Verify:** All buttons accessible and tappable
+- [ ] **Verify:** No horizontal scroll on any page
+
+**TC9.2: Responsive Design - Tablet**
+- [ ] Resize to tablet width (768px)
+- [ ] **Verify:** Layout adapts appropriately
+- [ ] **Verify:** Two-column layouts where applicable
+
+**TC9.3: Loading States**
+- [ ] Throttle network to slow 3G
+- [ ] Navigate to headcount page
+- [ ] **Verify:** Loading spinner displayed while data fetches
+- [ ] **Verify:** UI doesn't show stale data during load
+
+**TC9.4: Error Handling**
+- [ ] Disconnect network
+- [ ] Attempt to toggle participation
+- [ ] **Verify:** Error message "Network error - please try again"
+- [ ] **Verify:** No silent failure
+
+**TC9.5: Accessibility - Keyboard Navigation**
+- [ ] Use Tab key to navigate entire page
+- [ ] **Verify:** Focus indicator visible on each element
+- [ ] **Verify:** All interactive elements reachable
+- [ ] Press Enter/Space on toggles
+- [ ] **Verify:** Actions trigger correctly
+
+**TC9.6: Accessibility - Screen Reader**
+- [ ] Enable screen reader (NVDA/JAWS)
+- [ ] Navigate participation calendar
+- [ ] **Verify:** Each meal status announced correctly
+- [ ] **Verify:** Button labels descriptive ("Opt out of lunch on Feb 10")
+
+---
+
+#### Test Suite 10: Edge Cases & Error Scenarios
+
+**TC10.1: Invalid Date Selection**
+- [ ] Attempt to create bulk opt-out with end date before start date
+- [ ] **Verify:** Validation error displayed
+- [ ] **Verify:** Form submission blocked
+
+**TC10.2: Special Characters in Reason Field**
+- [ ] Enter reason: `<script>alert('XSS')</script>`
+- [ ] Save bulk opt-out
+- [ ] View reason in list
+- [ ] **Verify:** Displayed as plain text (no script execution)
+
+**TC10.3: Simultaneous Admin Override**
+- [ ] Two admins override same user's meal simultaneously
+- [ ] **Verify:** Both changes processed (last-write-wins) OR
+- [ ] **Verify:** Second admin sees "conflict" warning
+
+**TC10.4: Token Expiration During Session**
+- [ ] Login and let session sit for 24+ hours (or manipulate token expiry)
+- [ ] Attempt to toggle participation
+- [ ] **Verify:** 401 Unauthorized response
+- [ ] **Verify:** Redirected to login page
+- [ ] **Verify:** User-friendly message: "Session expired - please login again"
+
+**TC10.5: SQL Injection Attempt**
+- [ ] Enter email: `admin@test.com' OR '1'='1`
+- [ ] Attempt login
+- [ ] **Verify:** Login fails (parameterized queries prevent injection)
+- [ ] **Verify:** No database error exposed to user
+
+**TC10.6: Extremely Long Reason Text**
+- [ ] Enter 1000+ character reason for bulk opt-out
+- [ ] Attempt save
+- [ ] **Verify:** Validation error or text truncated with warning
+
+---
+
+#### Test Suite 11: Data Integrity & Audit
+
+**TC11.1: History Accuracy**
+- [ ] Make 5 participation changes throughout the day
+- [ ] View history at end of day
+- [ ] **Verify:** All 5 changes logged in correct chronological order
+- [ ] **Verify:** Timestamps accurate
+
+**TC11.2: Default Preference Change Logging**
+- [ ] Change default from opt-in to opt-out
+- [ ] Check if this change is logged
+- [ ] **Verify:** System behavior documented (may or may not log preference changes)
+
+**TC11.3: Bulk Opt-Out Audit Trail**
+- [ ] Create bulk opt-out
+- [ ] Delete it
+- [ ] Check if deletion logged
+- [ ] **Verify:** Audit trail shows creation and deletion events
+
+---
+
+## 12. Operations
+
+### Deployment Architecture
+
+**Environment:** Single server deployment (initial iteration)
+- **Frontend:** Static files served via Nginx
+- **Backend:** Go binary running as systemd service
+- **Database:** PostgreSQL 17.x
+- **Reverse Proxy:** Nginx (SSL termination, static file serving)
+
+### Deployment Process
+
+1. **Build:**
+   - Frontend: `npm run build` → static files
+   - Backend: `go build` → single binary
+
+2. **Deploy:**
+   - Upload static files to `/var/www/craftsbite`
+   - Upload Go binary to `/opt/craftsbite/`
+   - Restart systemd service: `systemctl restart craftsbite`
+   - Nginx reload: `systemctl reload nginx`
+
+3. **Database Migrations:**
+   - Run migrations before deploying new binary
+   - Use `golang-migrate/migrate` tool
+   - Rollback capability for failed migrations
+
+### Monitoring
+
+**Application Metrics:**
+- Request latency (p50, p95, p99)
+- Error rates (4xx, 5xx)
+- Active users
+- API endpoint usage
+
+**Infrastructure Metrics:**
+- CPU/Memory usage
+- Disk space
+- Database connection pool
+- Network I/O
+
+**Logging:**
+- Application logs: Structured JSON (Zap logger)
+- Access logs: Nginx format
+- Log retention: 30 days
+- Log aggregation: Centralized logging system (future)
+
+### Backup and Recovery
+
+**Database Backups:**
+- Frequency: Daily at 2 AM
+- Retention: 30 days
+- Method: pg_dump
+- Storage: Off-server backup location
+
+**Recovery Time Objective (RTO):** 4 hours
+**Recovery Point Objective (RPO):** 24 hours
+
+### Maintenance
+
+**Scheduled Jobs:**
+- **Participation history cleanup:** Daily at 3 AM
+  - Delete records older than 3 months
+- **Database vacuum:** Weekly on Sunday at 1 AM
+  - Reclaim storage, update statistics
+
+**Dependency Updates:**
+- Security patches: Apply within 48 hours
+- Minor updates: Monthly review
+- Major updates: Quarterly review with testing
+
+---
+
+
+## 13. Risks, Assumptions, and Open Questions
+
+### Risks
+
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| **Low user adoption** | Medium | High | Comprehensive training, intuitive UI, stakeholder engagement |
+| **Performance issues at scale** | Low | Medium | Performance testing before launch, database indexing, query optimization |
+| **Cutoff time confusion** | Medium | Medium | Clear UI indicators, email reminders, grace period for first week |
+| **Security breach** | Low | High | Security best practices, regular audits, HTTPS only, input validation |
+| **Database corruption** | Low | High | Daily backups, transaction support, database replication (future) |
+| **Team lead override abuse** | Low | Medium | Audit logging, monthly access reviews, change notifications |
+
+### Assumptions
+
+1. **Network Connectivity:** Users have stable internet access during work hours
+2. **Browser Support:** Users have modern browsers (Chrome 100+, Firefox 100+, Safari 15+, Edge 100+)
+3. **User Base:** Maximum 100 concurrent users for iteration 1
+4. **Data Volume:** Average 200 meal participation changes per day
+5. **Cutoff Times:** 9 AM for lunch/snacks
+6. **Working Days:** Monday-Friday (weekends assumed office closed unless specified)
+7. **Single Organization:** No multi-tenancy required
+9. **Role Assignment:** User roles managed manually by admin (no self-registration)
+10. **Language:** English only (no i18n required for iteration 1)
+
+### Open Questions
+
+1. **Q:** Should we send email notifications for opt-out reminders?
+   **Status:** Deferred to iteration 2
+   **Decision needed by:** N/A
+
+2. **Q:** Should we allow employees to see team-wide headcount?
+   **Status:** Open - privacy concerns
+   **Decision needed by:** Before launch
+
+3. **Q:** How to handle conflicting bulk opt-outs (overlapping date ranges)?
+   **Status:** Last-created wins (current implementation)
+   **Decision needed by:** Resolved
+
+4. **Q:** Should Team Leads be able to bulk-change their entire team's participation?
+   **Status:** No for iteration 1 - individual overrides only
+   **Decision needed by:** Resolved
+
+5. **Q:** What happens to meal participation when user role changes?
+   **Status:** Permissions change immediately, historical data preserved
+   **Decision needed by:** Resolved
+
+6. **Q:** Should we implement "favorite meals" or meal preferences?
+   **Status:** Out of scope for iteration 1
+   **Decision needed by:** N/A
+
+7. **Q:** How granular should audit logs be (field-level vs record-level)?
+   **Status:** Record-level (simpler, sufficient for accountability)
+   **Decision needed by:** Resolved
+
+8. **Q:** Should the system support recurring bulk opt-outs (e.g., every Friday)?
+   **Status:** No for iteration 1 - manual creation required
+   **Decision needed by:** N/A
+
+---
+
+## 14. Appendix
+
+### A. Glossary
+
+| Term | Definition |
+|------|------------|
+| **Opt-In** | Default assumption that employee will participate in meal |
+| **Opt-Out** | Employee explicitly indicates they will not participate |
+| **Default Meal Preference** | User's preferred default behavior (opt-in or opt-out) for all meals unless explicitly changed |
+| **Participation History** | Audit trail of all explicit meal participation changes |
+| **Cutoff Time** | Deadline for changing meal participation (9 AM lunch/snacks) |
+| **Headcount** | Total number of employees participating in a meal |
+| **Override** | Admin/Team Lead action to modify employee's participation |
+| **Participation Resolution** | Process of determining user's meal status by checking day schedule → specific records → bulk opt-outs → default preference in priority order |
+| **Auto-Cleanup** | Scheduled job that deletes participation history records older than 3 months |
+| **Bulk Opt-Out** | Date range where user is automatically opted-out of all meals |
+| **Day Schedule** | Admin-defined status for a specific day (normal, holiday, celebration, office closed) |
+
+### B. Participation Resolution Algorithm
+
+Priority order for determining if a user is participating in a meal:
+
+1. **Check day_schedules:** If day is marked "office_closed", return not participating
+2. **Check meal_participations:** If explicit record exists, use its value
+3. **Check bulk_opt_outs:** If date falls in range, return not participating
+4. **Check default_meal_preference:** Use user's default (opt-in or opt-out)
+
+### C. Database Indexes
 
 ```sql
-CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(255) UNIQUE NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    password TEXT NOT NULL,
-    role VARCHAR(50) NOT NULL DEFAULT 'employee',
-    active BOOLEAN DEFAULT true,
-    default_meal_preference VARCHAR(20) NOT NULL DEFAULT 'opt_in', -- 
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_role ON users(role);
-CREATE INDEX idx_users_active ON users(active);
-```
-
-#### 6.3.2 meal_participations Table
-
-```sql
-CREATE TABLE meal_participations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    date DATE NOT NULL,
-    meal_type VARCHAR(50) NOT NULL,
-    is_participating BOOLEAN DEFAULT true,
-    opted_out_at TIMESTAMP,
-    override_by UUID REFERENCES users(id),
-    override_reason TEXT,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    
-    CONSTRAINT unique_user_date_meal UNIQUE (user_id, date, meal_type)
-);
-
-CREATE INDEX idx_meal_participations_user_id ON meal_participations(user_id);
-CREATE INDEX idx_meal_participations_date ON meal_participations(date);
+-- Performance-critical indexes
 CREATE INDEX idx_meal_participations_user_date ON meal_participations(user_id, date);
-```
-
-#### 6.3.3 day_schedules Table
-
-```sql
-CREATE TABLE day_schedules (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    date DATE UNIQUE NOT NULL,
-    day_status VARCHAR(50) NOT NULL DEFAULT 'normal',
-    reason TEXT,
-    available_meals TEXT, -- JSON array stored as text
-    created_by UUID NOT NULL REFERENCES users(id),
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
+CREATE INDEX idx_meal_participations_date_meal ON meal_participations(date, meal_type);
+CREATE INDEX idx_bulk_opt_outs_user_dates ON bulk_opt_outs(user_id, start_date, end_date);
+CREATE INDEX idx_history_user_created ON meal_participation_history(user_id, created_at);
+CREATE INDEX idx_history_cleanup ON meal_participation_history(created_at);
 CREATE INDEX idx_day_schedules_date ON day_schedules(date);
-CREATE INDEX idx_day_schedules_status ON day_schedules(day_status);
 ```
 
-#### 6.3.4 meal_participation_history Table
+### D. Environment Variables
 
-```sql
-CREATE TABLE meal_participation_history (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    date DATE NOT NULL,
-    meal_type VARCHAR(50) NOT NULL,
-    action VARCHAR(20) NOT NULL, -- 'opted_in', 'opted_out', 'override_in', 'override_out'
-    previous_value VARCHAR(20), -- Previous participation status
-    changed_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE SET NULL,
-    reason VARCHAR(255), -- Optional reason for change
-    ip_address VARCHAR(45), -- IPv4 or IPv6 address
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
+```bash
+# Database
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=craftsbite
+DB_USER=craftsbite_user
+DB_PASSWORD=<secure_password>
 
-CREATE INDEX idx_history_user_id ON meal_participation_history(user_id);
-CREATE INDEX idx_history_user_date ON meal_participation_history(user_id, date);
-CREATE INDEX idx_history_created_at ON meal_participation_history(created_at); -- For auto-cleanup
+# Application
+APP_PORT=8080
+APP_ENV=production
+JWT_SECRET=<secure_random_string>
+JWT_EXPIRY=24h
 
--- Auto-cleanup function to delete records older than 3 months
-CREATE OR REPLACE FUNCTION cleanup_old_participation_history()
-RETURNS void AS $$
-BEGIN
-    DELETE FROM meal_participation_history
-    WHERE created_at < NOW() - INTERVAL '3 months';
-END;
-$$ LANGUAGE plpgsql;
+# CORS
+ALLOWED_ORIGINS=https://craftsbite.company.com
 
--- Optional: Create a scheduled job using pg_cron extension (if available)
--- SELECT cron.schedule('cleanup-history', '0 2 * * *', 'SELECT cleanup_old_participation_history()');
+# Logging
+LOG_LEVEL=info
 ```
 
-#### 6.3.5 bulk_opt_outs Table
-
-```sql
-CREATE TABLE bulk_opt_outs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    start_date DATE NOT NULL,
-    end_date DATE NOT NULL,
-    meal_type VARCHAR(50) NOT NULL,
-    is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    
-    -- Validation constraint: end_date must be >= start_date
-    CONSTRAINT valid_date_range CHECK (end_date >= start_date)
-);
-
-CREATE INDEX idx_bulk_user_id ON bulk_opt_outs(user_id);
-CREATE INDEX idx_bulk_user_dates ON bulk_opt_outs(user_id, start_date, end_date);
-CREATE INDEX idx_bulk_active ON bulk_opt_outs(is_active);
-CREATE INDEX idx_bulk_date_range ON bulk_opt_outs(start_date, end_date); -- For range queries
-```
-
-#### 6.3.6 teams Table
-
-```sql
-CREATE TABLE teams (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    team_lead_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    active BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_teams_team_lead_id ON teams(team_lead_id);
-CREATE INDEX idx_teams_active ON teams(active);
-
--- Add comments for documentation
-COMMENT ON TABLE teams IS 'Teams within the organization, each led by a team lead';
-COMMENT ON COLUMN teams.team_lead_id IS 'User ID of the team lead who manages this team';
-COMMENT ON COLUMN teams.active IS 'Whether the team is currently active';
-```
-
-#### 6.3.7 team_members Table
-
-```sql
--- Create team_members junction table (many-to-many relationship)
-CREATE TABLE team_members (
-    team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    joined_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (team_id, user_id)
-);
-
--- Create indexes for efficient lookups
-CREATE INDEX idx_team_members_team_id ON team_members(team_id);
-CREATE INDEX idx_team_members_user_id ON team_members(user_id);
-
--- Add comments for documentation
-COMMENT ON TABLE team_members IS 'Junction table for many-to-many relationship between teams and users';
-```
-
-#### 6.3.8 Sample Data
-
-**Users:**
-```sql
-INSERT INTO users (id, email, name, password, role) VALUES
-('550e8400-e29b-41d4-a716-446655440000', 'admin@company.com', 'Admin User', '$2a$10$...', 'admin'),
-('550e8400-e29b-41d4-a716-446655440001', 'john.doe@company.com', 'John Doe', '$2a$10$...', 'employee');
-```
-
-**Day Schedules:**
-```sql
-INSERT INTO day_schedules (date, day_status, available_meals, created_by) VALUES
-('2026-02-07', 'normal', '["lunch","snacks"]', '550e8400-e29b-41d4-a716-446655440000'),
-('2026-02-08', 'govt_holiday', '[]', '550e8400-e29b-41d4-a716-446655440000'),
-('2026-02-14', 'celebration', '["lunch","snacks","event_dinner"]', '550e8400-e29b-41d4-a716-446655440000');
-```
-
----
-
-## 7. API Design
-
-### 7.1 API Principles
-- RESTful design
-- JSON request/response format
-- Standard HTTP status codes
-- Consistent error response structure
-- JWT bearer token authentication
-
-### 7.2 Standard Response Format
-
-#### Success Response
-```json
-{
-  "success": true,
-  "data": { ... },
-  "message": "Operation completed successfully"
-}
-```
-
-#### Error Response
-```json
-{
-  "success": false,
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Invalid input parameters",
-    "details": [
-      {
-        "field": "email",
-        "message": "Invalid email format"
-      }
-    ]
-  }
-}
-```
-
-### 7.3 API Endpoints
-
-#### 7.3.1 Authentication Endpoints
-
-**POST /api/v1/auth/login**
-- Description: Authenticate user and return JWT token
-- Access: Public
-- Request:
-```json
-{
-  "email": "user@company.com",
-  "password": "password123"
-}
-```
-- Response:
-```json
-{
-  "success": true,
-  "data": {
-    "token": "eyJhbGciOiJIUzI1NiIs...",
-    "user": {
-      "id": "uuid-1",
-      "email": "user@company.com",
-      "name": "John Doe",
-      "role": "employee"
-    }
-  }
-}
-```
-
-**POST /api/v1/auth/logout**
-- Description: Invalidate current session (optional for JWT)
-- Access: Authenticated
-- Response: 200 OK
-
-**GET /api/v1/auth/me**
-- Description: Get current user information
-- Access: Authenticated
-- Response:
-```json
-{
-  "success": true,
-  "data": {
-    "id": "uuid-1",
-    "email": "user@company.com",
-    "name": "John Doe",
-    "role": "employee"
-  }
-}
-```
-
-#### 7.3.2 Meal Participation Endpoints
-
-**GET /api/v1/meals/today**
-- Description: Get today's meal schedule with user's participation status
-- Access: Authenticated (All roles)
-- Response:
-```json
-{
-  "success": true,
-  "data": {
-    "date": "2026-02-06",
-    "meals": [
-      {
-        "meal_type": "lunch",
-        "is_participating": true,
-        "can_modify": true,
-        "cutoff_time": "10:30:00"
-      },
-      {
-        "meal_type": "snacks",
-        "is_participating": true,
-        "can_modify": true,
-        "cutoff_time": "14:00:00"
-      }
-    ]
-  }
-}
-```
-
-**GET /api/v1/meals/participation**
-- Description: Get meal participation for a specific date
-- Access: Authenticated (All roles)
-- Query Parameters: `date` (optional, defaults to today)
-- Response: Similar to /meals/today
-
-**POST /api/v1/meals/participation**
-- Description: Create or update meal participation
-- Access: Authenticated (All roles)
-- Request:
-```json
-{
-  "date": "2026-02-06",
-  "meal_type": "lunch",
-  "is_participating": false
-}
-```
-- Response:
-```json
-{
-  "success": true,
-  "data": {
-    "id": "uuid-p1",
-    "user_id": "uuid-1",
-    "date": "2026-02-06",
-    "meal_type": "lunch",
-    "is_participating": false,
-    "opted_out_at": "2026-02-06T09:30:00Z"
-  },
-  "message": "Meal participation updated successfully"
-}
-```
-
-**PUT /api/v1/meals/participation/:id**
-- Description: Update existing participation record
-- Access: Authenticated (All roles for own records)
-- Request: Same as POST
-- Response: Updated participation object
-
-#### 7.3.3 Admin/Team Lead Override Endpoints
-
-**POST /api/v1/admin/meals/participation/override**
-- Description: Override meal participation for an employee
-- Access: Team Lead, Admin, Logistics
-- Request:
-```json
-{
-  "user_id": "uuid-2",
-  "date": "2026-02-06",
-  "meal_type": "lunch",
-  "is_participating": true,
-  "reason": "Employee forgot to opt-in before cutoff"
-}
-```
-- Response: Participation object with override information
-
-#### 7.3.4 Headcount Reporting Endpoints
-
-**GET /api/v1/headcount/today**
-- Description: Get headcount summary for today
-- Access: Admin, Logistics
-- Response:
-```json
-{
-  "success": true,
-  "data": {
-    "date": "2026-02-06",
-    "meals": [
-      {
-        "meal_type": "lunch",
-        "participating_count": 95,
-        "opted_out_count": 5,
-        "total_employees": 100
-      },
-      {
-        "meal_type": "snacks",
-        "participating_count": 98,
-        "opted_out_count": 2,
-        "total_employees": 100
-      }
-    ],
-    "generated_at": "2026-02-06T08:00:00Z"
-  }
-}
-```
-
-**GET /api/v1/headcount/date/:date**
-- Description: Get headcount for specific date
-- Access: Admin, Logistics
-- Parameters: `date` (YYYY-MM-DD)
-- Response: Similar to /headcount/today
-
-**GET /api/v1/headcount/detailed**
-- Description: Get detailed breakdown with employee names
-- Access: Admin, Logistics
-- Query Parameters: `date`, `meal_type`
-- Response:
-```json
-{
-  "success": true,
-  "data": {
-    "date": "2026-02-06",
-    "meal_type": "lunch",
-    "participating": [
-      {
-        "id": "uuid-1",
-        "name": "John Doe",
-        "email": "john@company.com"
-      }
-    ],
-    "opted_out": [
-      {
-        "id": "uuid-2",
-        "name": "Jane Smith",
-        "email": "jane@company.com",
-        "opted_out_at": "2026-02-06T09:00:00Z"
-      }
-    ]
-  }
-}
-```
-
-#### 7.3.5 Day Schedule Management Endpoints
-
-**GET /api/v1/schedule/date/:date**
-- Description: Get day schedule for a specific date
-- Access: All authenticated users
-- Parameters: `date` (YYYY-MM-DD)
-- Response:
-```json
-{
-  "success": true,
-  "data": {
-    "id": "uuid-s1",
-    "date": "2026-02-07",
-    "day_status": "normal",
-    "available_meals": ["lunch", "snacks"],
-    "reason": null
-  }
-}
-```
-
-**GET /api/v1/schedule/range**
-- Description: Get day schedules for a date range
-- Access: Admin, Logistics
-- Query Parameters: `start_date`, `end_date`
-- Response: Array of day schedules
-
-**POST /api/v1/schedule**
-- Description: Create day schedule (set office closed, holiday, etc.)
-- Access: Admin
-- Request:
-```json
-{
-  "date": "2026-03-21",
-  "day_status": "govt_holiday",
-  "reason": "Independence Day",
-  "available_meals": []
-}
-```
-- Response: Created schedule object
-
-**PUT /api/v1/schedule/:id**
-- Description: Update existing day schedule
-- Access: Admin
-- Request: Partial schedule object
-- Response: Updated schedule object
-
-**DELETE /api/v1/schedule/:id**
-- Description: Delete day schedule (revert to normal)
-- Access: Admin
-- Response: 200 OK
-
-#### 7.3.6 User Management Endpoints (Admin only)
-
-**GET /api/v1/users**
-- Description: List all users
-- Access: Admin
-- Query Parameters: `role`, `active`, `page`, `limit`
-- Response: Paginated user list
-
-**GET /api/v1/users/:id**
-- Description: Get user details
-- Access: Admin, or self
-- Response: User object
-
-**POST /api/v1/users**
-- Description: Create new user
-- Access: Admin
-- Request:
-```json
-{
-  "email": "newuser@company.com",
-  "name": "New User",
-  "password": "tempPassword123",
-  "role": "employee"
-}
-```
-
-**PUT /api/v1/users/:id**
-- Description: Update user
-- Access: Admin, or self (limited fields)
-- Request: Partial user object
-
-**DELETE /api/v1/users/:id**
-- Description: Deactivate user (soft delete)
-- Access: Admin
-
-#### 7.3.7 User Preference Endpoints
-
-**GET /api/v1/users/me/preferences**
-- Description: Get current user's meal preferences
-- Access: Authenticated
-- Response:
-```json
-{
-  "success": true,
-  "data": {
-    "user_id": "uuid-1",
-    "default_meal_preference": "opt_in",
-    "updated_at": "2026-02-06T10:00:00Z"
-  }
-}
-```
-
-**PUT /api/v1/users/me/preferences**
-- Description: Update user's default meal preference
-- Access: Authenticated
-- Request:
-```json
-{
-  "default_meal_preference": "opt_out"
-}
-```
-- Response:
-```json
-{
-  "success": true,
-  "data": {
-    "user_id": "uuid-1",
-    "default_meal_preference": "opt_out",
-    "updated_at": "2026-02-06T10:30:00Z"
-  },
-  "message": "Meal preference updated successfully"
-}
-```
-
-#### 7.3.8 Bulk Opt-Out Endpoints
-
-**GET /api/v1/meals/bulk-optouts**
-- Description: Get all active bulk opt-outs for current user
-- Access: Authenticated
-- Response:
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "uuid-b1",
-      "user_id": "uuid-1",
-      "start_date": "2026-03-10",
-      "end_date": "2026-03-14",
-      "meal_type": "lunch",
-      "is_active": true,
-      "created_at": "2026-02-06T10:00:00Z"
-    }
-  ]
-}
-```
-
-**POST /api/v1/meals/bulk-optouts**
-- Description: Create bulk opt-out for date range (vacation, business trip)
-- Access: Authenticated
-- Request:
-```json
-{
-  "start_date": "2026-03-10",
-  "end_date": "2026-03-14",
-  "meal_type": "lunch"
-}
-```
-- Response:
-```json
-{
-  "success": true,
-  "data": {
-    "id": "uuid-b1",
-    "user_id": "uuid-1",
-    "start_date": "2026-03-10",
-    "end_date": "2026-03-14",
-    "meal_type": "lunch",
-    "is_active": true,
-    "created_at": "2026-02-06T10:00:00Z"
-  },
-  "message": "Bulk opt-out created successfully"
-}
-```
-
-**DELETE /api/v1/meals/bulk-optouts/:id**
-- Description: Delete/deactivate a bulk opt-out
-- Access: Authenticated (own records only)
-- Response: 200 OK
-
-#### 7.3.9 Meal History Endpoints
-
-**GET /api/v1/meals/history**
-- Description: Get meal participation history for current user
-- Access: Authenticated
-- Query Parameters: `start_date`, `end_date`, `meal_type`, `limit` (default: 30 days)
-- Response:
-```json
-{
-  "success": true,
-  "data": {
-    "user_id": "uuid-1",
-    "start_date": "2026-01-07",
-    "end_date": "2026-02-06",
-    "history": [
-      {
-        "date": "2026-02-06",
-        "meal_type": "lunch",
-        "status": "opted_out",
-        "changed_at": "2026-02-06T09:30:00Z",
-        "changed_by": "self"
-      },
-      {
-        "date": "2026-02-05",
-        "meal_type": "lunch",
-        "status": "participated",
-        "is_default": true
-      },
-      {
-        "date": "2026-02-04",
-        "meal_type": "lunch",
-        "status": "override_in",
-        "changed_at": "2026-02-04T09:45:00Z",
-        "changed_by": "team_lead",
-        "changed_by_name": "Sarah Johnson",
-        "reason": "Team meeting with lunch"
-      }
-    ],
-    "summary": {
-      "total_days": 30,
-      "participated": 25,
-      "opted_out": 5,
-      "participation_rate": "83.3%"
-    }
-  }
-}
-```
-
-**GET /api/v1/admin/meals/history/:user_id**
-- Description: Get meal participation history for any user (admin view)
-- Access: Admin, Team Lead (for their team)
-- Query Parameters: `start_date`, `end_date`, `meal_type`
-- Response: Similar to /meals/history with additional admin details
-
-**GET /api/v1/meals/participation-audit**
-- Description: Get detailed audit trail of participation changes
-- Access: Authenticated (own records), Admin (all records)
-- Query Parameters: `user_id`, `date`, `meal_type`
-- Response:
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "uuid-h1",
-      "user_id": "uuid-1",
-      "date": "2026-02-06",
-      "meal_type": "lunch",
-      "action": "opted_out",
-      "previous_value": "opted_in",
-      "changed_by_user_id": "uuid-1",
-      "changed_by_name": "John Doe",
-      "reason": null,
-      "ip_address": "192.168.1.100",
-      "created_at": "2026-02-06T09:30:00Z"
-    }
-  ]
-}
-```
-
-### 7.4 HTTP Status Codes
-
-| Code | Usage |
-|------|-------|
-| 200 | Successful GET/PUT/DELETE request |
-| 201 | Successful POST request (resource created) |
-| 400 | Bad request (validation error) |
-| 401 | Unauthorized (missing/invalid token) |
-| 403 | Forbidden (insufficient permissions) |
-| 404 | Resource not found |
-| 409 | Conflict (duplicate resource) |
-| 500 | Internal server error |
-
---- 
-
-## 8. Security Architecture
-
-### 8.1 Authentication
-
-#### JWT Token Structure
-```json
-{
-  "header": {
-    "alg": "HS256",
-    "typ": "JWT"
-  },
-  "payload": {
-    "sub": "user-uuid",
-    "email": "user@company.com",
-    "role": "employee",
-    "exp": 1675785600,
-    "iat": 1675699200
-  }
-}
-```
-
-#### Token Configuration
-- Algorithm: HS256
-- Expiration: 24 hours
-- Refresh: Requires re-login (future: refresh tokens)
-- Storage: localStorage (client-side)
-
-### 8.2 Authorization (RBAC)
-
-#### Role Permissions Matrix
-
-| Action | Employee | Team Lead | Admin | Logistics |
-|--------|----------|-----------|-------|-----------|
-| View own meals | ✓ | ✓ | ✓ | ✓ |
-| Update own participation | ✓ | ✓ | ✓ | ✓ |
-| View day schedule | ✓ | ✓ | ✓ | ✓ |
-| Override team member participation | ✗ | ✓ | ✓ | ✓ |
-| View headcount summary | ✗ | ✗ | ✓ | ✓ |
-| View detailed headcount | ✗ | ✗ | ✓ | ✓ |
-| Manage day schedules (holidays, closures) | ✗ | ✗ | ✓ | ✗ |
-| Manage users | ✗ | ✗ | ✓ | ✗ |
-| System configuration | ✗ | ✗ | ✓ | ✗ |
-
-### 8.3 Security Measures
-
-#### Backend Security
-1. **Password Hashing:** bcrypt with cost factor 10
-2. **SQL Injection Prevention:** GORM ORM with parameterized queries, prepared statements
-3. **XSS Prevention:** Input sanitization, output encoding
-4. **CSRF Protection:** SameSite cookies, CORS configuration
-5. **Rate Limiting:** 100 requests/minute per IP (future)
-6. **Input Validation:** Server-side validation on all endpoints
-7. **Database Security:**
-   - Connection pooling with max connections limit
-   - Prepared statements for all queries
-   - Foreign key constraints for referential integrity
-   - Row-level permissions (future enhancement)
-8. **Secure Headers:** 
-   - X-Content-Type-Options: nosniff
-   - X-Frame-Options: DENY
-   - Content-Security-Policy
-
-#### Frontend Security
-1. **Token Storage:** localStorage (consider httpOnly cookies in future)
-2. **Auto-logout:** On token expiration
-3. **Sensitive Data:** Never log passwords or tokens
-4. **HTTPS Only:** Force HTTPS in production
-5. **Input Sanitization:** Client-side validation
-
-### 8.4 Data Privacy
-- Personal data limited to: name, email, meal preferences
-- No sensitive personal information collected
-- Audit logs for admin actions
-- Data retention policy: 90 days for meal participation history
-
----
-
-## 9. Frontend Architecture
-
-### 9.1 Folder Structure
-
-```
-src/
-├── assets/               # Static assets (images, fonts)
-├── components/           # Reusable components
-│   ├── layout/
-│   │   ├── Header.tsx
-│   │   ├── Navbar.tsx
-│   │   ├── Footer.tsx
-│   │   ├── BottomActionButtons.tsx
-│   │   └── index.ts
-│   ├── cards/
-│   │   ├── EmployeeMenuCard.tsx
-│   │   ├── InteractiveCard.tsx
-│   │   ├── StandardCard.tsx
-│   │   ├── AccentBorderCard.tsx
-│   │   └── index.ts
-│   ├── forms/
-│   │   ├── Button.tsx
-│   │   ├── IconButton.tsx
-│   │   ├── Dropdown.tsx
-│   │   └── index.ts
-│   ├── feedback/
-│   │   ├── Toast.tsx
-│   │   ├── Loading.tsx
-│   │   └── index.ts
-│   ├── modals/
-│   │   ├── MealModal.tsx
-│   │   ├── MealOptOutModal.tsx
-│   │   └── index.ts
-│   └── index.ts             # Barrel export
-├── pages/
-│   ├── LoginPage.tsx
-│   ├── DashboardPage.tsx
-│   ├── EmployeeMealPage.tsx
-│   ├── AdminHeadcountPage.tsx
-│   └── TeamLeadManagementPage.tsx
-├── services/
-│   ├── api.ts            # Axios instance
-│   ├── authService.ts
-│   ├── mealService.ts
-│   ├── scheduleService.ts
-│   └── userService.ts
-├── store/                # Zustand stores
-│   ├── authStore.ts
-│   └── mealStore.ts
-├── types/                # TypeScript types
-│   ├── auth.types.ts
-│   ├── meal.types.ts
-│   ├── schedule.types.ts
-│   └── user.types.ts
-├── utils/
-│   ├── dateUtils.ts
-│   ├── validators.ts
-│   └── constants.ts
-├── hooks/                # Custom React hooks
-│   ├── useAuth.ts
-│   ├── useMeals.ts
-│   └── useToast.ts
-├── routes/
-│   ├── ProtectedRoute.tsx
-│   └── routes.tsx
-├── App.tsx
-├── main.tsx
-└── vite-env.d.ts
-```
-
-### 9.2 State Management Strategy
-
-#### Global State (Zustand)
-- Authentication state (user, token, isAuthenticated)
-- Current meal data
-- App-wide settings
-
-#### Local Component State
-- Form inputs
-- UI state (modals, dropdowns)
-- Temporary data
-
-### 9.3 Routing Structure
-
-```typescript
-const routes = [
-  {
-    path: '/login',
-    element: <LoginPage />,
-    public: true
-  },
-  {
-    path: '/',
-    element: <ProtectedRoute />,
-    children: [
-      {
-        path: '/',
-        element: <DashboardPage />
-      },
-      {
-        path: '/meals',
-        element: <EmployeeMealPage />
-      },
-      {
-        path: '/admin/headcount',
-        element: <AdminHeadcountPage />,
-        roles: ['admin', 'logistics']
-      },
-      {
-        path: '/team-lead/manage',
-        element: <TeamLeadManagementPage />,
-        roles: ['team_lead', 'admin']
-      }
-    ]
-  }
-];
-```
-
-### 9.4 TypeScript Types
-
-```typescript
-// auth.types.ts
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  role: UserRole;
-}
-
-export type UserRole = 'employee' | 'team_lead' | 'admin' | 'logistics';
-
-export interface AuthState {
-  user: User | null;
-  token: string | null;
-  isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
-}
-
-// meal.types.ts
-export type MealType = 
-  | 'lunch' 
-  | 'snacks' 
-  | 'iftar' 
-  | 'event_dinner' 
-  | 'optional_dinner';
-
-export type DayStatus = 
-  | 'normal' 
-  | 'office_closed' 
-  | 'govt_holiday' 
-  | 'celebration';
-
-export interface MealParticipation {
-  id: string;
-  userId: string;
-  date: string;
-  mealType: MealType;
-  isParticipating: boolean;
-  optedOutAt?: string;
-  canModify: boolean;
-}
-
-export interface MealHeadcount {
-  mealType: MealType;
-  participatingCount: number;
-  optedOutCount: number;
-  totalEmployees: number;
-}
-
-export interface DaySchedule {
-  id: string;
-  date: string;
-  dayStatus: DayStatus;
-  reason?: string;
-  availableMeals: MealType[];
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-}
-```
-
----
-
-## Appendices
-
-### Appendix A: Glossary
-
-- **Opt-In:** Default assumption that employee will participate in meal
-- **Opt-Out:** Employee explicitly indicates they will not participate
-- **Default Meal Preference:** User's preferred default behavior (opt-in or opt-out) for all meals unless explicitly changed
-- **Participation History:** Audit trail of all explicit meal participation changes
-- **Cutoff Time:** Deadline for changing meal participation
-- **Headcount:** Total number of employees participating in a meal
-- **Override:** Admin/Team Lead action to modify employee's participation
-- **Participation Resolution:** Process of determining user's meal status by checking day schedule, specific records, bulk opt-outs, and default preference in priority order
-- **Auto-Cleanup:** Scheduled job that deletes participation history records older than 3 months
-
-### Appendix B: References
+### E. References
 
 - [Go Official Documentation](https://golang.org/doc/)
 - [Gin Web Framework](https://gin-gonic.com/docs/)
 - [React Documentation](https://react.dev/)
-- [TypeScript Handbook](https://www.typescriptlang.org/docs/)
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
 - [JWT Best Practices](https://tools.ietf.org/html/rfc8725)
+- [OWASP Security Guidelines](https://owasp.org/)
 
 ---
 
-**Document Version History**
+**Document Revision History**
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
-| 1.0 | 2026-02-06 | Sayad IKA | Initial draft |
-| 2.0 | 2026-02-09 | Sayad IKA | Added teams and team_members tables for team management; Updated frontend components architecture with new organized structure (layout, cards, forms, feedback, modals) |
+| 1.0 | Feb 6, 2026 | Sayad Ibn Khairul Alam | Initial draft |
+| 2.0 | Feb 9, 2026 | Sayad Ibn Khairul Alam | Added teams/team_members tables, updated frontend architecture |
+| 3.0 | Feb 9, 2026 | Sayad Ibn Khairul Alam | Restructured to follow standard tech doc format, condensed content |
 
 ---
 
 *End of Document*
+
+
