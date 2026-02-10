@@ -5,21 +5,29 @@ import { Header, Footer, EmployeeMenuCard, LoadingSpinner, Navbar } from '../com
 import type { MealType as MealTypeEnum } from '../types';
 import type { MealType } from '../components/cards/EmployeeMenuCard';
 import * as mealService from '../services/mealService';
+import { CUTOFF_TIMES } from '../utils/constants';
+import toast from 'react-hot-toast';
+
+/**
+ * Returns true if the cutoff time for a given meal type has passed today.
+ */
+function isCutoffPassed(mealType: MealTypeEnum): boolean {
+    const cutoff = CUTOFF_TIMES[mealType];
+    if (!cutoff) return false;
+    const [hours, minutes] = cutoff.split(':').map(Number);
+    const now = new Date();
+    const cutoffDate = new Date();
+    cutoffDate.setHours(hours, minutes, 0, 0);
+    return now > cutoffDate;
+}
 
 export const Home: React.FC = () => {
     const navigate = useNavigate();
-    const { user, isAuthenticated } = useAuth();
+    const { user } = useAuth();
     const [meals, setMeals] = useState<MealType[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     const [currentDate, setCurrentDate] = useState('');
-
-    // Redirect to login if not authenticated
-    useEffect(() => {
-        if (!isAuthenticated) {
-            navigate('/login');
-        }
-    }, [isAuthenticated, navigate]);
 
     // Fetch today's meals
     useEffect(() => {
@@ -32,68 +40,83 @@ export const Home: React.FC = () => {
                 if (response.success && response.data) {
                     setCurrentDate(response.data.date);
 
-                    // Filter available meals for lunch and snacks only
-                    const availableMealTypes = response.data.available_meals.filter(
-                        (mealType) => mealType === 'lunch' || mealType === 'snacks'
+                    // Show ALL available meal types (Phase 3 — no filtering)
+                    const mealsWithStatus: MealType[] = response.data.available_meals.map(
+                        (mealType) => {
+                            const participation = response.data.participations.find(
+                                (p) => p.meal_type === mealType
+                            );
+
+                            return {
+                                meal_type: mealType,
+                                is_participating: participation?.is_participating ?? true,
+                                opted_out_at: null,
+                            };
+                        }
                     );
-
-                    // Map available meals with their participation status
-                    const mealsWithStatus: MealType[] = availableMealTypes.map((mealType) => {
-                        const participation = response.data.participations.find(
-                            (p) => p.meal_type === mealType
-                        );
-
-                        return {
-                            meal_type: mealType,
-                            is_participating: participation?.is_participating ?? true,
-                            opted_out_at: null, // This info isn't in the current API response
-                        };
-                    });
 
                     setMeals(mealsWithStatus);
                 }
             } catch (err: any) {
                 console.error('Error fetching meals:', err);
-                setError(err?.error?.message || 'Failed to load meals. Please try again.');
+                const msg = err?.error?.message || 'Failed to load meals. Please try again.';
+                setError(msg);
+                toast.error(msg);
             } finally {
                 setIsLoading(false);
             }
         };
 
-        if (isAuthenticated) {
-            fetchMeals();
-        }
-    }, [isAuthenticated]);
+        fetchMeals();
+    }, []);
 
-    // Handle meal toggle
+    // Handle meal toggle → POST /meals/participation
     const handleToggle = async (mealType: string) => {
+        const mealTypeEnum = mealType as MealTypeEnum;
+
+        // Cutoff guard
+        if (isCutoffPassed(mealTypeEnum)) {
+            toast.error(`Cutoff time for ${mealType.replace('_', ' ')} has passed.`);
+            return;
+        }
+
+        const currentMeal = meals.find((m) => m.meal_type === mealType);
+        const newStatus = !currentMeal?.is_participating;
+
+        // Optimistic update
+        setMeals((prev) =>
+            prev.map((meal) =>
+                meal.meal_type === mealType
+                    ? { ...meal, is_participating: newStatus }
+                    : meal
+            )
+        );
+
         try {
-            const mealTypeEnum = mealType as MealTypeEnum;
-
-            // Optimistic update
-            setMeals((prevMeals) =>
-                prevMeals.map((meal) =>
-                    meal.meal_type === mealType
-                        ? { ...meal, is_participating: !meal.is_participating }
-                        : meal
-                )
+            await mealService.setMealParticipation({
+                date: currentDate,
+                meal_type: mealTypeEnum,
+                participating: newStatus,
+            });
+            toast.success(
+                newStatus
+                    ? `Opted in to ${mealType.replace('_', ' ')} ✓`
+                    : `Opted out of ${mealType.replace('_', ' ')}`
             );
-
-            // Call API
-            await mealService.toggleMealParticipation(mealTypeEnum, currentDate);
         } catch (err: any) {
             console.error('Error toggling meal:', err);
 
-            // Revert optimistic update on error
-            setMeals((prevMeals) =>
-                prevMeals.map((meal) =>
+            // Revert on error
+            setMeals((prev) =>
+                prev.map((meal) =>
                     meal.meal_type === mealType
-                        ? { ...meal, is_participating: !meal.is_participating }
+                        ? { ...meal, is_participating: !newStatus }
                         : meal
                 )
             );
 
-            setError(err?.error?.message || 'Failed to update meal status. Please try again.');
+            const msg = err?.error?.message || 'Failed to update meal status.';
+            toast.error(msg);
         }
     };
 
@@ -121,8 +144,9 @@ export const Home: React.FC = () => {
                 isDarkMode={false}
             />
             <Navbar />
+
             {/* Main Content */}
-            <main className="flex-grow container mx-auto px-6 py-8 md:px-12 flex flex-col justify-center">
+            <main className="flex-grow container mx-auto px-6 py-8 md:px-12 flex flex-col">
                 {/* Page Title */}
                 <div className="mb-10 text-center md:text-left">
                     <h2 className="text-4xl md:text-5xl font-black text-[var(--color-background-dark)] mb-2 tracking-tight">
@@ -146,15 +170,29 @@ export const Home: React.FC = () => {
                 {/* Meal Cards Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
                     {meals.length > 0 ? (
-                        meals.map((meal) => (
-                            <EmployeeMenuCard
-                                key={meal.meal_type}
-                                meal={meal}
-                                onToggle={handleToggle}
-                            />
-                        ))
+                        meals.map((meal) => {
+                            const locked = isCutoffPassed(meal.meal_type as MealTypeEnum);
+                            return (
+                                <div key={meal.meal_type} className="relative">
+                                    <EmployeeMenuCard
+                                        meal={meal}
+                                        onToggle={locked ? () => { } : handleToggle}
+                                    />
+                                    {/* Cutoff badge overlay */}
+                                    {locked && (
+                                        <div className="absolute top-4 right-4 flex items-center gap-1 bg-red-50 text-red-600 text-xs font-bold px-3 py-1.5 rounded-xl border border-red-200">
+                                            <span className="material-symbols-outlined text-sm">lock_clock</span>
+                                            Cutoff passed
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })
                     ) : (
                         <div className="col-span-full text-center py-12">
+                            <span className="material-symbols-outlined text-6xl text-[var(--color-text-sub)] mb-4 block">
+                                no_meals
+                            </span>
                             <p className="text-[var(--color-text-sub)] text-lg">
                                 No meals available for today.
                             </p>

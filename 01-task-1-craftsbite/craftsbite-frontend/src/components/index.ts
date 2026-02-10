@@ -6,3 +6,4 @@ export * from './forms';
 export * from './feedback';
 export * from './modals';
 export * from './layout';
+export * from './guards';
