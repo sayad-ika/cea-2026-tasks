@@ -14,12 +14,18 @@ type HeadcountService interface {
 	GetDetailedHeadcount(date, mealType string) (*DetailedHeadcount, error)
 }
 
+// MealHeadcount represents participation breakdown for a single meal
+type MealHeadcount struct {
+	Participating int `json:"participating"`
+	OptedOut      int `json:"opted_out"`
+}
+
 // DailyHeadcountSummary represents the headcount summary for a day
 type DailyHeadcountSummary struct {
-	Date       string           `json:"date"`
-	DayStatus  models.DayStatus `json:"day_status"`
-	MealCounts map[string]int   `json:"meal_counts"`
-	Total      int              `json:"total"`
+	Date             string                   `json:"date"`
+	DayStatus        models.DayStatus         `json:"day_status"`
+	TotalActiveUsers int                      `json:"total_active_users"`
+	Meals            map[string]MealHeadcount `json:"meals"`
 }
 
 // DetailedHeadcount represents detailed headcount for a specific meal
@@ -98,30 +104,33 @@ func (s *headcountService) GetHeadcountByDate(date string) (*DailyHeadcountSumma
 		}
 	}
 
+	totalActiveUsers := len(users)
+
 	// Calculate counts for each meal
-	mealCounts := make(map[string]int)
-	total := 0
+	meals := make(map[string]MealHeadcount)
 
 	for _, mealType := range availableMeals {
-		count := 0
+		participating := 0
 		for _, user := range users {
 			isParticipating, _, err := s.resolver.ResolveParticipation(user.ID.String(), date, string(mealType))
 			if err != nil {
 				return nil, err
 			}
 			if isParticipating {
-				count++
+				participating++
 			}
 		}
-		mealCounts[string(mealType)] = count
-		total += count
+		meals[string(mealType)] = MealHeadcount{
+			Participating: participating,
+			OptedOut:      totalActiveUsers - participating,
+		}
 	}
 
 	return &DailyHeadcountSummary{
-		Date:       date,
-		DayStatus:  dayStatus,
-		MealCounts: mealCounts,
-		Total:      total,
+		Date:             date,
+		DayStatus:        dayStatus,
+		TotalActiveUsers: totalActiveUsers,
+		Meals:            meals,
 	}, nil
 }
 
