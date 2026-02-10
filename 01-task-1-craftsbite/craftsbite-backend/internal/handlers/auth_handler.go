@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"craftsbite-backend/internal/models"
 	"craftsbite-backend/internal/services"
 	"craftsbite-backend/internal/utils"
 
@@ -13,14 +14,26 @@ type LoginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
+// RegisterRequest represents registration request body
+type RegisterRequest struct {
+	Name     string `json:"name" binding:"required"`
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required,min=8"`
+	Role     string `json:"role" binding:"required"`
+}
+
 // AuthHandler handles authentication endpoints
 type AuthHandler struct {
 	authService services.AuthService
+	userService services.UserService
 }
 
 // NewAuthHandler creates a new auth handler
-func NewAuthHandler(authService services.AuthService) *AuthHandler {
-	return &AuthHandler{authService: authService}
+func NewAuthHandler(authService services.AuthService, userService services.UserService) *AuthHandler {
+	return &AuthHandler{
+		authService: authService,
+		userService: userService,
+	}
 }
 
 // Login handles user login
@@ -38,6 +51,52 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	utils.SuccessResponse(c, 200, response, "Login successful")
+}
+
+// Register handles user registration
+func (h *AuthHandler) Register(c *gin.Context) {
+	var req RegisterRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorResponse(c, 400, "VALIDATION_ERROR", err.Error())
+		return
+	}
+
+	// Validate role
+	validRoles := map[string]bool{
+		"employee":  true,
+		"team_lead": true,
+		"admin":     true,
+		"logistics": true,
+	}
+	if !validRoles[req.Role] {
+		utils.ErrorResponse(c, 400, "INVALID_ROLE", "Role must be one of: employee, team_lead, admin, logistics")
+		return
+	}
+
+	// Create user using UserService
+	userInput := services.CreateUserInput{
+		Email:                 req.Email,
+		Name:                  req.Name,
+		Password:              req.Password,
+		Role:                  models.Role(req.Role),
+		DefaultMealPreference: "opt_in",
+	}
+
+	user, err := h.userService.CreateUser(userInput)
+	if err != nil {
+		utils.ErrorResponse(c, 400, "REGISTRATION_FAILED", err.Error())
+		return
+	}
+
+	// Auto-login: generate token for the newly created user
+	loginResponse, err := h.authService.Login(req.Email, req.Password)
+	if err != nil {
+		// User created but login failed - still return success with user data
+		utils.SuccessResponse(c, 201, user, "User registered successfully. Please login.")
+		return
+	}
+
+	utils.SuccessResponse(c, 201, loginResponse, "User registered and logged in successfully")
 }
 
 // Logout handles user logout (placeholder)
