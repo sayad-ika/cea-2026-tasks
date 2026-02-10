@@ -1,7 +1,7 @@
 // Authentication Service
 
 import api from './api';
-import type { LoginResponse, User } from '../types';
+import type { LoginResponse, User, UserRole } from '../types';
 
 /**
  * Login user with email and password
@@ -9,6 +9,25 @@ import type { LoginResponse, User } from '../types';
 export async function login(email: string, password: string): Promise<LoginResponse> {
     const response = await api.post<LoginResponse>('/auth/login', {
         email,
+        password,
+    });
+
+    return response.data;
+}
+
+/**
+ * Register a new user
+ */
+export async function register(
+    name: string,
+    email: string,
+    role: UserRole,
+    password: string
+): Promise<LoginResponse> {
+    const response = await api.post<LoginResponse>('/auth/register', {
+        name,
+        email,
+        role,
         password,
     });
 
