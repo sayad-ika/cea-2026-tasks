@@ -100,3 +100,69 @@ export interface UserPreference {
     defaultMealPreference: MealPreference;
     updatedAt: string;
 }
+
+// --- Today's Meals API response (matches GET /meals/today) ---
+export type ParticipationSource =
+    | 'day_schedule'
+    | 'explicit'
+    | 'bulk_opt_out'
+    | 'user_default'
+    | 'system_default';
+
+export interface TodayMealParticipation {
+    meal_type: MealType;
+    is_participating: boolean;
+    source: ParticipationSource;
+}
+
+export interface TodayMealsData {
+    date: string;
+    day_status: DayStatus;
+    available_meals: MealType[];
+    participations: TodayMealParticipation[];
+}
+
+// --- Participation request (matches POST /meals/participation) ---
+export interface SetParticipationRequest {
+    date: string;
+    meal_type: MealType;
+    participating: boolean;
+}
+
+// --- Override request (matches POST /meals/participation/override) ---
+export interface OverrideParticipationRequest {
+    user_id: string;
+    date: string;
+    meal_type: MealType;
+    participating: boolean;
+    reason: string;
+}
+
+// --- Headcount (matches GET /headcount/today and /headcount/:date) ---
+export interface HeadcountMealSummary {
+    participating: number;
+    opted_out: number;
+}
+
+export interface HeadcountData {
+    date: string;
+    day_status: DayStatus;
+    total_active_users: number;
+    meals: Record<string, HeadcountMealSummary>;
+}
+
+// --- Detailed headcount (matches GET /headcount/:date/:meal_type) ---
+export interface HeadcountUserEntry {
+    id: string;
+    name: string;
+    email: string;
+    is_participating: boolean;
+    source: ParticipationSource;
+}
+
+export interface DetailedHeadcountData {
+    date: string;
+    meal_type: MealType;
+    participating_users: HeadcountUserEntry[];
+    opted_out_users: HeadcountUserEntry[];
+}
