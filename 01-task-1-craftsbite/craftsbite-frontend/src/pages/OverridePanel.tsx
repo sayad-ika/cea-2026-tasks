@@ -87,8 +87,6 @@ export const OverridePanel: React.FC = () => {
             <Header
                 userName={user?.name || 'User'}
                 userRole={user?.role || 'admin'}
-                onThemeToggle={() => { }}
-                isDarkMode={false}
             />
             <Navbar />
 

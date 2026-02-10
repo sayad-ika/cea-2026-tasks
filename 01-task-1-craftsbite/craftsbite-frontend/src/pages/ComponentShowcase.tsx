@@ -295,7 +295,7 @@ export const ComponentShowcase: React.FC = () => {
                     >
                         <Navbar
                             activeItemId={activeNavItem}
-                            onNavItemClick={(itemId) => {
+                            onNavItemClick={(itemId: React.SetStateAction<string>) => {
                                 setActiveNavItem(itemId);
                                 console.log('Nav item clicked:', itemId);
                             }}

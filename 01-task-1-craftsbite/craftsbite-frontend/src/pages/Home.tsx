@@ -140,8 +140,6 @@ export const Home: React.FC = () => {
             <Header
                 userName={user?.name || 'User'}
                 userRole={user?.role || 'employee'}
-                onThemeToggle={() => { }}
-                isDarkMode={false}
             />
             <Navbar />
 
