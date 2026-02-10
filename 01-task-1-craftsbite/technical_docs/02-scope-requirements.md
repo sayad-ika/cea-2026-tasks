@@ -4,21 +4,21 @@
 - ✅ User authentication with JWT and role-based access control
 - ✅ User default meal preference (opt-in or opt-out)
 - ✅ Daily meal participation management with flexible defaults
-- ✅ Bulk opt-out for date ranges (vacations, business trips)
-- ✅ Real-time headcount calculation
+- ✅ On-demand headcount calculation based on schedules and cutoff rules
 - ✅ Admin/Team Lead override capabilities
 - ✅ Day schedule management (holidays, celebrations, office closures)
 - ✅ Comprehensive participation history tracking
-- ✅ Personal meal history view for users
-- ✅ Automatic 3-month audit trail cleanup
 - ✅ Change tracking for accountability
 
 ### Out of Scope (Future Iterations)
+- ❌ Bulk opt-out for date ranges (vacations, business trips)
+- ❌ Personal meal history view for users (future iteration)
 - ❌ Menu planning and recipes
 - ❌ Dietary restrictions tracking
 - ❌ Mobile applications
 - ❌ Email/SMS notifications
 - ❌ Analytics dashboard
+- ❌ "Favorite Meals" or meal preferences
 
 ---
 
@@ -28,7 +28,7 @@
 
 **FR1: User Authentication**
 - Users log in with email and password
-- JWT-based session management (24-hour expiry)
+- JWT-based session management (2-hour expiry)
 - Role-based access control (Employee, Team Lead, Admin, Logistics)
 
 **FR2: Default Meal Preferences**
@@ -39,42 +39,40 @@
 **FR3: Daily Meal Participation**
 - View current meal participation status (based on default + exceptions)
 - Toggle participation for specific dates/meals
-- Cutoff time enforcement (9 AM for lunch/snacks)
+- Cutoff time enforcement (9:00 PM on the previous day for next-day meals)
 - Visual indicators for participation status
 
-**FR4: Bulk Opt-Out Management**
-- Create opt-out for date ranges (e.g., vacation Feb 10-20)
-- View all active bulk opt-outs
-- Delete bulk opt-outs
-- Bulk opt-outs override default preference
+**FR4: Participation Change History**
+- Users can view their own participation change records (last 3 months)
+- Track change source (self, team lead, admin) with timestamp
 
-**FR5: Participation History**
-- Users view their own participation changes (last 3 months)
-- Track who made changes and when
-- Automatic cleanup after 3 months
-
-**FR6: Admin/Team Lead Features**
-- Override employee participation
+**FR5: Admin/Team Lead Features**
+- Override employee participation (restricted by cutoff time; no changes allowed after cutoff)
 - View team headcount
 - Manage day schedules (mark days as holidays, celebrations, office closed)
 - View audit trail with change attribution
 
-**FR7: Day Schedule Management**
+**FR6: Day Schedule Management**
 - Mark days as: Normal, Office Closed, Government Holiday, Celebration
 - Define available meals for special days
 - System prevents opt-in/out on office closed days
 
-**FR8: Real-Time Headcount**
-- Admins/Logistics view current headcount per meal
-- Breakdown: participating count, opted-out count, total employees
+**FR7: Time-Based Headcount Calculation**
+- Admins/Logistics view headcount calculated at request time per meal
+- Breakdown: participating count, not participating count, total employees
 - Filter by date and meal type
+
+**FR8: Day-Level Participation Management** (*future iteration)
+- Manage participation status for date ranges (e.g., office travel, leave)
+- View all active date-range participation rules
+- Remove or update participation rules
+- Date-range rules override user default preferences
 
 ### Non-Functional Requirements
 
 **NFR1: Performance**
 - Page load time < 2 seconds
 - API response time < 500ms (95th percentile)
-- Support 100 concurrent users
 
 **NFR2: Availability**
 - 99% uptime
@@ -82,13 +80,20 @@
 
 **NFR3: Security**
 - HTTPS only
-- JWT token expiry: 2-4 hours
+- JWT token expiry: 2 hours
 - Password: bcrypt with cost 12
 - RBAC enforcement at API level
 
 **NFR4: Usability**
-- Mobile-responsive design
+- Responsive design
 - Accessibility: WCAG 2.1 AA compliance
 - Intuitive UI requiring minimal training
+
+**NFR4: Concurrent Capacity Estimate (Usage-Based)**
+- Total users: ~100–120 employees
+- Peak usage window: 10–15 minutes before cutoff
+- Expected active users at peak: ~20–30
+- Average request rate: ~1–2 req/sec per active user
+- Target capacity: support ~30–40 concurrent active users comfortably
 
 ---

@@ -33,7 +33,6 @@
 - Password complexity requirements (min 8 chars, mix of upper/lower/numbers)
 
 ### Data Privacy
-- Participation history limited to 3 months
 - No PII beyond name and email
 - Audit logs show "who changed what" for accountability
 
@@ -97,25 +96,25 @@
 - **Test:** System correctly resolves participation status with overlapping rules
 - **Steps:**
   1. Set user default preference to "opt-in"
-  2. Create bulk opt-out for Feb 10-15
+  2. Create date-range participation rule for Feb 10-15
   3. Create specific participation record (opt-in) for Feb 12
   4. Query participation status for Feb 12
-  5. Verify specific record overrides bulk opt-out
+  5. Verify specific record overrides date-range participation rule
   6. Query participation for Feb 13 (no specific record)
-  7. Verify bulk opt-out applies (not participating)
-- **Expected:** Priority order respected: specific record > bulk opt-out > default preference
+  7. Verify date-range participation rule applies (not participating)
+- **Expected:** Priority order respected: specific record > date-range participation rule > default preference
 
-**Scenario 3: Bulk Opt-Out Creation and Cascade**
-- **Test:** Bulk opt-out affects all meals in date range
+**Scenario 3: Date-Range Participation rule Creation and Cascade**
+- **Test:** date-range participation affects all meals in date range
 - **Steps:**
   1. User has default preference "opt-in"
   2. POST /api/bulk-opt-outs with date range Feb 20-25
-  3. Verify bulk_opt_outs record created
+  3. Verify date-range participation record created (`bulk_opt_outs` table)
   4. Query participation for Feb 21, Feb 23 (different meals: lunch, dinner)
   5. Verify all meals marked as "not participating"
-  6. DELETE bulk opt-out
+  6. DELETE date-range participation
   7. Re-query participation → verify reverts to default (opt-in)
-- **Expected:** Bulk opt-out correctly applied and removed across all meals
+- **Expected:** Date-range participation rule correctly applied and removed across all meals
 
 **Scenario 4: Day Schedule Impact on Participation**
 - **Test:** Office closed day prevents participation
@@ -142,7 +141,7 @@
 **Scenario 6: Cutoff Time Enforcement**
 - **Test:** System blocks changes after cutoff time
 - **Steps:**
-  1. Set server time to 8:55 AM (before lunch cutoff)
+  1. Set server time to 9:00 PM previous day (before lunch cutoff)
   2. Employee toggles lunch participation for today
   3. Verify update succeeds
   4. Set server time to 9:05 AM (after cutoff)
@@ -167,7 +166,7 @@
   1. Setup: 10 users total
      - 3 users: default "opt-in", no exceptions
      - 2 users: default "opt-out", no exceptions
-     - 3 users: default "opt-in", bulk opt-out for Feb 15
+     - 3 users: default "opt-in", date-range participation for Feb 15
      - 2 users: default "opt-in", specific opt-out for Feb 15
   2. Admin queries GET /api/admin/headcount?date=2026-02-15&mealType=lunch
   3. Verify calculation:
@@ -312,47 +311,47 @@
 
 ---
 
-#### Test Suite 4: Bulk Opt-Out Management
+#### Test Suite 4: Date-Range Participation Rule Management
 
-**TC4.1: Create Bulk Opt-Out for Vacation**
-- [ ] Navigate to "Bulk Opt-Out" or "Manage Exceptions" page
-- [ ] Click "Create Bulk Opt-Out" button
+**TC4.1: Create Date-Range Participation Rule for Vacation**
+- [ ] Navigate to "Date-Range Participation Rule" or "Manage Exceptions" page
+- [ ] Click "Create Date-Range Participation Rule" button
 - [ ] Enter start date: Feb 20, 2026
 - [ ] Enter end date: Feb 25, 2026
 - [ ] Enter reason: "Vacation"
 - [ ] Click "Submit"
 - [ ] **Verify:** Success message displayed
-- [ ] **Verify:** New entry appears in bulk opt-out list
+- [ ] **Verify:** New entry appears in date-range participation list
 
-**TC4.2: Verify Bulk Opt-Out Applied to Calendar**
+**TC4.2: Verify Date-Range Participation Rule Applied to Calendar**
 - [ ] Navigate to meal calendar
 - [ ] View Feb 20-25 date range
 - [ ] **Verify:** All meals in range show "Not Participating"
-- [ ] **Verify:** Visual indicator (e.g., "Bulk Opt-Out" label) shown
+- [ ] **Verify:** Visual indicator (e.g., "Date-Range Participation Rule" label) shown
 - [ ] Hover or click for details
 - [ ] **Verify:** Reason "Vacation" displayed
 
-**TC4.3: View All Active Bulk Opt-Outs**
-- [ ] Return to bulk opt-out page
+**TC4.3: View All Active Date-Range Participations**
+- [ ] Return to date-range participation page
 - [ ] **Verify:** List shows all active/upcoming bulk opt-outs
 - [ ] **Verify:** Each entry shows: date range, reason, created date
 - [ ] **Verify:** Past bulk opt-outs hidden or in separate section
 
-**TC4.4: Delete Bulk Opt-Out**
-- [ ] Locate previously created bulk opt-out
+**TC4.4: Delete Date-Range Participation Rule**
+- [ ] Locate previously created date-range participation
 - [ ] Click "Delete" or trash icon
 - [ ] Confirm deletion in modal
 - [ ] **Verify:** Entry removed from list
 - [ ] Navigate to calendar for affected dates
 - [ ] **Verify:** Meals revert to default preference status
 
-**TC4.5: Overlapping Bulk Opt-Outs (Edge Case)**
-- [ ] Create bulk opt-out: Feb 10-15
-- [ ] Create another: Feb 12-18
+**TC4.5: Overlapping Date-Range Participation (Edge Case)**
+- [ ] Create date-range participation: Feb 10-15
+- [ ] Create antoher: Feb 12-18
 - [ ] **Verify:** Both saved successfully
 - [ ] Check calendar for Feb 12-15 (overlap)
 - [ ] **Verify:** Meals still show "Not Participating"
-- [ ] Delete first bulk opt-out
+- [ ] Delete first date-range participation
 - [ ] **Verify:** Feb 12-18 still opted-out (second rule applies)
 
 ---
@@ -449,7 +448,7 @@
 - [ ] Select date: Feb 25, 2026
 - [ ] View headcount
 - [ ] **Verify:** Shows projected numbers based on current opt-outs/preferences
-- [ ] Create new bulk opt-out affecting Feb 25
+- [ ] Create new date-range participation affecting Feb 25
 - [ ] Refresh headcount
 - [ ] **Verify:** Numbers updated to reflect new opt-out
 
@@ -540,13 +539,13 @@
 #### Test Suite 10: Edge Cases & Error Scenarios
 
 **TC10.1: Invalid Date Selection**
-- [ ] Attempt to create bulk opt-out with end date before start date
+- [ ] Attempt to create date-range participation with end date before start date
 - [ ] **Verify:** Validation error displayed
 - [ ] **Verify:** Form submission blocked
 
 **TC10.2: Special Characters in Reason Field**
 - [ ] Enter reason: `<script>alert('XSS')</script>`
-- [ ] Save bulk opt-out
+- [ ] Save date-range participation
 - [ ] View reason in list
 - [ ] **Verify:** Displayed as plain text (no script execution)
 
@@ -569,7 +568,7 @@
 - [ ] **Verify:** No database error exposed to user
 
 **TC10.6: Extremely Long Reason Text**
-- [ ] Enter 1000+ character reason for bulk opt-out
+- [ ] Enter 1000+ character reason for date-range participation
 - [ ] Attempt save
 - [ ] **Verify:** Validation error or text truncated with warning
 
@@ -588,8 +587,8 @@
 - [ ] Check if this change is logged
 - [ ] **Verify:** System behavior documented (may or may not log preference changes)
 
-**TC11.3: Bulk Opt-Out Audit Trail**
-- [ ] Create bulk opt-out
+**TC11.3: Date-Range Participation Rule Audit Trail**
+- [ ] Create date-range participation
 - [ ] Delete it
 - [ ] Check if deletion logged
 - [ ] **Verify:** Audit trail shows creation and deletion events

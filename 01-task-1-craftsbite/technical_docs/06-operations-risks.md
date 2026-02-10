@@ -25,7 +25,7 @@
    - Use `golang-migrate/migrate` tool
    - Rollback capability for failed migrations
 
-### Monitoring
+### Monitoring (future iteration)
 
 **Application Metrics:**
 - Request latency (p50, p95, p99)
@@ -99,36 +99,36 @@
 
 ### Open Questions
 
-1. **Q:** Should we send email notifications for opt-out reminders?
-   **Status:** Deferred to iteration 2
+1. **Q:** Should we send email notifications for participation reminders?
+   **Status:** Deferred to iteration 2  
    **Decision needed by:** N/A
 
 2. **Q:** Should we allow employees to see team-wide headcount?
-   **Status:** Open - privacy concerns
+   **Status:** Open – privacy concerns  
    **Decision needed by:** Before launch
 
-3. **Q:** How to handle conflicting bulk opt-outs (overlapping date ranges)?
-   **Status:** Last-created wins (current implementation)
+3. **Q:** How should conflicting date-range participation rules (overlapping ranges) be handled?
+   **Status:** Last-created rule wins (current implementation)  
    **Decision needed by:** Resolved
 
-4. **Q:** Should Team Leads be able to bulk-change their entire team's participation?
-   **Status:** No for iteration 1 - individual overrides only
+4. **Q:** Should Team Leads be able to apply date-range participation changes to their entire team?
+   **Status:** No for iteration 1 – individual overrides only  
    **Decision needed by:** Resolved
 
-5. **Q:** What happens to meal participation when user role changes?
-   **Status:** Permissions change immediately, historical data preserved
+5. **Q:** What happens to meal participation when a user’s role changes?
+   **Status:** Permissions change immediately; historical data preserved  
    **Decision needed by:** Resolved
 
-6. **Q:** Should we implement "favorite meals" or meal preferences?
-   **Status:** Out of scope for iteration 1
-   **Decision needed by:** N/A
+6. **Q:** Should we implement meal preferences or favorites?
+   **Status:** Out of scope for iteration 1  
+   **Decision needed by:** Out of scope
 
 7. **Q:** How granular should audit logs be (field-level vs record-level)?
-   **Status:** Record-level (simpler, sufficient for accountability)
+   **Status:** Record-level (sufficient for accountability)  
    **Decision needed by:** Resolved
 
-8. **Q:** Should the system support recurring bulk opt-outs (e.g., every Friday)?
-   **Status:** No for iteration 1 - manual creation required
+8. **Q:** Should the system support recurring date-range participation rules (e.g., every Friday)?
+   **Status:** No for iteration 1 – manual creation only  
    **Decision needed by:** N/A
 
 ---

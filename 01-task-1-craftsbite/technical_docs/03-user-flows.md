@@ -17,21 +17,21 @@
 6. If after cutoff: show error message
 7. Display updated status
 
-### Flow 3: Employee Creates Bulk Opt-Out
-1. Employee navigates to "Bulk Opt-Out" section
+### Flow 3: Employee Manages Date-Range Participation
+1. Employee navigates to "Participation Rules" or "Exceptions" section
 2. Selects date range (start date, end date)
-3. Submits request
-4. System creates record in `bulk_opt_outs` table
-5. System applies opt-out to all meals in range
-6. Confirmation with summary displayed
+3. System creates a date-range participation rule
+4. System applies the rule to all meals within the range
+5. Confirmation with summary displayed
 
 ### Flow 4: Team Lead Overrides Participation
 1. Team Lead views team member list
 2. Selects member and date
-3. Toggles participation status
-4. System updates `meal_participations` with `overridden_by` field
-5. Logs change to `meal_participation_history`
-6. Notification shown
+3. Attempts to toggle participation status
+4. System validates cutoff time (changes allowed only before cutoff)
+5. If valid, system updates `meal_participations` with `overridden_by` field
+6. Logs change to `meal_participation_history`
+7. Notification shown
 
 ### Flow 5: Admin Views Headcount
 1. Admin navigates to Headcount page
