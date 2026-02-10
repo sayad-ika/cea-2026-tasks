@@ -87,7 +87,7 @@ func main() {
 	historyService := services.NewHistoryService(historyRepo)
 
 	// Initialize handlers
-	authHandler := handlers.NewAuthHandler(authService)
+	authHandler := handlers.NewAuthHandler(authService, userService)
 	userHandler := handlers.NewUserHandler(userService)
 	mealHandler := handlers.NewMealHandler(mealService)
 	scheduleHandler := handlers.NewScheduleHandler(scheduleService)
@@ -130,6 +130,7 @@ func main() {
 		auth := v1.Group("/auth")
 		{
 			auth.POST("/login", authHandler.Login)
+			auth.POST("/register", authHandler.Register)
 		}
 
 		// Protected auth routes
