@@ -33,6 +33,7 @@
 - Password complexity requirements (min 8 chars, mix of upper/lower/numbers)
 
 ### Data Privacy
+- Participation history upto 1 year
 - No PII beyond name and email
 - Audit logs show "who changed what" for accountability
 
@@ -81,121 +82,12 @@
   
 ### Integration Scenarios
 
-**Scenario 1: Authentication & Authorization Flow**
-- **Test:** User login → JWT generation → Protected resource access
-- **Steps:**
-  1. POST /api/auth/login with valid credentials
-  2. Verify JWT token returned with correct claims (user_id, role, expiry)
-  3. Use JWT to access protected endpoint (GET /api/meals/participation)
-  4. Verify authorization middleware allows access based on role
-  5. Attempt access with expired token → verify 401 response
-  6. Attempt access to admin endpoint as employee → verify 403 response
-- **Expected:** Proper authentication and role-based access control enforced
+#### No external system integrations are implemented in iteration 1.
 
-**Scenario 2: Participation Resolution with Multiple Factors**
-- **Test:** System correctly resolves participation status with overlapping rules
-- **Steps:**
-  1. Set user default preference to "opt-in"
-  2. Create date-range participation rule for Feb 10-15
-  3. Create specific participation record (opt-in) for Feb 12
-  4. Query participation status for Feb 12
-  5. Verify specific record overrides date-range participation rule
-  6. Query participation for Feb 13 (no specific record)
-  7. Verify date-range participation rule applies (not participating)
-- **Expected:** Priority order respected: specific record > date-range participation rule > default preference
+All scenarios documented in this section focus on internal application behavior and data flows.
+External integrations (e.g., email/SMS notifications, third-party vendors, SSO) will be introduced
+and documented in future iterations if required.
 
-**Scenario 3: Date-Range Participation rule Creation and Cascade**
-- **Test:** date-range participation affects all meals in date range
-- **Steps:**
-  1. User has default preference "opt-in"
-  2. POST /api/bulk-opt-outs with date range Feb 20-25
-  3. Verify date-range participation record created (`bulk_opt_outs` table)
-  4. Query participation for Feb 21, Feb 23 (different meals: lunch, dinner)
-  5. Verify all meals marked as "not participating"
-  6. DELETE date-range participation
-  7. Re-query participation → verify reverts to default (opt-in)
-- **Expected:** Date-range participation rule correctly applied and removed across all meals
-
-**Scenario 4: Day Schedule Impact on Participation**
-- **Test:** Office closed day prevents participation
-- **Steps:**
-  1. Admin creates day schedule: Feb 18 = "office_closed"
-  2. Employee attempts to opt-in for Feb 18 lunch
-  3. Verify API returns error or blocks action
-  4. Query headcount for Feb 18 → verify returns 0
-  5. Admin changes day to "normal"
-  6. Re-query → verify participation allowed
-- **Expected:** Day schedule takes highest priority, blocking participation
-
-**Scenario 5: Team Lead Override with Audit Trail**
-- **Test:** Override creates proper audit log
-- **Steps:**
-  1. Employee has participation = true for Feb 25 lunch
-  2. Team lead executes PUT /api/admin/override-participation (change to false)
-  3. Verify meal_participations updated with overridden_by = team_lead_id
-  4. Query meal_participation_history
-  5. Verify history record shows: old_value=true, new_value=false, changed_by=team_lead_id
-  6. Employee views own history → verify change visible
-- **Expected:** Override persisted, audit trail complete, employee notified
-
-**Scenario 6: Cutoff Time Enforcement**
-- **Test:** System blocks changes after cutoff time
-- **Steps:**
-  1. Set server time to 9:00 PM previous day (before lunch cutoff)
-  2. Employee toggles lunch participation for today
-  3. Verify update succeeds
-  4. Set server time to 9:05 AM (after cutoff)
-  5. Employee attempts same action
-  6. Verify API returns 400/403 with "cutoff time passed" message
-- **Expected:** Cutoff time strictly enforced, clear error messages
-
-**Scenario 7: Default Preference Change Retroactive Effect**
-- **Test:** Changing default doesn't affect past specific records
-- **Steps:**
-  1. User default = "opt-in"
-  2. Create specific opt-out for Feb 10
-  3. Query Feb 10 → verify not participating
-  4. Change default to "opt-out"
-  5. Re-query Feb 10 → verify still not participating (specific record preserved)
-  6. Query Feb 11 (no specific record) → verify now uses new default (opt-out)
-- **Expected:** Default change only affects future/unspecified dates
-
-**Scenario 8: Headcount Calculation Accuracy**
-- **Test:** Admin headcount view shows correct aggregated data
-- **Steps:**
-  1. Setup: 10 users total
-     - 3 users: default "opt-in", no exceptions
-     - 2 users: default "opt-out", no exceptions
-     - 3 users: default "opt-in", date-range participation for Feb 15
-     - 2 users: default "opt-in", specific opt-out for Feb 15
-  2. Admin queries GET /api/admin/headcount?date=2026-02-15&mealType=lunch
-  3. Verify calculation:
-     - Participating: 3 (only those with default opt-in, no exceptions)
-     - Not participating: 7 (2 default opt-out + 3 bulk + 2 specific)
-     - Total: 10
-- **Expected:** Headcount matches manual calculation
-
-**Scenario 9: History Auto-Cleanup Job**
-- **Test:** Scheduled job deletes old records
-- **Steps:**
-  1. Insert test history records with created_at dates:
-     - Record A: 2 months ago
-     - Record B: 3 months ago
-     - Record C: 4 months ago
-  2. Trigger cleanup job (or simulate cron)
-  3. Query meal_participation_history
-  4. Verify Records A and B exist, Record C deleted
-  5. Verify user can still view recent history (A, B)
-- **Expected:** Only records >3 months deleted, recent history preserved
-
-**Scenario 10: Concurrent Update Handling**
-- **Test:** Database handles simultaneous participation updates
-- **Steps:**
-  1. User A and Admin B both update same meal participation simultaneously
-  2. Verify database constraint (UNIQUE user_id, date, meal_type) prevents conflicts
-  3. Verify one transaction succeeds, other fails with proper error
-  4. Verify successful update logged to history
-- **Expected:** Data integrity maintained, last-write-wins or proper error handling
 
 ### Manual QA Checklist
 
