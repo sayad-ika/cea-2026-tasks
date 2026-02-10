@@ -75,7 +75,7 @@ func main() {
 
 	// Initialize services
 	authService := services.NewAuthService(userRepo, cfg)
-	userService := services.NewUserService(userRepo)
+	userService := services.NewUserService(userRepo, teamRepo)
 	participationResolver := services.NewParticipationResolver(mealRepo, scheduleRepo, bulkOptOutRepo, userRepo, cfg)
 	mealService := services.NewMealService(mealRepo, scheduleRepo, historyRepo, userRepo, teamRepo, participationResolver, cfg)
 	scheduleService := services.NewScheduleService(scheduleRepo)
@@ -156,6 +156,9 @@ func main() {
 			// Phase 4: User preferences routes
 			users.GET("/me/preferences", preferenceHandler.GetPreferences)
 			users.PUT("/me/preferences", preferenceHandler.UpdatePreferences)
+
+			// Team Lead: fetch own team members for override panel
+			users.GET("/me/team-members", middleware.RequireRoles(models.RoleTeamLead), userHandler.GetMyTeamMembers)
 		}
 
 		// Protected meal routes
