@@ -26,7 +26,7 @@ export const ComponentShowcase: React.FC = () => {
     const [isOptOutModalOpen, setIsOptOutModalOpen] = useState(false);
     const [showLoading, setShowLoading] = useState(false);
     const [notifyKitchen, setNotifyKitchen] = useState(false);
-    const [activeNavItem, setActiveNavItem] = useState('dashboard');
+    // const [activeNavItem, setActiveNavItem] = useState('dashboard');
     const [isDarkMode, setIsDarkMode] = useState(false);
     const [selectedDepartment, setSelectedDepartment] = useState('engineering');
 
@@ -294,15 +294,15 @@ export const ComponentShowcase: React.FC = () => {
                         style={{ boxShadow: 'var(--shadow-clay-inset)' }}
                     >
                         <Navbar
-                            activeItemId={activeNavItem}
-                            onNavItemClick={(itemId: React.SetStateAction<string>) => {
-                                setActiveNavItem(itemId);
-                                console.log('Nav item clicked:', itemId);
-                            }}
+                            // activeItemId={activeNavItem}
+                            // onNavItemClick={(itemId: React.SetStateAction<string>) => {
+                            //     setActiveNavItem(itemId);
+                            //     console.log('Nav item clicked:', itemId);
+                            // }}
                         />
-                        <div className="mt-4 text-sm text-[var(--color-text-sub)] text-center">
+                        {/* <div className="mt-4 text-sm text-[var(--color-text-sub)] text-center">
                             Current Active Tab: <span className="font-bold text-[var(--color-primary)]">{activeNavItem}</span>
-                        </div>
+                        </div> */}
                     </div>
                 </section>
 
