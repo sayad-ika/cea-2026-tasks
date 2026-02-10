@@ -1,4 +1,6 @@
 import React from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 
 export interface NavItem {
     id: string;
@@ -7,58 +9,45 @@ export interface NavItem {
     href: string;
 }
 
-export interface NavbarProps {
-    items?: NavItem[];
-    activeItemId?: string;
-    onNavItemClick?: (itemId: string) => void;
-}
-
-const defaultNavItems: NavItem[] = [
-    {
-        id: 'dashboard',
-        label: 'Dashboard',
-        icon: 'dashboard',
-        href: '#',
-    },
-    {
-        id: 'my-meals',
-        label: 'My Meals',
-        icon: 'restaurant_menu',
-        href: '#',
-    },
-    {
-        id: 'admin-panel',
-        label: 'Admin Panel',
-        icon: 'admin_panel_settings',
-        href: '#',
-    },
-];
-
 /**
- * Navbar component with tabs
+ * Navbar component with role-based tabs
  * Features smooth animations, hover effects, and active state indication
  */
-export const Navbar: React.FC<NavbarProps> = ({
-    items = defaultNavItems,
-    activeItemId = 'dashboard',
-    onNavItemClick,
-}) => {
-    const handleClick = (e: React.MouseEvent<HTMLAnchorElement>, itemId: string) => {
+export const Navbar: React.FC = () => {
+    const navigate = useNavigate();
+    const location = useLocation();
+    const { user } = useAuth();
+
+    // Build nav items based on user role
+    const navItems: NavItem[] = [
+        { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', href: '/home' },
+        ...(user?.role === 'admin' || user?.role === 'logistics'
+            ? [{ id: 'headcount', label: 'Headcount', icon: 'groups', href: '/headcount' }]
+            : []),
+        ...(user?.role === 'admin' || user?.role === 'team_lead'
+            ? [{ id: 'override', label: 'Override', icon: 'swap_horiz', href: '/override' }]
+            : []),
+    ];
+
+    // Determine active item from current path
+    const activeItemId = navItems.find((i) => i.href === location.pathname)?.id || 'dashboard';
+
+    const handleClick = (e: React.MouseEvent<HTMLAnchorElement>, item: NavItem) => {
         e.preventDefault();
-        onNavItemClick?.(itemId);
+        navigate(item.href);
     };
 
     return (
         <div className="w-full mb-10 border-b border-[#e6dccf] relative px-12">
             <nav aria-label="Tabs" className="flex gap-8 overflow-x-auto no-scrollbar">
-                {items.map((item) => {
+                {navItems.map((item) => {
                     const isActive = item.id === activeItemId;
 
                     return (
                         <a
                             key={item.id}
                             href={item.href}
-                            onClick={(e) => handleClick(e, item.id)}
+                            onClick={(e) => handleClick(e, item)}
                             className={`group relative py-4 px-1 text-sm font-${isActive ? 'bold' : 'medium'
                                 } ${isActive
                                     ? 'text-[#fa8c47]'
