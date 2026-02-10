@@ -67,18 +67,21 @@ func NewMealService(
 	}
 }
 
-// GetTodayMeals gets today's meals and participation status for a user
+// GetTodayMeals gets tomorrow's meals and participation status for a user
+// Note: "Today" refers to the meals users should decide on today, which are tomorrow's meals
+// because the cutoff is previous day at 9:00 PM
 func (s *mealService) GetTodayMeals(userID string) (*TodayMealsResponse, error) {
-	today := time.Now().Format("2006-01-02")
+	// Return tomorrow's meals (cutoff is previous day 9:00 PM)
+	tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
 
-	// Get day schedule
-	schedule, err := s.scheduleRepo.FindByDate(today)
+	// Get day schedule for tomorrow
+	schedule, err := s.scheduleRepo.FindByDate(tomorrow)
 	if err != nil {
 		return nil, err
 	}
 
 	response := &TodayMealsResponse{
-		Date:           today,
+		Date:           tomorrow,
 		DayStatus:      models.DayStatusNormal,
 		AvailableMeals: []models.MealType{models.MealTypeLunch, models.MealTypeSnacks},
 		Participations: []ParticipationStatus{},
@@ -93,7 +96,7 @@ func (s *mealService) GetTodayMeals(userID string) (*TodayMealsResponse, error) 
 
 	// Resolve participation for each available meal
 	for _, mealType := range response.AvailableMeals {
-		isParticipating, source, err := s.resolver.ResolveParticipation(userID, today, string(mealType))
+		isParticipating, source, err := s.resolver.ResolveParticipation(userID, tomorrow, string(mealType))
 		if err != nil {
 			return nil, err
 		}
@@ -285,6 +288,7 @@ func (s *mealService) OverrideParticipation(requesterID, userID, date, mealType 
 }
 
 // validateCutoffTime checks if the current time is before the cutoff time for the given date
+// Cutoff is on the PREVIOUS day at the configured time (e.g., 9:00 PM the day before)
 func (s *mealService) validateCutoffTime(targetDate time.Time) error {
 	// Load timezone
 	loc, err := time.LoadLocation(s.cutoffTimezone)
@@ -292,18 +296,19 @@ func (s *mealService) validateCutoffTime(targetDate time.Time) error {
 		return fmt.Errorf("invalid timezone: %w", err)
 	}
 
-	// Parse cutoff time (e.g., "11:00")
+	// Parse cutoff time (e.g., "21:00" for 9:00 PM)
 	cutoffParts := s.cutoffTime
 	cutoffTime, err := time.Parse("15:04", cutoffParts)
 	if err != nil {
 		return fmt.Errorf("invalid cutoff time format: %w", err)
 	}
 
-	// Build cutoff datetime for the target date
+	// Cutoff is on the PREVIOUS day at the configured time
+	cutoffDate := targetDate.AddDate(0, 0, -1)
 	cutoffDateTime := time.Date(
-		targetDate.Year(),
-		targetDate.Month(),
-		targetDate.Day(),
+		cutoffDate.Year(),
+		cutoffDate.Month(),
+		cutoffDate.Day(),
 		cutoffTime.Hour(),
 		cutoffTime.Minute(),
 		0, 0, loc,
@@ -314,8 +319,8 @@ func (s *mealService) validateCutoffTime(targetDate time.Time) error {
 
 	// Check if current time is past the cutoff
 	if now.After(cutoffDateTime) {
-		return fmt.Errorf("cutoff time (%s %s) has passed for date %s",
-			s.cutoffTime, s.cutoffTimezone, targetDate.Format("2006-01-02"))
+		return fmt.Errorf("cutoff time (%s %s on %s) has passed for date %s",
+			s.cutoffTime, s.cutoffTimezone, cutoffDate.Format("2006-01-02"), targetDate.Format("2006-01-02"))
 	}
 
 	return nil
