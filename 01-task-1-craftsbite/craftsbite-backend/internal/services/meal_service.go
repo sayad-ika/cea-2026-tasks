@@ -16,6 +16,8 @@ type MealService interface {
 	GetParticipation(userID, date string) ([]ParticipationStatus, error)
 	SetParticipation(userID, date, mealType string, participating bool) error
 	OverrideParticipation(adminID, userID, date, mealType string, participating bool, reason string) error
+	GetTeamParticipation(teamLeadID, date string) (*TeamParticipationResponse, error)
+	GetAllTeamsParticipation(date string) (*AllTeamsParticipationResponse, error)
 }
 
 // TodayMealsResponse represents the response for today's meals
@@ -31,6 +33,32 @@ type ParticipationStatus struct {
 	MealType        models.MealType `json:"meal_type"`
 	IsParticipating bool            `json:"is_participating"`
 	Source          string          `json:"source"`
+}
+
+// TeamParticipationResponse represents team participation for a specific date
+type TeamParticipationResponse struct {
+	Date  string                  `json:"date"`
+	Teams []TeamMealParticipation `json:"teams"`
+}
+
+// TeamMealParticipation represents participation for a single team
+type TeamMealParticipation struct {
+	TeamID   string                    `json:"team_id"`
+	TeamName string                    `json:"team_name"`
+	Members  []MemberParticipationInfo `json:"members"`
+}
+
+// MemberParticipationInfo represents a member's participation info
+type MemberParticipationInfo struct {
+	UserID         string                `json:"user_id"`
+	Name           string                `json:"name"`
+	Participations []ParticipationStatus `json:"participations"`
+}
+
+// AllTeamsParticipationResponse represents participation for all teams
+type AllTeamsParticipationResponse struct {
+	Date  string                  `json:"date"`
+	Teams []TeamMealParticipation `json:"teams"`
 }
 
 // mealService implements MealService
@@ -324,4 +352,151 @@ func (s *mealService) validateCutoffTime(targetDate time.Time) error {
 	}
 
 	return nil
+}
+
+// GetTeamParticipation gets participation for all teams led by the team lead
+func (s *mealService) GetTeamParticipation(teamLeadID, date string) (*TeamParticipationResponse, error) {
+	// Validate date format
+	if _, err := time.Parse("2006-01-02", date); err != nil {
+		return nil, fmt.Errorf("invalid date format, expected YYYY-MM-DD: %w", err)
+	}
+
+	// Verify the requester is a team lead
+	requester, err := s.userRepo.FindByID(teamLeadID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find requester: %w", err)
+	}
+	if requester.Role != models.RoleTeamLead {
+		return nil, fmt.Errorf("user is not a team lead")
+	}
+
+	// Get all teams led by this team lead
+	teams, err := s.teamRepo.FindByTeamLeadID(teamLeadID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find teams: %w", err)
+	}
+
+	// Get day schedule to know available meals
+	schedule, err := s.scheduleRepo.FindByDate(date)
+	if err != nil {
+		return nil, err
+	}
+
+	availableMeals := []models.MealType{models.MealTypeLunch, models.MealTypeSnacks}
+	if schedule != nil && schedule.AvailableMeals != nil {
+		availableMeals = parseMealTypes(*schedule.AvailableMeals)
+	}
+
+	// Build response
+	var teamParticipations []TeamMealParticipation
+	for _, team := range teams {
+		var memberInfos []MemberParticipationInfo
+
+		// Get all members of this team
+		for _, member := range team.Members {
+			var participations []ParticipationStatus
+
+			// Resolve participation for each available meal
+			for _, mealType := range availableMeals {
+				isParticipating, source, err := s.resolver.ResolveParticipation(member.ID.String(), date, string(mealType))
+				if err != nil {
+					return nil, err
+				}
+
+				participations = append(participations, ParticipationStatus{
+					MealType:        mealType,
+					IsParticipating: isParticipating,
+					Source:          source,
+				})
+			}
+
+			memberInfos = append(memberInfos, MemberParticipationInfo{
+				UserID:         member.ID.String(),
+				Name:           member.Name,
+				Participations: participations,
+			})
+		}
+
+		teamParticipations = append(teamParticipations, TeamMealParticipation{
+			TeamID:   team.ID.String(),
+			TeamName: team.Name,
+			Members:  memberInfos,
+		})
+	}
+
+	return &TeamParticipationResponse{
+		Date:  date,
+		Teams: teamParticipations,
+	}, nil
+}
+
+// GetAllTeamsParticipation gets participation for all teams (Admin/Logistics)
+func (s *mealService) GetAllTeamsParticipation(date string) (*AllTeamsParticipationResponse, error) {
+	// Validate date format
+	if _, err := time.Parse("2006-01-02", date); err != nil {
+		return nil, fmt.Errorf("invalid date format, expected YYYY-MM-DD: %w", err)
+	}
+
+	// Get all active teams
+	teams, err := s.teamRepo.FindAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find teams: %w", err)
+	}
+
+	// Get day schedule to know available meals
+	schedule, err := s.scheduleRepo.FindByDate(date)
+	if err != nil {
+		return nil, err
+	}
+
+	availableMeals := []models.MealType{models.MealTypeLunch, models.MealTypeSnacks}
+	if schedule != nil && schedule.AvailableMeals != nil {
+		availableMeals = parseMealTypes(*schedule.AvailableMeals)
+	}
+
+	// Build response - need to preload members for each team
+	var teamParticipations []TeamMealParticipation
+	for _, team := range teams {
+		// Get team members
+		members, err := s.teamRepo.GetTeamMembers(team.ID.String())
+		if err != nil {
+			return nil, fmt.Errorf("failed to get team members: %w", err)
+		}
+
+		var memberInfos []MemberParticipationInfo
+		for _, member := range members {
+			var participations []ParticipationStatus
+
+			// Resolve participation for each available meal
+			for _, mealType := range availableMeals {
+				isParticipating, source, err := s.resolver.ResolveParticipation(member.ID.String(), date, string(mealType))
+				if err != nil {
+					return nil, err
+				}
+
+				participations = append(participations, ParticipationStatus{
+					MealType:        mealType,
+					IsParticipating: isParticipating,
+					Source:          source,
+				})
+			}
+
+			memberInfos = append(memberInfos, MemberParticipationInfo{
+				UserID:         member.ID.String(),
+				Name:           member.Name,
+				Participations: participations,
+			})
+		}
+
+		teamParticipations = append(teamParticipations, TeamMealParticipation{
+			TeamID:   team.ID.String(),
+			TeamName: team.Name,
+			Members:  memberInfos,
+		})
+	}
+
+	return &AllTeamsParticipationResponse{
+		Date:  date,
+		Teams: teamParticipations,
+	}, nil
 }
