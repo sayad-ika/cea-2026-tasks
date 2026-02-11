@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
   Header,
@@ -29,7 +28,6 @@ function isCutoffPassed(mealType: MealTypeEnum): boolean {
 }
 
 export const Home: React.FC = () => {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const [meals, setMeals] = useState<MealType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -188,7 +186,7 @@ export const Home: React.FC = () => {
                 <div key={meal.meal_type} className="relative">
                   <EmployeeMenuCard
                     meal={meal}
-                    onToggle={locked ? () => {} : handleToggle}
+                    onToggle={locked ? () => { } : handleToggle}
                   />
                   {/* Cutoff badge overlay */}
                   {locked && (

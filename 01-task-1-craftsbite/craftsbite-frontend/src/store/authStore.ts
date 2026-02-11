@@ -46,6 +46,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
     },
 
+    // Register action
+    register: async (_name: string, _email: string, _role: any, _password: string) => {
+        set({ isLoading: true });
+        try {
+            throw new Error('Register service not yet implemented');
+        } catch (error) {
+            set({ isLoading: false });
+            throw error;
+        }
+    },
+
     // Logout action
     logout: () => {
         removeToken();
