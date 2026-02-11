@@ -190,6 +190,17 @@ export interface TeamData {
 }
 
 export interface TeamParticipationResponse {
-  date: string;
   teams: TeamData[];
+}
+
+// Schedule types
+export interface ScheduleEntry {
+  id: string;
+  date: string; // YYYY-MM-DD
+  day_status: DayStatus;
+  reason: string;
+  available_meals: string; // comma-separated e.g. "lunch,snacks"
+  created_by: string;
+  created_at: string;
+  updated_at: string;
 }
