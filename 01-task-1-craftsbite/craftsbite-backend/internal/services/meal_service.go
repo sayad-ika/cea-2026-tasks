@@ -117,6 +117,18 @@ func (s *mealService) GetTodayMeals(userID string) (*TodayMealsResponse, error) 
 
 	if schedule != nil {
 		response.DayStatus = schedule.DayStatus
+
+		// For closed/holiday/weekend days with no meals, return early with empty participations
+		if schedule.DayStatus == models.DayStatusOfficeClosed ||
+			schedule.DayStatus == models.DayStatusGovtHoliday ||
+			schedule.DayStatus == models.DayStatusWeekend {
+			// Check if meals are explicitly available (e.g., govt_holiday with meals)
+			if schedule.AvailableMeals == nil || *schedule.AvailableMeals == "" {
+				response.AvailableMeals = []models.MealType{}
+				return response, nil
+			}
+		}
+
 		if schedule.AvailableMeals != nil {
 			response.AvailableMeals = parseMealTypes(*schedule.AvailableMeals)
 		}
@@ -187,6 +199,38 @@ func (s *mealService) SetParticipation(userID, date, mealType string, participat
 		return err
 	}
 
+	// Check day schedule - block participation changes when no meals available
+	schedule, err := s.scheduleRepo.FindByDate(date)
+	if err != nil {
+		return fmt.Errorf("failed to check day schedule: %w", err)
+	}
+
+	if schedule != nil {
+		// Block on closed/holiday/weekend when no meals are available
+		if schedule.DayStatus == models.DayStatusOfficeClosed ||
+			schedule.DayStatus == models.DayStatusGovtHoliday ||
+			schedule.DayStatus == models.DayStatusWeekend {
+			if schedule.AvailableMeals == nil || *schedule.AvailableMeals == "" {
+				return fmt.Errorf("no meals available on this day (status: %s)", schedule.DayStatus)
+			}
+		}
+
+		// Also check if the specific meal type is available
+		if schedule.AvailableMeals != nil {
+			availableMeals := parseMealTypes(*schedule.AvailableMeals)
+			mealAvailable := false
+			for _, m := range availableMeals {
+				if string(m) == mealType {
+					mealAvailable = true
+					break
+				}
+			}
+			if !mealAvailable {
+				return fmt.Errorf("meal type '%s' is not available on this day", mealType)
+			}
+		}
+	}
+
 	// Check if existing record exists to get its ID for proper upsert
 	existing, err := s.mealRepo.FindByUserDateMeal(userID, date, mealType)
 	if err != nil {
@@ -243,6 +287,36 @@ func (s *mealService) OverrideParticipation(requesterID, userID, date, mealType 
 	// Validate date format
 	if _, err := time.Parse("2006-01-02", date); err != nil {
 		return fmt.Errorf("invalid date format, expected YYYY-MM-DD: %w", err)
+	}
+
+	// Check day schedule - block overrides when no meals available
+	schedule, err := s.scheduleRepo.FindByDate(date)
+	if err != nil {
+		return fmt.Errorf("failed to check day schedule: %w", err)
+	}
+
+	if schedule != nil {
+		if schedule.DayStatus == models.DayStatusOfficeClosed ||
+			schedule.DayStatus == models.DayStatusGovtHoliday ||
+			schedule.DayStatus == models.DayStatusWeekend {
+			if schedule.AvailableMeals == nil || *schedule.AvailableMeals == "" {
+				return fmt.Errorf("no meals available on this day (status: %s)", schedule.DayStatus)
+			}
+		}
+
+		if schedule.AvailableMeals != nil {
+			availableMeals := parseMealTypes(*schedule.AvailableMeals)
+			mealAvailable := false
+			for _, m := range availableMeals {
+				if string(m) == mealType {
+					mealAvailable = true
+					break
+				}
+			}
+			if !mealAvailable {
+				return fmt.Errorf("meal type '%s' is not available on this day", mealType)
+			}
+		}
 	}
 
 	// Parse requester UUID
