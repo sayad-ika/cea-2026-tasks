@@ -70,7 +70,8 @@ func (r *participationResolver) ResolveParticipation(userID, date, mealType stri
 		}
 
 		// If there's a schedule with normal or celebration status, allow meals
-		if schedule != nil && (schedule.DayStatus == models.DayStatusNormal || schedule.DayStatus == models.DayStatusCelebration) {
+		if schedule != nil && ((schedule.DayStatus == models.DayStatusNormal || schedule.DayStatus == models.DayStatusCelebration) ||
+			((schedule.DayStatus == models.DayStatusWeekend || schedule.DayStatus == models.DayStatusGovtHoliday) && schedule.AvailableMeals != nil)) {
 			// Continue to next priority checks
 		} else {
 			// Weekend with no override schedule
@@ -85,7 +86,7 @@ func (r *participationResolver) ResolveParticipation(userID, date, mealType stri
 	}
 
 	if schedule != nil {
-		if schedule.DayStatus == models.DayStatusOfficeClosed || schedule.DayStatus == models.DayStatusGovtHoliday {
+		if schedule.DayStatus == models.DayStatusOfficeClosed {
 			return false, "day_schedule", nil
 		}
 	}
