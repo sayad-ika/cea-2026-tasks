@@ -10,6 +10,7 @@ import {
 import type { MealType as MealTypeEnum } from "../types";
 import type { MealType } from "../components/cards/EmployeeMenuCard";
 import * as mealService from "../services/mealService";
+import * as userService from "../services/userService";
 import { CUTOFF_TIMES } from "../utils/constants";
 import toast from "react-hot-toast";
 
@@ -33,6 +34,7 @@ export const Home: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [currentDate, setCurrentDate] = useState("");
+  const [teamName, setTeamName] = useState<string | null>(null);
 
   // Fetch today's meals
   useEffect(() => {
@@ -44,6 +46,17 @@ export const Home: React.FC = () => {
 
         if (response.success && response.data) {
           setCurrentDate(response.data.date);
+
+          // Fetch team assignment strictly for display
+          try {
+            const teamRes = await userService.getTeamAssignment();
+            if (teamRes.success && teamRes.data && teamRes.data.length > 0) {
+              setTeamName(teamRes.data[0].team_name);
+            }
+          } catch (err) {
+            console.error("Failed to fetch team assignment", err);
+            // Do not block page load for this
+          }
 
           // Show ALL available meal types (Phase 3 — no filtering)
           const mealsWithStatus: MealType[] = response.data.available_meals.map(
@@ -176,6 +189,20 @@ export const Home: React.FC = () => {
             {error}
           </div>
         )}
+
+        {/* Team Assignment Badge */}
+        <div className="mb-10 text-center md:text-left">
+          {teamName && (
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-50 to-orange-100 text-orange-700 rounded-2xl border border-orange-200 shadow-sm mb-4">
+              <span className="material-symbols-outlined text-[20px] leading-none">
+                groups
+              </span>
+              <span className="text-sm font-bold tracking-wide">
+                {teamName}
+              </span>
+            </div>
+          )}
+        </div>
 
         {/* Meal Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">

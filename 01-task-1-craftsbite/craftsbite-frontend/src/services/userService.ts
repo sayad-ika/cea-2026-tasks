@@ -38,11 +38,24 @@ export async function getUserById(id: string): Promise<ApiResponse<User>> {
     return response.data;
 }
 
-/**
- * Get team members for the current team lead
- * GET /users/me/team-members
- */
 export async function getTeamMembers(): Promise<ApiResponse<TeamMembersData>> {
     const response = await api.get<ApiResponse<TeamMembersData>>('/users/me/team-members');
+    return response.data;
+}
+
+// --- Team Assignment types (GET /users/me/team-assignment) ---
+export interface TeamAssignment {
+    team_id: string;
+    team_name: string;
+    description: string;
+    team_lead_name: string;
+}
+
+/**
+ * Get team assignment for the current user
+ * GET /users/me/team-assignment
+ */
+export async function getTeamAssignment(): Promise<ApiResponse<TeamAssignment[]>> {
+    const response = await api.get<ApiResponse<TeamAssignment[]>>('/users/me/team-assignment');
     return response.data;
 }
