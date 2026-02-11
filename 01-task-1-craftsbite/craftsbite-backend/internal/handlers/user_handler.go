@@ -133,3 +133,21 @@ func (h *UserHandler) GetMyTeamMembers(c *gin.Context) {
 
 	utils.SuccessResponse(c, 200, response, "Team members retrieved successfully")
 }
+
+// GetMyTeamAssignment returns the teams the authenticated user belongs to
+// GET /api/v1/users/me/team-assignment
+func (h *UserHandler) GetMyTeamAssignment(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		utils.ErrorResponse(c, 401, "UNAUTHORIZED", "User not authenticated")
+		return
+	}
+
+	response, err := h.userService.GetMyTeamAssignment(userID.(string))
+	if err != nil {
+		utils.ErrorResponse(c, 500, "INTERNAL_ERROR", err.Error())
+		return
+	}
+
+	utils.SuccessResponse(c, 200, response, "Team assignments retrieved successfully")
+}

@@ -111,7 +111,7 @@ export const TeamParticipation: React.FC = () => {
     const handlePrevDay = () => setSelectedDate((prev) => subDays(prev, 1));
     const handleNextDay = () => setSelectedDate((prev) => addDays(prev, 1));
 
-    if (isLoading && teamData.length === 0) {
+    if (isLoading && teamData?.length === 0) {
         return <LoadingSpinner message="Loading team participation..." />;
     }
 
@@ -124,7 +124,7 @@ export const TeamParticipation: React.FC = () => {
                 {/* Page Title & Controls */}
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
                     <div>
-                        <h2 className="text-4xl font-black text-[var(--color-background-dark)] mb-2 tracking-tight">
+                        <h2 className="text-4xl text-left font-black text-[var(--color-background-dark)] mb-2 tracking-tight">
                             Team Participation
                         </h2>
                         <p className="text-lg text-[var(--color-text-sub)] font-medium">
@@ -167,20 +167,34 @@ export const TeamParticipation: React.FC = () => {
 
                 {/* Team Data */}
                 <div className="space-y-8">
-                    {teamData.length > 0 ? (
+                    {teamData?.length > 0 ? (
                         teamData.map((team) => (
                             <TeamCard key={team.team_id} team={team} />
                         ))
                     ) : (
                         !isLoading && (
-                            <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-gray-300">
-                                <span className="material-symbols-outlined text-6xl text-gray-300 mb-4 block">
-                                    groups_off
-                                </span>
-                                <p className="text-gray-500 text-lg font-medium">
-                                    No team participation data found for this date.
-                                </p>
-                            </div>
+                            <main className="flex-grow container mx-auto px-6 py-8 md:px-12 flex flex-col items-center justify-center">
+                                <div
+                                  className="bg-[var(--color-background-light)] rounded-3xl p-10 md:p-14 max-w-2xl w-full text-center"
+                                  style={{ boxShadow: "var(--shadow-clay)" }}
+                                >
+                                  <div className="mb-4 flex justify-center">
+                                    <span className="material-symbols-outlined text-6xl text-[var(--color-primary)]/60">
+                                      groups_2
+                                    </span>
+                                  </div>
+                                  <h3 className="text-3xl font-black text-[var(--color-background-dark)] mb-3">
+                                    No Team Members Yet
+                                  </h3>
+                                  <p className="text-lg text-[var(--color-text-sub)] mb-2">
+                                    You don't have any team members assigned yet.
+                                  </p>
+                                  <p className="text-sm text-[var(--color-text-sub)]/70">
+                                    Once your team members are set up, you'll be able to override
+                                    their meal participation here.
+                                  </p>
+                                </div>
+                              </main>
                         )
                     )}
                 </div>

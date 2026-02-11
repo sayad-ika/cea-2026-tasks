@@ -21,6 +21,8 @@ type TeamRepository interface {
 	GetTeamMembers(teamID string) ([]models.User, error)
 	IsTeamMember(teamID, userID string) (bool, error)
 	IsUserInAnyTeamLedBy(teamLeadID, userID string) (bool, error)
+	GetUserTeams(userID string) ([]models.Team, error)
+	GetTeamMemberIDs(teamID string) ([]string, error)
 }
 
 // teamRepository implements TeamRepository
@@ -149,4 +151,29 @@ func (r *teamRepository) IsUserInAnyTeamLedBy(teamLeadID, userID string) (bool, 
 		return false, fmt.Errorf("failed to check team lead membership: %w", err)
 	}
 	return count > 0, nil
+}
+
+// GetUserTeams finds all active teams a user belongs to
+func (r *teamRepository) GetUserTeams(userID string) ([]models.Team, error) {
+	var teams []models.Team
+	if err := r.db.Table("teams").
+		Joins("JOIN team_members ON team_members.team_id = teams.id").
+		Preload("TeamLead").
+		Where("team_members.user_id = ? AND teams.active = ?", userID, true).
+		Find(&teams).Error; err != nil {
+		return nil, fmt.Errorf("failed to find user teams: %w", err)
+	}
+	return teams, nil
+}
+
+// GetTeamMemberIDs returns all user IDs who are members of a specific team
+func (r *teamRepository) GetTeamMemberIDs(teamID string) ([]string, error) {
+	var userIDs []string
+	if err := r.db.Table("team_members").
+		Select("user_id").
+		Where("team_id = ?", teamID).
+		Pluck("user_id", &userIDs).Error; err != nil {
+		return nil, fmt.Errorf("failed to find team member IDs: %w", err)
+	}
+	return userIDs, nil
 }

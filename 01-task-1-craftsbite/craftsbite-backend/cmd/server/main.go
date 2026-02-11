@@ -160,6 +160,9 @@ func main() {
 
 			// Team Lead: fetch own team members for override panel
 			users.GET("/me/team-members", middleware.RequireRoles(models.RoleTeamLead), userHandler.GetMyTeamMembers)
+
+			// Requirement 1: Employee views their own team assignment
+			users.GET("/me/team-assignment", userHandler.GetMyTeamAssignment)
 		}
 
 		// Protected meal routes
@@ -182,6 +185,10 @@ func main() {
 			// Phase 4: History routes
 			meals.GET("/history", historyHandler.GetHistory)
 			meals.GET("/participation-audit", historyHandler.GetAuditTrail)
+
+			// Requirement 1: Team visibility routes
+			meals.GET("/team-participation", middleware.RequireRoles(models.RoleTeamLead), mealHandler.GetTeamParticipation)
+			meals.GET("/all-teams-participation", middleware.RequireRoles(models.RoleAdmin, models.RoleLogistics), mealHandler.GetAllTeamsParticipation)
 		}
 
 		// Protected schedule routes (Admin only)

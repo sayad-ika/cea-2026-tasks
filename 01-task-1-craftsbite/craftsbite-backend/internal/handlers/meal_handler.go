@@ -140,3 +140,50 @@ func (h *MealHandler) OverrideParticipation(c *gin.Context) {
 
 	utils.SuccessResponse(c, 200, nil, "Participation overridden successfully")
 }
+
+// GetTeamParticipation returns participation for team lead's teams
+// GET /api/v1/meals/team-participation?date=YYYY-MM-DD
+func (h *MealHandler) GetTeamParticipation(c *gin.Context) {
+	// Get team lead ID from context
+	teamLeadID, exists := c.Get("user_id")
+	if !exists {
+		utils.ErrorResponse(c, 401, "UNAUTHORIZED", "User not authenticated")
+		return
+	}
+
+	// Get date from query parameter
+	date := c.Query("date")
+	if date == "" {
+		utils.ErrorResponse(c, 400, "VALIDATION_ERROR", "Date query parameter is required")
+		return
+	}
+
+	// Get team participation
+	response, err := h.mealService.GetTeamParticipation(teamLeadID.(string), date)
+	if err != nil {
+		utils.ErrorResponse(c, 400, "GET_TEAM_PARTICIPATION_ERROR", err.Error())
+		return
+	}
+
+	utils.SuccessResponse(c, 200, response, "Team participation retrieved successfully")
+}
+
+// GetAllTeamsParticipation returns participation for all teams (Admin/Logistics)
+// GET /api/v1/meals/all-teams-participation?date=YYYY-MM-DD
+func (h *MealHandler) GetAllTeamsParticipation(c *gin.Context) {
+	// Get date from query parameter
+	date := c.Query("date")
+	if date == "" {
+		utils.ErrorResponse(c, 400, "VALIDATION_ERROR", "Date query parameter is required")
+		return
+	}
+
+	// Get all teams participation
+	response, err := h.mealService.GetAllTeamsParticipation(date)
+	if err != nil {
+		utils.ErrorResponse(c, 400, "GET_ALL_TEAMS_PARTICIPATION_ERROR", err.Error())
+		return
+	}
+
+	utils.SuccessResponse(c, 200, response, "All teams participation retrieved successfully")
+}
