@@ -169,3 +169,27 @@ export interface DetailedHeadcountData {
 
 // Array of headcount data (e.g., today and tomorrow)
 export type HeadcountDataArray = HeadcountData[];
+
+// --- Team Participation (matches GET /meals/team-participation) ---
+export interface MealParticipationDetail {
+  meal_type: MealType;
+  is_participating: boolean;
+  source: ParticipationSource;
+}
+
+export interface TeamMemberParticipation {
+  user_id: string;
+  name: string;
+  participations: MealParticipationDetail[];
+}
+
+export interface TeamData {
+  team_id: string;
+  team_name: string;
+  members: TeamMemberParticipation[];
+}
+
+export interface TeamParticipationResponse {
+  date: string;
+  teams: TeamData[];
+}

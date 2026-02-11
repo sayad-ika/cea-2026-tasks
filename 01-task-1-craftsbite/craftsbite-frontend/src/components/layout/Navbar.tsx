@@ -21,8 +21,11 @@ export const Navbar: React.FC = () => {
     // Build nav items based on user role
     const navItems: NavItem[] = [
         { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', href: '/home' },
+        ...(user?.role === 'admin' || user?.role === 'team_lead'
+            ? [{ id: 'team-participation', label: 'Team', icon: 'groups', href: '/team-participation' }]
+            : []),
         ...(user?.role === 'admin' || user?.role === 'logistics'
-            ? [{ id: 'headcount', label: 'Headcount', icon: 'groups', href: '/headcount' }]
+            ? [{ id: 'headcount', label: 'Headcount', icon: 'bar_chart', href: '/headcount' }]
             : []),
         ...(user?.role === 'admin' || user?.role === 'team_lead'
             ? [{ id: 'override', label: 'Override', icon: 'swap_horiz', href: '/override' }]
