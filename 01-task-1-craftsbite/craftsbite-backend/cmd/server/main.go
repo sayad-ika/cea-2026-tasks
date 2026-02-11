@@ -199,10 +199,10 @@ func main() {
 			schedules.GET("/:date", scheduleHandler.GetSchedule)
 			schedules.GET("/range", scheduleHandler.GetScheduleRange)
 
-			// Write routes - admin only
-			schedules.POST("", middleware.RequireRoles(models.RoleAdmin), scheduleHandler.CreateSchedule)
-			schedules.PUT("/:date", middleware.RequireRoles(models.RoleAdmin), scheduleHandler.UpdateSchedule)
-			schedules.DELETE("/:date", middleware.RequireRoles(models.RoleAdmin), scheduleHandler.DeleteSchedule)
+			// Requirement 3: Write routes - Admin and Logistics
+			schedules.POST("", middleware.RequireRoles(models.RoleAdmin, models.RoleLogistics), scheduleHandler.CreateSchedule)
+			schedules.PUT("/:date", middleware.RequireRoles(models.RoleAdmin, models.RoleLogistics), scheduleHandler.UpdateSchedule)
+			schedules.DELETE("/:date", middleware.RequireRoles(models.RoleAdmin, models.RoleLogistics), scheduleHandler.DeleteSchedule)
 		}
 
 		// Protected headcount routes (Admin and Logistics)

@@ -33,12 +33,13 @@ const (
 	DayStatusOfficeClosed DayStatus = "office_closed"
 	DayStatusGovtHoliday  DayStatus = "govt_holiday"
 	DayStatusCelebration  DayStatus = "celebration"
+	DayStatusWeekend      DayStatus = "weekend"
 )
 
 // IsValid checks if the day status is valid
 func (d DayStatus) IsValid() bool {
 	switch d {
-	case DayStatusNormal, DayStatusOfficeClosed, DayStatusGovtHoliday, DayStatusCelebration:
+	case DayStatusNormal, DayStatusOfficeClosed, DayStatusGovtHoliday, DayStatusCelebration, DayStatusWeekend:
 		return true
 	}
 	return false
