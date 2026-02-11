@@ -67,9 +67,9 @@ func (r *scheduleRepository) Update(schedule *models.DaySchedule) error {
 	return nil
 }
 
-// Delete deletes a day schedule by ID
-func (r *scheduleRepository) Delete(id string) error {
-	if err := r.db.Delete(&models.DaySchedule{}, "id = ?", id).Error; err != nil {
+// Delete deletes a day schedule by date
+func (r *scheduleRepository) Delete(date string) error {
+	if err := r.db.Delete(&models.DaySchedule{}, "date = ?", date).Error; err != nil {
 		return fmt.Errorf("failed to delete day schedule: %w", err)
 	}
 	return nil

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
     format,
     startOfMonth,
@@ -10,7 +10,7 @@ import {
     isToday,
     isWeekend,
 } from "date-fns";
-import { Header, Footer, Navbar, LoadingSpinner, CreateScheduleModal } from "../components";
+import { Header, Footer, Navbar, LoadingSpinner, ScheduleModal, DeleteConfirmationModal } from "../components";
 import { useAuth } from "../contexts/AuthContext";
 import * as scheduleService from "../services/scheduleService";
 import type { ScheduleEntry, DayStatus } from "../types";
@@ -24,9 +24,11 @@ interface DayCellProps {
     date: Date;
     schedule?: ScheduleEntry;
     isCurrentMonth: boolean;
+    onEdit: (schedule: ScheduleEntry) => void;
+    onDelete: (dateStr: string) => void;
 }
 
-const DayCell: React.FC<DayCellProps> = ({ dayNumber, date, schedule, isCurrentMonth }) => {
+const DayCell: React.FC<DayCellProps> = ({ dayNumber, date, schedule, isCurrentMonth, onEdit, onDelete }) => {
     const today = isToday(date);
     const weekend = isWeekend(date);
 
@@ -41,6 +43,34 @@ const DayCell: React.FC<DayCellProps> = ({ dayNumber, date, schedule, isCurrentM
         return <div className="p-2 rounded-xl bg-transparent opacity-20" />;
     }
 
+    /* Action icons (edit + delete) — shown on hover when schedule exists */
+    const actionIcons = schedule && (
+        <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+            <button
+                type="button"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(schedule);
+                }}
+                className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-sub)] hover:text-[var(--color-primary)] hover:bg-[var(--color-primary)]/10 transition-all"
+                title="Edit schedule"
+            >
+                <span className="material-symbols-outlined text-[14px]">edit</span>
+            </button>
+            <button
+                type="button"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(format(date, "yyyy-MM-dd"));
+                }}
+                className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-sub)] hover:text-red-500 hover:bg-red-50 transition-all"
+                title="Delete schedule"
+            >
+                <span className="material-symbols-outlined text-[14px]">delete</span>
+            </button>
+        </div>
+    );
+
     /* ---------- office_closed / weekend ---------- */
     if (status === "office_closed" || status === "weekend") {
         return (
@@ -48,6 +78,7 @@ const DayCell: React.FC<DayCellProps> = ({ dayNumber, date, schedule, isCurrentM
                 className={`${baseClasses} bg-gray-100 shadow-inner opacity-80 border border-gray-200 cursor-not-allowed`}
             >
                 <span className="text-sm font-bold text-gray-400">{dayNumber}</span>
+                {actionIcons}
                 <div className="flex flex-col items-center w-full mt-2">
                     <span className="material-symbols-outlined text-gray-300 text-[24px]">lock</span>
                     <span className="text-[9px] uppercase font-bold text-gray-400 mt-1 tracking-wider">
@@ -70,11 +101,12 @@ const DayCell: React.FC<DayCellProps> = ({ dayNumber, date, schedule, isCurrentM
                 className={`${baseClasses} bg-red-50/50 shadow-[var(--shadow-clay-button)] hover:shadow-[var(--shadow-clay-button-hover)] active:shadow-[var(--shadow-clay-button-active)] border border-red-100`}
             >
                 <span className="text-sm font-bold text-red-400">{dayNumber}</span>
+                {actionIcons}
                 <div className="flex flex-col items-center w-full mt-2 opacity-60">
                     <span className="material-symbols-outlined text-red-300 text-[24px]">flag</span>
                     <span className="text-[9px] uppercase font-bold text-red-300 mt-1 tracking-wider">Holiday</span>
                 </div>
-                <div className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-red-300" />
+                {!actionIcons && <div className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-red-300" />}
                 {schedule?.reason && (
                     <span className="text-[8px] text-red-400 mt-auto truncate w-full text-center" title={schedule.reason}>
                         {schedule.reason}
@@ -92,6 +124,7 @@ const DayCell: React.FC<DayCellProps> = ({ dayNumber, date, schedule, isCurrentM
             >
                 <div className="absolute inset-0 bg-gradient-to-br from-yellow-100/30 to-transparent pointer-events-none" />
                 <span className="text-sm font-bold text-yellow-600 relative z-10">{dayNumber}</span>
+                {actionIcons}
                 <div className="flex flex-col items-center w-full mt-1 relative z-10">
                     <span className="material-symbols-outlined text-yellow-500 text-[24px]">celebration</span>
                     <span className="text-[9px] uppercase font-bold text-yellow-600 mt-1 tracking-wider">Event</span>
@@ -135,12 +168,14 @@ const DayCell: React.FC<DayCellProps> = ({ dayNumber, date, schedule, isCurrentM
                 {dayNumber}
             </span>
 
-            {today && (
+            {today && !actionIcons && (
                 <span className="absolute top-2 right-2 flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--color-primary)] opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--color-primary)]" />
                 </span>
             )}
+
+            {actionIcons}
 
             {meals.length > 0 && (
                 <div className="flex gap-1 mt-1">
@@ -213,10 +248,18 @@ export const Schedule: React.FC = () => {
     const [schedules, setSchedules] = useState<ScheduleEntry[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState("");
-    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    // Modal state
+    const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+    const [editingSchedule, setEditingSchedule] = useState<ScheduleEntry | null>(null);
+
+    // Delete confirmation state
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [deletingDate, setDeletingDate] = useState("");
+    const [isDeleting, setIsDeleting] = useState(false);
 
     /* Fetch schedules for the visible month */
-    const fetchSchedules = async (month: Date) => {
+    const fetchSchedules = useCallback(async (month: Date) => {
         try {
             setIsLoading(true);
             setError("");
@@ -238,11 +281,11 @@ export const Schedule: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchSchedules(currentMonth);
-    }, [currentMonth]);
+    }, [currentMonth, fetchSchedules]);
 
     const handlePrevMonth = () => setCurrentMonth((prev) => subMonths(prev, 1));
     const handleNextMonth = () => setCurrentMonth((prev) => addMonths(prev, 1));
@@ -251,7 +294,6 @@ export const Schedule: React.FC = () => {
     const scheduleMap = useMemo(() => {
         const map = new Map<string, ScheduleEntry>();
         schedules.forEach((s) => {
-            // API may return "2026-02-06T00:00:00Z" — extract just YYYY-MM-DD
             const dateKey = s.date.substring(0, 10);
             map.set(dateKey, s);
         });
@@ -261,25 +303,21 @@ export const Schedule: React.FC = () => {
     /* Build calendar grid cells */
     const calendarCells = useMemo(() => {
         const monthStart = startOfMonth(currentMonth);
-        const startDowSunday = getDay(monthStart); // 0=Sun … 6=Sat
-        // Convert to Monday-first: Mon=0, Tue=1, ..., Sun=6
+        const startDowSunday = getDay(monthStart);
         const startDow = startDowSunday === 0 ? 6 : startDowSunday - 1;
         const totalDays = getDaysInMonth(currentMonth);
 
         const cells: { date: Date; dayNumber: number; isCurrentMonth: boolean }[] = [];
 
-        // Leading blanks (from previous month)
         for (let i = 0; i < startDow; i++) {
             cells.push({ date: new Date(0), dayNumber: 0, isCurrentMonth: false });
         }
 
-        // Actual days
         for (let d = 1; d <= totalDays; d++) {
             const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), d);
             cells.push({ date, dayNumber: d, isCurrentMonth: true });
         }
 
-        // Trailing blanks (fill to complete last row)
         const remainder = cells.length % 7;
         if (remainder > 0) {
             for (let i = 0; i < 7 - remainder; i++) {
@@ -291,6 +329,41 @@ export const Schedule: React.FC = () => {
     }, [currentMonth]);
 
     const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+    /* --- Event handlers for edit / delete --- */
+    const handleOpenCreate = () => {
+        setEditingSchedule(null);
+        setIsScheduleModalOpen(true);
+    };
+
+    const handleOpenEdit = (schedule: ScheduleEntry) => {
+        setEditingSchedule(schedule);
+        setIsScheduleModalOpen(true);
+    };
+
+    const handleOpenDelete = (dateStr: string) => {
+        setDeletingDate(dateStr);
+        setIsDeleteModalOpen(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!deletingDate) return;
+
+        setIsDeleting(true);
+        try {
+            await scheduleService.deleteSchedule(deletingDate);
+            toast.success("Schedule deleted successfully!");
+            setIsDeleteModalOpen(false);
+            setDeletingDate("");
+            fetchSchedules(currentMonth);
+        } catch (err: any) {
+            console.error("Error deleting schedule:", err);
+            const msg = err?.response?.data?.error?.message || "Failed to delete schedule";
+            toast.error(msg);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
 
     if (isLoading && schedules.length === 0) {
         return <LoadingSpinner message="Loading schedule…" />;
@@ -313,7 +386,7 @@ export const Schedule: React.FC = () => {
                         </p>
                     </div>
                     <button
-                        onClick={() => setIsModalOpen(true)}
+                        onClick={handleOpenCreate}
                         className="px-5 py-3 rounded-xl bg-gradient-to-br from-[#fa8c47] to-[#e57a36] text-white font-bold shadow-[6px_6px_12px_#e6dccf,-6px_-6px_12px_#ffffff] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 text-sm"
                     >
                         <span className="material-symbols-outlined text-[18px]">add</span>
@@ -375,6 +448,8 @@ export const Schedule: React.FC = () => {
                                     date={cell.date}
                                     schedule={schedule}
                                     isCurrentMonth={cell.isCurrentMonth}
+                                    onEdit={handleOpenEdit}
+                                    onDelete={handleOpenDelete}
                                 />
                             );
                         })}
@@ -393,13 +468,30 @@ export const Schedule: React.FC = () => {
 
             <Footer links={[{ label: "Privacy", href: "#" }, { label: "Terms", href: "#" }, { label: "Support", href: "#" }]} />
 
-            {/* Create Schedule Modal */}
-            <CreateScheduleModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
+            {/* Schedule Create / Edit Modal */}
+            <ScheduleModal
+                isOpen={isScheduleModalOpen}
+                onClose={() => {
+                    setIsScheduleModalOpen(false);
+                    setEditingSchedule(null);
+                }}
                 onSuccess={() => {
                     fetchSchedules(currentMonth);
                 }}
+                editingSchedule={editingSchedule}
+            />
+
+            {/* Delete Confirmation Modal */}
+            <DeleteConfirmationModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => {
+                    setIsDeleteModalOpen(false);
+                    setDeletingDate("");
+                }}
+                onConfirm={handleConfirmDelete}
+                isDeleting={isDeleting}
+                title="Delete Schedule?"
+                message={`Are you sure you want to delete the schedule for ${deletingDate}? This action cannot be undone.`}
             />
         </div>
     );
