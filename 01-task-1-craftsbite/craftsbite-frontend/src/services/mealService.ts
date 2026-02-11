@@ -90,3 +90,14 @@ export async function getTeamParticipation(date: string): Promise<ApiResponse<Te
     });
     return response.data;
 }
+
+/**
+ * Get ALL teams participation for Admin/Logistics
+ * GET /meals/all-teams-participation?date=YYYY-MM-DD
+ */
+export async function getAllTeamsParticipation(date: string): Promise<ApiResponse<TeamParticipationResponse>> {
+    const response = await api.get<ApiResponse<TeamParticipationResponse>>(`/meals/all-teams-participation`, {
+        params: { date }
+    });
+    return response.data;
+}

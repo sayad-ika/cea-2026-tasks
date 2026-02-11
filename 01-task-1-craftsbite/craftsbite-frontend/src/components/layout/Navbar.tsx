@@ -22,7 +22,10 @@ export const Navbar: React.FC = () => {
     const navItems: NavItem[] = [
         { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', href: '/home' },
         ...(user?.role === 'admin' || user?.role === 'team_lead'
-            ? [{ id: 'team-participation', label: 'Team', icon: 'groups', href: '/team-participation' }]
+            ? [{ id: 'team-participation', label: 'Team', icon: 'groups', href: user?.role === 'admin' ? '/all-teams-participation' : '/team-participation' }]
+            : []),
+        ...(user?.role === 'logistics'
+            ? [{ id: 'all-teams-participation', label: 'All Teams', icon: 'domain', href: '/all-teams-participation' }]
             : []),
         ...(user?.role === 'admin' || user?.role === 'logistics'
             ? [{ id: 'headcount', label: 'Headcount', icon: 'bar_chart', href: '/headcount' }]
