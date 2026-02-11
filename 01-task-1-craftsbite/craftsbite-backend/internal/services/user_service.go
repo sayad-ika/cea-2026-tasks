@@ -44,6 +44,14 @@ type TeamMembersResponse struct {
 	Members      []TeamMemberResponse `json:"members"`
 }
 
+// TeamAssignmentResponse represents a team assignment for an employee
+type TeamAssignmentResponse struct {
+	TeamID       string `json:"team_id"`
+	TeamName     string `json:"team_name"`
+	Description  string `json:"description"`
+	TeamLeadName string `json:"team_lead_name"`
+}
+
 // UserService defines the interface for user management operations
 type UserService interface {
 	CreateUser(input CreateUserInput) (*models.User, error)
@@ -52,6 +60,7 @@ type UserService interface {
 	DeactivateUser(id string) error
 	ListUsers(filters map[string]interface{}) ([]models.User, error)
 	GetMyTeamMembers(teamLeadID string) (*TeamMembersResponse, error)
+	GetMyTeamAssignment(userID string) ([]TeamAssignmentResponse, error)
 }
 
 // userService implements UserService
@@ -200,4 +209,36 @@ func (s *userService) GetMyTeamMembers(teamLeadID string) (*TeamMembersResponse,
 		TotalMembers: len(members),
 		Members:      members,
 	}, nil
+}
+
+// GetMyTeamAssignment returns all teams the user belongs to
+func (s *userService) GetMyTeamAssignment(userID string) ([]TeamAssignmentResponse, error) {
+	// Get all teams the user belongs to
+	teams, err := s.teamRepo.GetUserTeams(userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user teams: %w", err)
+	}
+
+	// Build response
+	var assignments []TeamAssignmentResponse
+	for _, team := range teams {
+		teamLeadName := ""
+		if team.TeamLead != nil {
+			teamLeadName = team.TeamLead.Name
+		}
+
+		description := ""
+		if team.Description != "" {
+			description = team.Description
+		}
+
+		assignments = append(assignments, TeamAssignmentResponse{
+			TeamID:       team.ID.String(),
+			TeamName:     team.Name,
+			Description:  description,
+			TeamLeadName: teamLeadName,
+		})
+	}
+
+	return assignments, nil
 }
