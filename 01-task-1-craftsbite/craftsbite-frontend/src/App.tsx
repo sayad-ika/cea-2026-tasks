@@ -8,6 +8,7 @@ import { Register } from "./pages/Register";
 import { Home } from "./pages/Home";
 import { HeadcountDashboard } from "./pages/HeadcountDashboard";
 import { OverridePanel } from "./pages/OverridePanel";
+import { TeamParticipation } from "./pages/TeamParticipation";
 import ComponentShowcase from "./pages/ComponentShowcase";
 import "./App.css";
 
@@ -60,6 +61,15 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={["admin", "team_lead"]}>
                     <OverridePanel />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/team-participation"
+                element={
+                  <ProtectedRoute allowedRoles={["team_lead", "admin"]}>
+                    <TeamParticipation />
                   </ProtectedRoute>
                 }
               />
