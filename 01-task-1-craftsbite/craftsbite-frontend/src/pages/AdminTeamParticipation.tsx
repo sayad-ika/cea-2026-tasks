@@ -7,16 +7,16 @@ import type { TeamData } from "../types";
 import toast from "react-hot-toast";
 
 const TeamCard: React.FC<{ team: TeamData }> = ({ team }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(true);
 
     return (
         <div className="bg-[#E1D0B3] rounded-3xl overflow-hidden shadow-sm border border-[#e6dccf] transition-all duration-300">
             <div
-                className="p-6 md:p-8 flex items-center gap-3 cursor-pointer hover:bg-[#d4c3a6] transition-colors"
+                className="p-6 md:p-8 flex items-center gap-3 cursor-pointer hover:bg-[#c2ad92] transition-colors"
                 onClick={() => setIsExpanded(!isExpanded)}
             >
                 <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center">
-                    <span className="material-symbols-outlined">groups</span>
+                    <span className="material-symbols-outlined">domain</span>
                 </div>
                 <h3 className="text-2xl font-bold text-[var(--color-background-dark)]">
                     {team.team_name}
@@ -77,25 +77,25 @@ const TeamCard: React.FC<{ team: TeamData }> = ({ team }) => {
     );
 };
 
-export const TeamParticipation: React.FC = () => {
+export const AdminTeamParticipation: React.FC = () => {
     const { user } = useAuth();
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [teamData, setTeamData] = useState<TeamData[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState("");
 
-    const fetchTeamParticipation = async (date: Date) => {
+    const fetchAllTeamsParticipation = async (date: Date) => {
         try {
             setIsLoading(true);
             setError("");
             const dateStr = format(date, "yyyy-MM-dd");
-            const response = await mealService.getTeamParticipation(dateStr);
+            const response = await mealService.getAllTeamsParticipation(dateStr);
 
             if (response.success && response.data) {
                 setTeamData(response.data.teams);
             }
         } catch (err: any) {
-            console.error("Error fetching team participation:", err);
+            console.error("Error fetching all teams participation:", err);
             const msg = err?.response?.data?.error?.message || "Failed to load team participation.";
             setError(msg);
             toast.error(msg);
@@ -105,14 +105,14 @@ export const TeamParticipation: React.FC = () => {
     };
 
     useEffect(() => {
-        fetchTeamParticipation(selectedDate);
+        fetchAllTeamsParticipation(selectedDate);
     }, [selectedDate]);
 
     const handlePrevDay = () => setSelectedDate((prev) => subDays(prev, 1));
     const handleNextDay = () => setSelectedDate((prev) => addDays(prev, 1));
 
     if (isLoading && teamData.length === 0) {
-        return <LoadingSpinner message="Loading team participation..." />;
+        return <LoadingSpinner message="Loading all teams participation..." />;
     }
 
     return (
@@ -124,11 +124,11 @@ export const TeamParticipation: React.FC = () => {
                 {/* Page Title & Controls */}
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
                     <div>
-                        <h2 className="text-4xl font-black text-[var(--color-background-dark)] mb-2 tracking-tight">
-                            Team Participation
+                        <h2 className="text-4xl font-black text-left text-[var(--color-background-dark)] mb-2 tracking-tight">
+                            All Teams Status
                         </h2>
                         <p className="text-lg text-[var(--color-text-sub)] font-medium">
-                            View daily meal status for your team members
+                            Daily meal overview for the entire organization
                         </p>
                     </div>
 
@@ -175,10 +175,10 @@ export const TeamParticipation: React.FC = () => {
                         !isLoading && (
                             <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-gray-300">
                                 <span className="material-symbols-outlined text-6xl text-gray-300 mb-4 block">
-                                    groups_off
+                                    assignment_turned_in
                                 </span>
                                 <p className="text-gray-500 text-lg font-medium">
-                                    No team participation data found for this date.
+                                    No participation data found for this date.
                                 </p>
                             </div>
                         )
