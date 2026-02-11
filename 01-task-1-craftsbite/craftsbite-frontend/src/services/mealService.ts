@@ -5,6 +5,7 @@ import type {
     ApiResponse,
     SetParticipationRequest,
     OverrideParticipationRequest,
+    TeamParticipationResponse,
 } from '../types';
 
 export interface TodaysMealsResponse {
@@ -76,5 +77,16 @@ export async function overrideParticipation(
     payload: OverrideParticipationRequest
 ): Promise<ApiResponse<null>> {
     const response = await api.post<ApiResponse<null>>('/meals/participation/override', payload);
+    return response.data;
+}
+
+/**
+ * Get team participation for Team Lead
+ * GET /meals/team-participation?date=YYYY-MM-DD
+ */
+export async function getTeamParticipation(date: string): Promise<ApiResponse<TeamParticipationResponse>> {
+    const response = await api.get<ApiResponse<TeamParticipationResponse>>(`/meals/team-participation`, {
+        params: { date }
+    });
     return response.data;
 }
