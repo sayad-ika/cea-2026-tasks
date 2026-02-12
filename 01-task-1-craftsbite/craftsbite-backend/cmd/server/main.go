@@ -55,7 +55,8 @@ func main() {
 		fmt.Printf("JWT Expiration: %s\n", cfg.JWT.Expiration)
 		fmt.Printf("CORS Allowed Origins: %v\n", cfg.CORS.AllowedOrigins)
 		fmt.Printf("Log Level: %s\n", cfg.Logging.Level)
-		fmt.Println("=================================\n")
+		fmt.Println("=================================")
+		fmt.Println()
 	}
 
 	// Initialize database
@@ -72,6 +73,7 @@ func main() {
 	bulkOptOutRepo := repository.NewBulkOptOutRepository(db)
 	historyRepo := repository.NewHistoryRepository(db)
 	teamRepo := repository.NewTeamRepository(db)
+	workLocationRepo := repository.NewWorkLocationRepository(db)
 
 	// Initialize services
 	authService := services.NewAuthService(userRepo, cfg)
@@ -85,6 +87,7 @@ func main() {
 	preferenceService := services.NewPreferenceService(userRepo, historyRepo)
 	bulkOptOutService := services.NewBulkOptOutService(bulkOptOutRepo, historyRepo)
 	historyService := services.NewHistoryService(historyRepo)
+	workLocationService := services.NewWorkLocationService(workLocationRepo, userRepo, teamRepo)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService, userService)
@@ -97,6 +100,7 @@ func main() {
 	preferenceHandler := handlers.NewPreferenceHandler(preferenceService)
 	bulkOptOutHandler := handlers.NewBulkOptOutHandler(bulkOptOutService)
 	historyHandler := handlers.NewHistoryHandler(historyService)
+	workLocationHandler := handlers.NewWorkLocationHandler(workLocationService)
 
 	// Phase 4: Initialize cleanup job
 	// cleanupJob := jobs.NewCleanupJob(historyRepo, cfg.Cleanup.RetentionMonths)
@@ -203,6 +207,24 @@ func main() {
 			schedules.POST("", middleware.RequireRoles(models.RoleAdmin, models.RoleLogistics), scheduleHandler.CreateSchedule)
 			schedules.PUT("/:date", middleware.RequireRoles(models.RoleAdmin, models.RoleLogistics), scheduleHandler.UpdateSchedule)
 			schedules.DELETE("/:date", middleware.RequireRoles(models.RoleAdmin, models.RoleLogistics), scheduleHandler.DeleteSchedule)
+		}
+
+		// Protected work location routes
+		workLocations := v1.Group("/work-locations")
+		workLocations.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+		{
+			// Any authenticated user can view and set own location
+			workLocations.GET("/me", workLocationHandler.GetMyLocation)
+			workLocations.PUT("/me", workLocationHandler.SetMyLocation)
+
+			// Team-level and override operations
+			workLocations.PUT("/override", middleware.RequireRoles(models.RoleAdmin, models.RoleTeamLead), workLocationHandler.OverrideUserLocation)
+			workLocations.GET("/team", middleware.RequireRoles(models.RoleTeamLead), workLocationHandler.GetTeamLocations)
+
+			// Global WFH policy management
+			workLocations.POST("/global-wfh", middleware.RequireRoles(models.RoleAdmin, models.RoleLogistics), workLocationHandler.CreateGlobalWFHPolicy)
+			workLocations.DELETE("/global-wfh/:id", middleware.RequireRoles(models.RoleAdmin, models.RoleLogistics), workLocationHandler.DeleteGlobalWFHPolicy)
+			workLocations.GET("/global-wfh", workLocationHandler.GetGlobalWFHPolicies)
 		}
 
 		// Protected headcount routes (Admin and Logistics)
