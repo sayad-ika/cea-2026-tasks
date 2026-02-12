@@ -473,20 +473,20 @@ func (s *workLocationService) DeleteGlobalWFHPolicy(requesterID, policyID string
 }
 
 func (s *workLocationService) resolveEffectiveLocation(userID, date string) (models.WorkLocation, string, error) {
-	policy, err := s.workLocationRepo.FindActiveGlobalPolicyByDate(date)
-	if err != nil {
-		return "", "", err
-	}
-	if policy != nil {
-		return models.WorkLocationWFH, "global_policy", nil
-	}
-
 	status, err := s.workLocationRepo.FindStatusByUserAndDate(userID, date)
 	if err != nil {
 		return "", "", err
 	}
 	if status != nil {
 		return status.Location, "explicit", nil
+	}
+	
+	policy, err := s.workLocationRepo.FindActiveGlobalPolicyByDate(date)
+	if err != nil {
+		return "", "", err
+	}
+	if policy != nil {
+		return models.WorkLocationWFH, "global_policy", nil
 	}
 
 	return models.WorkLocationOffice, "default", nil

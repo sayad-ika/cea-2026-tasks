@@ -11,6 +11,7 @@ import { OverridePanel } from "./pages/OverridePanel";
 import { TeamParticipation } from "./pages/TeamParticipation";
 import { AdminTeamParticipation } from "./pages/AdminTeamParticipation";
 import { Schedule } from "./pages/Schedule";
+import { GlobalWFH } from "./pages/GlobalWFH";
 import ComponentShowcase from "./pages/ComponentShowcase";
 import "./App.css";
 
@@ -91,6 +92,16 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={["admin", "logistics"]}>
                     <Schedule />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Admin / Logistics only — Global WFH */}
+              <Route
+                path="/global-wfh"
+                element={
+                  <ProtectedRoute allowedRoles={["admin", "logistics"]}>
+                    <GlobalWFH />
                   </ProtectedRoute>
                 }
               />

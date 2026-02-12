@@ -11,6 +11,7 @@ import {
 import type { MealType as MealTypeEnum } from "../types";
 import type { MealType } from "../components/cards/EmployeeMenuCard";
 import * as mealService from "../services/mealService";
+import * as userService from "../services/userService";
 import * as workLocationService from "../services/workLocationService";
 import type { WorkLocation } from "../services/workLocationService";
 import toast from "react-hot-toast";
@@ -57,7 +58,7 @@ export const Home: React.FC = () => {
   const [dashboardDate, setDashboardDate] = useState("");
   const [workLocationDate, setWorkLocationDate] = useState("");
   const [workLocation, setWorkLocation] = useState<WorkLocation | null>(null);
-  // const [workLocationSource, setWorkLocationSource] = useState("");
+  const [teamName, setTeamName] = useState<string | null>(null);
   const [isUpdatingLocation, setIsUpdatingLocation] = useState(false);
   const [showLocationDateModal, setShowLocationDateModal] = useState(false);
 
@@ -73,6 +74,17 @@ export const Home: React.FC = () => {
       ]);
 
       let resolvedDate = "";
+
+      // Fetch team assignment strictly for display
+      try {
+        const teamRes = await userService.getTeamAssignment();
+        if (teamRes.success && teamRes.data && teamRes.data.length > 0) {
+          setTeamName(teamRes.data[0].team_name);
+        }
+      } catch (err) {
+        console.error("Failed to fetch team assignment", err);
+        // Do not block page load for this
+      }
 
       if (mealsResult.status === "fulfilled") {
         const response = mealsResult.value;
@@ -269,6 +281,20 @@ export const Home: React.FC = () => {
             {error}
           </div>
         )}
+
+        {/* Team Assignment Badge */}
+        <div className="mb-10 text-center md:text-left">
+          {teamName && (
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-50 to-orange-100 text-orange-700 rounded-2xl border border-orange-200 shadow-sm mb-4">
+              <span className="material-symbols-outlined text-[20px] leading-none">
+                groups
+              </span>
+              <span className="text-sm font-bold tracking-wide">
+                {teamName}
+              </span>
+            </div>
+          )}
+        </div>
 
         <div className="mb-12 bg-[var(--color-background-light)] rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 border-2 border-white/50 shadow-[var(--shadow-clay)]">
           <div className="w-full md:w-auto">
