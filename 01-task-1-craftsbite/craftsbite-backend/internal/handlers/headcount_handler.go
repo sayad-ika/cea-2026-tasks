@@ -70,3 +70,25 @@ func (h *HeadcountHandler) GetDetailedHeadcount(c *gin.Context) {
 
 	utils.SuccessResponse(c, 200, details, "Detailed headcount retrieved successfully")
 }
+
+// GetDailyAnnouncement returns a copy/paste-friendly daily announcement draft
+// GET /api/headcount/announcement/:date
+// GET /api/headcount/announcement?date=YYYY-MM-DD
+func (h *HeadcountHandler) GetDailyAnnouncement(c *gin.Context) {
+	date := c.Param("date")
+	if date == "" {
+		date = c.Query("date")
+	}
+	if date == "" {
+		utils.ErrorResponse(c, 400, "VALIDATION_ERROR", "Date is required as path param '/announcement/:date' or query param '?date=YYYY-MM-DD'")
+		return
+	}
+
+	announcement, err := h.headcountService.GenerateDailyAnnouncement(date)
+	if err != nil {
+		utils.ErrorResponse(c, 400, "VALIDATION_ERROR", err.Error())
+		return
+	}
+
+	utils.SuccessResponse(c, 200, announcement, "Daily announcement draft generated successfully")
+}

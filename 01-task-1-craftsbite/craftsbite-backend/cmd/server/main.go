@@ -233,6 +233,7 @@ func main() {
 		headcount.Use(middleware.RequireRoles(models.RoleAdmin, models.RoleLogistics))
 		{
 			headcount.GET("/today", headcountHandler.GetTodayHeadcount)
+			headcount.GET("/announcement/:date", headcountHandler.GetDailyAnnouncement)
 			headcount.GET("/:date", headcountHandler.GetHeadcountByDate)
 			headcount.GET("/:date/:meal_type", headcountHandler.GetDetailedHeadcount)
 		}
