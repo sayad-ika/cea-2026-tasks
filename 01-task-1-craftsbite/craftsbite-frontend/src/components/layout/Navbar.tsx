@@ -33,6 +33,9 @@ export const Navbar: React.FC = () => {
         ...(user?.role === 'admin' || user?.role === 'logistics'
             ? [{ id: 'schedule', label: 'Schedule', icon: 'calendar_month', href: '/schedule' }]
             : []),
+        ...(user?.role === 'admin' || user?.role === 'logistics'
+            ? [{ id: 'global-wfh', label: 'Global WFH', icon: 'public', href: '/global-wfh' }]
+            : []),
         ...(user?.role === 'admin' || user?.role === 'team_lead'
             ? [{ id: 'override', label: 'Override', icon: 'swap_horiz', href: '/override' }]
             : []),
