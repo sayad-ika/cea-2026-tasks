@@ -6,6 +6,7 @@ import type {
   HeadcountData,
   HeadcountDataArray,
   DetailedHeadcountData,
+  DailyAnnouncementResponse,
 } from "../types";
 
 /**
@@ -43,6 +44,19 @@ export async function getDetailedHeadcount(
 ): Promise<ApiResponse<DetailedHeadcountData>> {
   const response = await api.get<ApiResponse<DetailedHeadcountData>>(
     `/headcount/${date}/${mealType}`,
+  );
+  return response.data;
+}
+
+/**
+ * Generate daily announcement for a specific date (Admin/Logistics only)
+ * GET /headcount/announcement/:date
+ */
+export async function generateDailyAnnouncement(
+  date: string,
+): Promise<ApiResponse<DailyAnnouncementResponse>> {
+  const response = await api.get<ApiResponse<DailyAnnouncementResponse>>(
+    `/headcount/announcement/${date}`,
   );
   return response.data;
 }
