@@ -6,6 +6,7 @@ import {
   EmployeeMenuCard,
   LoadingSpinner,
   Navbar,
+  WorkLocationDateModal,
 } from "../components";
 import type { MealType as MealTypeEnum } from "../types";
 import type { MealType } from "../components/cards/EmployeeMenuCard";
@@ -58,6 +59,7 @@ export const Home: React.FC = () => {
   const [workLocation, setWorkLocation] = useState<WorkLocation | null>(null);
   // const [workLocationSource, setWorkLocationSource] = useState("");
   const [isUpdatingLocation, setIsUpdatingLocation] = useState(false);
+  const [showLocationDateModal, setShowLocationDateModal] = useState(false);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -199,6 +201,33 @@ export const Home: React.FC = () => {
     }
   };
 
+  const handleDateLocationUpdate = async (
+    date: string,
+    location: WorkLocation
+  ) => {
+    try {
+      await workLocationService.updateMyWorkLocation({
+        date,
+        location,
+      });
+      toast.success(
+        `Work location set to ${location.toUpperCase()} for ${new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`
+      );
+
+      // If the selected date is today, update the current work location state
+      const todayDate = new Date().toISOString().slice(0, 10);
+      if (date === todayDate) {
+        setWorkLocation(location);
+        setWorkLocationDate(date);
+      }
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err, "Failed to update work location.");
+      setError(msg);
+      toast.error(msg);
+      throw err; // Re-throw to let modal handle the error state
+    }
+  };
+
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString("en-US", {
@@ -265,53 +294,67 @@ export const Home: React.FC = () => {
             )} */}
           </div>
 
-          <div className="flex items-center gap-4 md:gap-6 w-full md:w-auto">
-            <button
-              type="button"
-              onClick={() => handleWorkLocationChange("office")}
-              disabled={isUpdatingLocation}
-              className={`flex-1 md:flex-none flex items-center justify-center gap-3 px-8 py-4 rounded-2xl min-w-[160px] font-bold text-sm uppercase tracking-wider relative overflow-hidden transition-all duration-300 group disabled:opacity-70 disabled:cursor-not-allowed ${
-                workLocation === "office"
-                  ? "bg-gradient-to-r from-[var(--color-primary)] to-[#fb923c] text-white shadow-[var(--shadow-clay-button)] active:shadow-[var(--shadow-clay-button-active)]"
-                  : "bg-[var(--color-background-light)] text-[var(--color-text-main)] hover:text-[var(--color-primary)] shadow-[var(--shadow-clay-button)] active:shadow-[var(--shadow-clay-button-active)]"
-              }`}
-            >
-              <span
-                className={`absolute inset-0 bg-white/20 transition-transform duration-300 ${
+          <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6 w-full md:w-auto">
+            <div className="flex items-center gap-4 w-full md:w-auto">
+              <button
+                type="button"
+                onClick={() => handleWorkLocationChange("office")}
+                disabled={isUpdatingLocation}
+                className={`flex-1 md:flex-none flex items-center justify-center gap-3 px-8 py-4 rounded-2xl min-w-[160px] font-bold text-sm uppercase tracking-wider relative overflow-hidden transition-all duration-300 group disabled:opacity-70 disabled:cursor-not-allowed ${
                   workLocation === "office"
-                    ? "translate-y-full group-hover:translate-y-0"
-                    : "opacity-0"
+                    ? "bg-gradient-to-r from-[var(--color-primary)] to-[#fb923c] text-white shadow-[var(--shadow-clay-button)] active:shadow-[var(--shadow-clay-button-active)]"
+                    : "bg-[var(--color-background-light)] text-[var(--color-text-main)] hover:text-[var(--color-primary)] shadow-[var(--shadow-clay-button)] active:shadow-[var(--shadow-clay-button-active)]"
                 }`}
-              />
-              <span className="relative z-10 text-2xl drop-shadow-sm">🏢</span>
-              <span className="relative z-10">Office</span>
-              {workLocation === "office" && (
-                <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-white animate-pulse" />
-              )}
-            </button>
+              >
+                <span
+                  className={`absolute inset-0 bg-white/20 transition-transform duration-300 ${
+                    workLocation === "office"
+                      ? "translate-y-full group-hover:translate-y-0"
+                      : "opacity-0"
+                  }`}
+                />
+                <span className="relative z-10 text-2xl drop-shadow-sm">🏢</span>
+                <span className="relative z-10">Office</span>
+                {workLocation === "office" && (
+                  <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-white animate-pulse" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleWorkLocationChange("wfh")}
+                disabled={isUpdatingLocation}
+                className={`flex-1 md:flex-none flex items-center justify-center gap-3 px-8 py-4 rounded-2xl min-w-[160px] font-bold text-sm uppercase tracking-wider relative overflow-hidden transition-all duration-300 group disabled:opacity-70 disabled:cursor-not-allowed ${
+                  workLocation === "wfh"
+                    ? "bg-gradient-to-r from-[var(--color-primary)] to-[#fb923c] text-white shadow-[var(--shadow-clay-button)] active:shadow-[var(--shadow-clay-button-active)]"
+                    : "bg-[var(--color-background-light)] text-[var(--color-text-main)] hover:text-[var(--color-primary)] shadow-[var(--shadow-clay-button)] active:shadow-[var(--shadow-clay-button-active)]"
+                }`}
+              >
+                <span
+                  className={`absolute inset-0 bg-white/20 transition-transform duration-300 ${
+                    workLocation === "wfh"
+                      ? "translate-y-full group-hover:translate-y-0"
+                      : "opacity-0"
+                  }`}
+                />
+                <span className="relative z-10 text-2xl drop-shadow-sm">🏡</span>
+                <span className="relative z-10">WFH</span>
+                {workLocation === "wfh" && (
+                  <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-white animate-pulse" />
+                )}
+              </button>
+            </div>
 
             <button
               type="button"
-              onClick={() => handleWorkLocationChange("wfh")}
+              onClick={() => setShowLocationDateModal(true)}
               disabled={isUpdatingLocation}
-              className={`flex-1 md:flex-none flex items-center justify-center gap-3 px-8 py-4 rounded-2xl min-w-[160px] font-bold text-sm uppercase tracking-wider relative overflow-hidden transition-all duration-300 group disabled:opacity-70 disabled:cursor-not-allowed ${
-                workLocation === "wfh"
-                  ? "bg-gradient-to-r from-[var(--color-primary)] to-[#fb923c] text-white shadow-[var(--shadow-clay-button)] active:shadow-[var(--shadow-clay-button-active)]"
-                  : "bg-[var(--color-background-light)] text-[var(--color-text-main)] hover:text-[var(--color-primary)] shadow-[var(--shadow-clay-button)] active:shadow-[var(--shadow-clay-button-active)]"
-              }`}
+              className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-[var(--color-background-light)] text-[var(--color-text-main)] hover:text-[var(--color-primary)] font-bold text-sm uppercase tracking-wider transition-all duration-300 group disabled:opacity-70 disabled:cursor-not-allowed shadow-[var(--shadow-clay-button)] active:shadow-[var(--shadow-clay-button-active)]"
             >
-              <span
-                className={`absolute inset-0 bg-white/20 transition-transform duration-300 ${
-                  workLocation === "wfh"
-                    ? "translate-y-full group-hover:translate-y-0"
-                    : "opacity-0"
-                }`}
-              />
-              <span className="relative z-10 text-2xl drop-shadow-sm">🏡</span>
-              <span className="relative z-10">WFH</span>
-              {workLocation === "wfh" && (
-                <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-white animate-pulse" />
-              )}
+              <span className="material-symbols-outlined text-xl group-hover:scale-110 transition-transform">
+                calendar_month
+              </span>
+              <span className="relative z-10">Schedule</span>
             </button>
           </div>
         </div>
@@ -397,6 +440,14 @@ export const Home: React.FC = () => {
           { label: "Terms", href: "#" },
           { label: "Support", href: "#" },
         ]}
+      />
+
+      {/* Work Location Date Modal */}
+      <WorkLocationDateModal
+        isOpen={showLocationDateModal}
+        onClose={() => setShowLocationDateModal(false)}
+        onConfirm={handleDateLocationUpdate}
+        currentLocation={workLocation}
       />
     </div>
   );

@@ -6,3 +6,6 @@ export type { MealOptOutModalProps } from './MealOptOutModal';
 
 export { ScheduleModal } from './CreateScheduleModal';
 export { DeleteConfirmationModal } from './DeleteConfirmationModal';
+
+export { WorkLocationDateModal } from './WorkLocationDateModal';
+export type { WorkLocationDateModalProps } from './WorkLocationDateModal';
