@@ -25,6 +25,57 @@ func (m MealType) String() string {
 	return string(m)
 }
 
+// WorkLocation represents where a user will work on a specific date
+type WorkLocation string
+
+const (
+	WorkLocationOffice WorkLocation = "office"
+	WorkLocationWFH    WorkLocation = "wfh"
+)
+
+// IsValid checks if the work location is valid
+func (w WorkLocation) IsValid() bool {
+	switch w {
+	case WorkLocationOffice, WorkLocationWFH:
+		return true
+	}
+	return false
+}
+
+// String returns the string representation of the work location
+func (w WorkLocation) String() string {
+	return string(w)
+}
+
+// WorkLocationHistoryAction represents an action in work location history
+type WorkLocationHistoryAction string
+
+const (
+	WorkLocationHistoryActionSelfSet             WorkLocationHistoryAction = "self_set"
+	WorkLocationHistoryActionLeadOverride        WorkLocationHistoryAction = "lead_override"
+	WorkLocationHistoryActionAdminOverride       WorkLocationHistoryAction = "admin_override"
+	WorkLocationHistoryActionGlobalPolicyCreated WorkLocationHistoryAction = "global_policy_created"
+	WorkLocationHistoryActionGlobalPolicyRemoved WorkLocationHistoryAction = "global_policy_removed"
+)
+
+// IsValid checks if the work location history action is valid
+func (a WorkLocationHistoryAction) IsValid() bool {
+	switch a {
+	case WorkLocationHistoryActionSelfSet,
+		WorkLocationHistoryActionLeadOverride,
+		WorkLocationHistoryActionAdminOverride,
+		WorkLocationHistoryActionGlobalPolicyCreated,
+		WorkLocationHistoryActionGlobalPolicyRemoved:
+		return true
+	}
+	return false
+}
+
+// String returns the string representation of the work location history action
+func (a WorkLocationHistoryAction) String() string {
+	return string(a)
+}
+
 // DayStatus represents the status of a day
 type DayStatus string
 
