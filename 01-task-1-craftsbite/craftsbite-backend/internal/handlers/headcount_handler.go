@@ -3,6 +3,7 @@ package handlers
 import (
 	"craftsbite-backend/internal/services"
 	"craftsbite-backend/internal/utils"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -91,4 +92,20 @@ func (h *HeadcountHandler) GetDailyAnnouncement(c *gin.Context) {
 	}
 
 	utils.SuccessResponse(c, 200, announcement, "Daily announcement draft generated successfully")
+}
+
+// GetEnhancedHeadcountReport returns improved headcount reporting for a date
+// GET /api/headcount/report/:date
+// GET /api/headcount/report?date=YYYY-MM-DD
+func (h *HeadcountHandler) GetEnhancedHeadcountReport(c *gin.Context) {
+	today := time.Now().Format("2006-01-02")
+	tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+
+	reports, err := h.headcountService.GetEnhancedHeadcountReport(today, tomorrow)
+	if err != nil {
+		utils.ErrorResponse(c, 400, "VALIDATION_ERROR", err.Error())
+		return
+	}
+
+	utils.SuccessResponse(c, 200, reports, "Today's and tomorrow's headcount retrieved successfully")
 }

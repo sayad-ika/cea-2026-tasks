@@ -81,7 +81,7 @@ func main() {
 	participationResolver := services.NewParticipationResolver(mealRepo, scheduleRepo, bulkOptOutRepo, userRepo, cfg)
 	mealService := services.NewMealService(mealRepo, scheduleRepo, historyRepo, userRepo, teamRepo, participationResolver, cfg)
 	scheduleService := services.NewScheduleService(scheduleRepo)
-	headcountService := services.NewHeadcountService(userRepo, scheduleRepo, participationResolver)
+	headcountService := services.NewHeadcountService(userRepo, scheduleRepo, teamRepo, workLocationRepo, participationResolver, cfg)
 
 	// Phase 4: Initialize advanced feature services
 	preferenceService := services.NewPreferenceService(userRepo, historyRepo)
@@ -234,6 +234,8 @@ func main() {
 		{
 			headcount.GET("/today", headcountHandler.GetTodayHeadcount)
 			headcount.GET("/announcement/:date", headcountHandler.GetDailyAnnouncement)
+			headcount.GET("/report", headcountHandler.GetEnhancedHeadcountReport)
+			headcount.GET("/report/:date", headcountHandler.GetEnhancedHeadcountReport)
 			headcount.GET("/:date", headcountHandler.GetHeadcountByDate)
 			headcount.GET("/:date/:meal_type", headcountHandler.GetDetailedHeadcount)
 		}

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"craftsbite-backend/internal/config"
 	"craftsbite-backend/internal/models"
 	"craftsbite-backend/internal/repository"
 	"fmt"
@@ -15,6 +16,7 @@ type HeadcountService interface {
 	GetHeadcountByDate(date string) (*DailyHeadcountSummary, error)
 	GetDetailedHeadcount(date, mealType string) (*DetailedHeadcount, error)
 	GenerateDailyAnnouncement(date string) (*DailyAnnouncementResponse, error)
+	GetEnhancedHeadcountReport(date ...string) ([]*EnhancedHeadcountReportResponse, error)
 }
 
 // MealHeadcount represents participation breakdown for a single meal
@@ -66,24 +68,73 @@ type DailyAnnouncementResponse struct {
 	Message          string                  `json:"message"`
 }
 
+// OfficeWFHSplit represents effective office vs WFH counts
+type OfficeWFHSplit struct {
+	Office int `json:"office"`
+	WFH    int `json:"wfh"`
+}
+
+// TeamHeadcountTotals represents totals for a team on a specific date
+type TeamHeadcountTotals struct {
+	TeamID         string                   `json:"team_id"`
+	TeamName       string                   `json:"team_name"`
+	TotalMembers   int                      `json:"total_members"`
+	OfficeWFHSplit OfficeWFHSplit           `json:"office_wfh_split"`
+	MealTypeTotals map[string]MealHeadcount `json:"meal_type_totals"`
+}
+
+// EnhancedHeadcountReportResponse represents improved headcount reporting for a date
+type EnhancedHeadcountReportResponse struct {
+	Date            string                   `json:"date"`
+	DayStatus       models.DayStatus         `json:"day_status"`
+	SpecialDayNote  string                   `json:"special_day_note,omitempty"`
+	OverallTotal    int                      `json:"overall_total"`
+	MealTypeTotals  map[string]MealHeadcount `json:"meal_type_totals"`
+	TeamTotals      []TeamHeadcountTotals    `json:"team_totals"`
+	OfficeWFHSplit  OfficeWFHSplit           `json:"office_wfh_split"`
+	UnassignedUsers int                      `json:"unassigned_users"`
+}
+
 // headcountService implements HeadcountService
 type headcountService struct {
-	userRepo     repository.UserRepository
-	scheduleRepo repository.ScheduleRepository
-	resolver     ParticipationResolver
+	userRepo         repository.UserRepository
+	scheduleRepo     repository.ScheduleRepository
+	teamRepo         repository.TeamRepository
+	workLocationRepo repository.WorkLocationRepository
+	resolver         ParticipationResolver
+	weekendDays      map[string]bool
 }
 
 // NewHeadcountService creates a new headcount service
 func NewHeadcountService(
 	userRepo repository.UserRepository,
 	scheduleRepo repository.ScheduleRepository,
+	teamRepo repository.TeamRepository,
+	workLocationRepo repository.WorkLocationRepository,
 	resolver ParticipationResolver,
+	cfg *config.Config,
 ) HeadcountService {
-	return &headcountService{
-		userRepo:     userRepo,
-		scheduleRepo: scheduleRepo,
-		resolver:     resolver,
+	weekendDays := make(map[string]bool)
+	for _, day := range cfg.Meal.WeekendDays {
+		weekendDays[strings.ToLower(strings.TrimSpace(day))] = true
 	}
+	return &headcountService{
+		userRepo:         userRepo,
+		scheduleRepo:     scheduleRepo,
+		teamRepo:         teamRepo,
+		workLocationRepo: workLocationRepo,
+		resolver:         resolver,
+		weekendDays:      weekendDays,
+	}
+}
+
+// isWeekend checks if a date falls on a configured weekend day
+func (s *headcountService) isWeekend(date string) bool {
+	parsedDate, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return false
+	}
+	return s.weekendDays[strings.ToLower(parsedDate.Weekday().String())]
 }
 
 // GetTodayHeadcount gets today's and tomorrow's headcount summary
@@ -126,13 +177,34 @@ func (s *headcountService) GetHeadcountByDate(date string) (*DailyHeadcountSumma
 		return nil, err
 	}
 
+	// Weekend with no schedule override → zero headcount
+	if schedule == nil && s.isWeekend(date) {
+		return &DailyHeadcountSummary{
+			Date:             date,
+			DayStatus:        models.DayStatusWeekend,
+			TotalActiveUsers: len(users),
+			Meals:            make(map[string]MealHeadcount),
+		}, nil
+	}
+
 	dayStatus := models.DayStatusNormal
 	availableMeals := []models.MealType{models.MealTypeLunch, models.MealTypeSnacks}
 
 	if schedule != nil {
 		dayStatus = schedule.DayStatus
-		if schedule.AvailableMeals != nil {
-			availableMeals = parseMealTypes(*schedule.AvailableMeals)
+		switch dayStatus {
+		case models.DayStatusWeekend, models.DayStatusOfficeClosed, models.DayStatusGovtHoliday:
+			// Non-normal days: no meals unless explicitly configured
+			if schedule.AvailableMeals != nil && *schedule.AvailableMeals != "" {
+				availableMeals = parseMealTypes(*schedule.AvailableMeals)
+			} else {
+				availableMeals = []models.MealType{}
+			}
+		default:
+			// Normal/celebration days: use explicit meals or keep defaults
+			if schedule.AvailableMeals != nil && *schedule.AvailableMeals != "" {
+				availableMeals = parseMealTypes(*schedule.AvailableMeals)
+			}
 		}
 	}
 
@@ -250,6 +322,250 @@ func (s *headcountService) GenerateDailyAnnouncement(date string) (*DailyAnnounc
 		MealTotals:       mealTotals,
 		Message:          message,
 	}, nil
+}
+
+// GetEnhancedHeadcountReport returns improved headcount reporting with meal/team/overall/location splits
+func (s *headcountService) GetEnhancedHeadcountReport(dates ...string) ([]*EnhancedHeadcountReportResponse, error) {
+	var reports []*EnhancedHeadcountReportResponse
+
+	for _, date := range dates {
+		report, err := s.getEnhancedHeadcountReportForDate(date)
+		if err != nil {
+			return nil, err
+		}
+		reports = append(reports, report)
+	}
+
+	return reports, nil
+}
+
+func (s *headcountService) getEnhancedHeadcountReportForDate(date string) (*EnhancedHeadcountReportResponse, error) {
+	// Validate date format
+	if _, err := time.Parse("2006-01-02", date); err != nil {
+		return nil, fmt.Errorf("invalid date format, expected YYYY-MM-DD: %w", err)
+	}
+
+	// Get all active users
+	users, err := s.userRepo.FindAll(map[string]interface{}{"active": true})
+	if err != nil {
+		return nil, err
+	}
+
+	activeUsersByID := make(map[string]models.User, len(users))
+	userIDs := make([]string, 0, len(users))
+	for _, user := range users {
+		id := user.ID.String()
+		activeUsersByID[id] = user
+		userIDs = append(userIDs, id)
+	}
+
+	// Resolve schedule context
+	schedule, err := s.scheduleRepo.FindByDate(date)
+	if err != nil {
+		return nil, err
+	}
+
+	// Weekend with no schedule override → zero headcount
+	if schedule == nil && s.isWeekend(date) {
+		return &EnhancedHeadcountReportResponse{
+			Date:            date,
+			DayStatus:       models.DayStatusWeekend,
+			OverallTotal:    len(users),
+			MealTypeTotals:  make(map[string]MealHeadcount),
+			TeamTotals:      []TeamHeadcountTotals{},
+			OfficeWFHSplit:  OfficeWFHSplit{},
+			UnassignedUsers: 0,
+		}, nil
+	}
+
+	dayStatus := models.DayStatusNormal
+	availableMeals := []models.MealType{models.MealTypeLunch, models.MealTypeSnacks}
+	if schedule != nil {
+		dayStatus = schedule.DayStatus
+		switch dayStatus {
+		case models.DayStatusWeekend, models.DayStatusOfficeClosed, models.DayStatusGovtHoliday:
+			// Non-normal days: no meals unless explicitly configured
+			if schedule.AvailableMeals != nil && *schedule.AvailableMeals != "" {
+				availableMeals = parseMealTypes(*schedule.AvailableMeals)
+			} else {
+				availableMeals = []models.MealType{}
+			}
+		default:
+			// Normal/celebration days: use explicit meals or keep defaults
+			if schedule.AvailableMeals != nil && *schedule.AvailableMeals != "" {
+				availableMeals = parseMealTypes(*schedule.AvailableMeals)
+			}
+		}
+	}
+
+	// Overall meal-wise totals
+	mealTypeTotals, err := s.computeMealTotalsForUsers(users, date, availableMeals)
+	if err != nil {
+		return nil, err
+	}
+
+	// Effective work locations and org-level office/WFH split
+	effectiveLocations, err := s.resolveEffectiveLocationsForUsers(date, userIDs)
+	if err != nil {
+		return nil, err
+	}
+	overallSplit := buildOfficeWFHSplitForUserIDs(userIDs, effectiveLocations)
+
+	// Team totals
+	teamTotals, assignedUsers, err := s.computeTeamTotals(date, availableMeals, activeUsersByID, effectiveLocations)
+	if err != nil {
+		return nil, err
+	}
+
+	unassignedUsers := len(users) - len(assignedUsers)
+	if unassignedUsers < 0 {
+		unassignedUsers = 0
+	}
+
+	return &EnhancedHeadcountReportResponse{
+		Date:            date,
+		DayStatus:       dayStatus,
+		SpecialDayNote:  buildSpecialDayNote(dayStatus, schedule),
+		OverallTotal:    len(users),
+		MealTypeTotals:  mealTypeTotals,
+		TeamTotals:      teamTotals,
+		OfficeWFHSplit:  overallSplit,
+		UnassignedUsers: unassignedUsers,
+	}, nil
+}
+
+func (s *headcountService) computeMealTotalsForUsers(users []models.User, date string, availableMeals []models.MealType) (map[string]MealHeadcount, error) {
+	mealTotals := make(map[string]MealHeadcount, len(availableMeals))
+	totalUsers := len(users)
+
+	for _, mealType := range availableMeals {
+		participating := 0
+		for _, user := range users {
+			isParticipating, _, err := s.resolver.ResolveParticipation(user.ID.String(), date, string(mealType))
+			if err != nil {
+				return nil, err
+			}
+			if isParticipating {
+				participating++
+			}
+		}
+
+		mealTotals[string(mealType)] = MealHeadcount{
+			Participating: participating,
+			OptedOut:      totalUsers - participating,
+		}
+	}
+
+	return mealTotals, nil
+}
+
+func (s *headcountService) resolveEffectiveLocationsForUsers(date string, userIDs []string) (map[string]models.WorkLocation, error) {
+	result := make(map[string]models.WorkLocation, len(userIDs))
+	if len(userIDs) == 0 {
+		return result, nil
+	}
+
+	globalPolicy, err := s.workLocationRepo.FindActiveGlobalPolicyByDate(date)
+	if err != nil {
+		return nil, err
+	}
+
+	if globalPolicy != nil {
+		for _, userID := range userIDs {
+			result[userID] = globalPolicy.Location
+		}
+		return result, nil
+	}
+
+	explicitStatuses, err := s.workLocationRepo.FindStatusesByDateForUsers(date, userIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	explicitByUser := make(map[string]models.WorkLocation, len(explicitStatuses))
+	for _, status := range explicitStatuses {
+		explicitByUser[status.UserID.String()] = status.Location
+	}
+
+	for _, userID := range userIDs {
+		if location, ok := explicitByUser[userID]; ok {
+			result[userID] = location
+		} else {
+			result[userID] = models.WorkLocationOffice
+		}
+	}
+
+	return result, nil
+}
+
+func (s *headcountService) computeTeamTotals(
+	date string,
+	availableMeals []models.MealType,
+	activeUsersByID map[string]models.User,
+	effectiveLocations map[string]models.WorkLocation,
+) ([]TeamHeadcountTotals, map[string]bool, error) {
+	teams, err := s.teamRepo.FindAll()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to fetch teams: %w", err)
+	}
+
+	assignedUsers := make(map[string]bool)
+	teamTotals := make([]TeamHeadcountTotals, 0, len(teams))
+
+	for _, team := range teams {
+		members, err := s.teamRepo.GetTeamMembers(team.ID.String())
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to fetch members for team %s: %w", team.ID.String(), err)
+		}
+
+		filteredMembers := make([]models.User, 0, len(members))
+		memberIDs := make([]string, 0, len(members))
+		for _, member := range members {
+			memberID := member.ID.String()
+			if _, exists := activeUsersByID[memberID]; !exists {
+				continue
+			}
+			filteredMembers = append(filteredMembers, member)
+			memberIDs = append(memberIDs, memberID)
+			assignedUsers[memberID] = true
+		}
+
+		mealTotals, err := s.computeMealTotalsForUsers(filteredMembers, date, availableMeals)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		teamTotals = append(teamTotals, TeamHeadcountTotals{
+			TeamID:         team.ID.String(),
+			TeamName:       team.Name,
+			TotalMembers:   len(filteredMembers),
+			OfficeWFHSplit: buildOfficeWFHSplitForUserIDs(memberIDs, effectiveLocations),
+			MealTypeTotals: mealTotals,
+		})
+	}
+
+	sort.Slice(teamTotals, func(i, j int) bool {
+		return strings.ToLower(teamTotals[i].TeamName) < strings.ToLower(teamTotals[j].TeamName)
+	})
+
+	return teamTotals, assignedUsers, nil
+}
+
+func buildOfficeWFHSplitForUserIDs(userIDs []string, effectiveLocations map[string]models.WorkLocation) OfficeWFHSplit {
+	split := OfficeWFHSplit{}
+	for _, userID := range userIDs {
+		location, exists := effectiveLocations[userID]
+		if !exists {
+			location = models.WorkLocationOffice
+		}
+
+		if location == models.WorkLocationWFH {
+			split.WFH++
+		} else {
+			split.Office++
+		}
+	}
+	return split
 }
 
 func buildSpecialDayNote(dayStatus models.DayStatus, schedule *models.DaySchedule) string {
