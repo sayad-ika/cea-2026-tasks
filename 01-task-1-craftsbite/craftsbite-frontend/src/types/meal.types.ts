@@ -11,7 +11,8 @@ export type DayStatus =
   | "normal"
   | "office_closed"
   | "govt_holiday"
-  | "celebration";
+  | "celebration"
+  | "weekend";
 
 export type MealPreference = "opt_in" | "opt_out";
 
@@ -169,6 +170,33 @@ export interface DetailedHeadcountData {
 
 // Array of headcount data (e.g., today and tomorrow)
 export type HeadcountDataArray = HeadcountData[];
+
+// --- Headcount Report (matches GET /headcount/report) ---
+export interface OfficeWfhSplit {
+  office: number;
+  wfh: number;
+}
+
+export interface TeamTotal {
+  team_id: string;
+  team_name: string;
+  total_members: number;
+  office_wfh_split: OfficeWfhSplit;
+  meal_type_totals: Record<string, HeadcountMealSummary>;
+}
+
+export interface HeadcountReportDay {
+  date: string;
+  day_status: DayStatus;
+  special_day_note?: string;
+  overall_total: number;
+  meal_type_totals: Record<string, HeadcountMealSummary>;
+  team_totals: TeamTotal[];
+  office_wfh_split: OfficeWfhSplit;
+  unassigned_users: number;
+}
+
+export type HeadcountReportData = HeadcountReportDay[];
 
 // --- Team Participation (matches GET /meals/team-participation) ---
 export interface MealParticipationDetail {

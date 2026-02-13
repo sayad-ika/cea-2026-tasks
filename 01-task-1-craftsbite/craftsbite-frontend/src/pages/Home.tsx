@@ -340,7 +340,7 @@ export const Home: React.FC = () => {
                 no_meals
               </span>
               <p className="text-[var(--color-text-sub)] text-lg">
-                No meals available for today.
+                No meals available for tomorrow.
               </p>
             </div>
           )}
