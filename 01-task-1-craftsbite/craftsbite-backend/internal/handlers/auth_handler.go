@@ -4,6 +4,9 @@ import (
 	"craftsbite-backend/internal/models"
 	"craftsbite-backend/internal/services"
 	"craftsbite-backend/internal/utils"
+	"net/http"
+	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -50,7 +53,15 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessResponse(c, 200, response, "Login successful")
+	setAuthCookie(c, response.Token, response.ExpiresAt)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"user":       response.User,
+			"expires_at": response.ExpiresAt,
+		},
+	})
 }
 
 // Register handles user registration
@@ -101,9 +112,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 // Logout handles user logout (placeholder)
 func (h *AuthHandler) Logout(c *gin.Context) {
-	// In a stateless JWT system, logout is typically handled client-side
-	// by removing the token. This is a placeholder for future enhancements
-	// like token blacklisting or refresh token revocation.
+	expireAuthCookie(c)
 	utils.SuccessResponse(c, 200, nil, "Logout successful")
 }
 
@@ -122,4 +131,33 @@ func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 	}
 
 	utils.SuccessResponse(c, 200, user, "User retrieved successfully")
+}
+
+func setAuthCookie(c *gin.Context, token string, expiresAt time.Time) {
+	isProd := os.Getenv("APP_ENV") == "production"
+
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "auth_token",
+		Value:    token,
+		Path:     "/",
+		Expires:  expiresAt,
+		MaxAge:   int(time.Until(expiresAt).Seconds()),
+		HttpOnly: true, // JS cannot read this
+		Secure:   isProd,
+		SameSite: http.SameSiteStrictMode,
+	})
+}
+
+func expireAuthCookie(c *gin.Context) {
+	isProd := os.Getenv("ENV") == "production"
+
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "auth_token",
+		Path:     "/",
+		Expires:  time.Unix(0, 0),
+		MaxAge:   -1, // browser deletes it immediately
+		HttpOnly: true,
+		Secure:   isProd,
+		SameSite: http.SameSiteStrictMode,
+	})
 }

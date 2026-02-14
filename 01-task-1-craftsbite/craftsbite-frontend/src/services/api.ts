@@ -1,8 +1,8 @@
 // Axios API Instance Configuration
 
-import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosError } from 'axios';
 import type { ApiErrorResponse } from '../types';
-import { getToken, clearAuthData } from '../utils/storage';
+import { clearAuthData } from '../utils/storage';
 import { API_BASE_URL } from '../utils/constants';
 
 // Create axios instance
@@ -12,28 +12,28 @@ const api = axios.create({
         'Content-Type': 'application/json',
     },
     timeout: 30000, // 30 seconds
+    withCredentials: true, // Enable cookies
 });
 
 // Request interceptor - attach JWT token
-api.interceptors.request.use(
-    (config: InternalAxiosRequestConfig) => {
-        const token = getToken();
+// api.interceptors.request.use(
+//     (config: InternalAxiosRequestConfig) => {
+//         const token = getToken();
 
-        if (token && config.headers) {
-            config.headers.Authorization = `Bearer ${token}`;
-        }
+//         if (token && config.headers) {
+//             config.headers.Authorization = `Bearer ${token}`;
+//         }
 
-        return config;
-    },
-    (error: AxiosError) => {
-        return Promise.reject(error);
-    }
-);
+//         return config;
+//     },
+//     (error: AxiosError) => {
+//         return Promise.reject(error);
+//     }
+// );
 
 // Response interceptor - handle errors
 api.interceptors.response.use(
     (response) => {
-        // Return the data directly for successful responses
         return response;
     },
     (error: AxiosError<ApiErrorResponse>) => {
