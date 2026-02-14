@@ -78,7 +78,7 @@ func main() {
 	// Initialize services
 	authService := services.NewAuthService(userRepo, cfg)
 	userService := services.NewUserService(userRepo, teamRepo)
-	participationResolver := services.NewParticipationResolver(mealRepo, scheduleRepo, bulkOptOutRepo, userRepo, cfg)
+	participationResolver := services.NewParticipationResolver(mealRepo, scheduleRepo, bulkOptOutRepo, userRepo, workLocationRepo, cfg)
 	mealService := services.NewMealService(mealRepo, scheduleRepo, historyRepo, userRepo, teamRepo, participationResolver, cfg)
 	scheduleService := services.NewScheduleService(scheduleRepo)
 	headcountService := services.NewHeadcountService(userRepo, scheduleRepo, teamRepo, workLocationRepo, participationResolver, cfg)

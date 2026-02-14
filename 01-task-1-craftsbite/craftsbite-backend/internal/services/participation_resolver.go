@@ -16,11 +16,12 @@ type ParticipationResolver interface {
 
 // participationResolver implements ParticipationResolver
 type participationResolver struct {
-	mealRepo       repository.MealRepository
-	scheduleRepo   repository.ScheduleRepository
-	bulkOptOutRepo repository.BulkOptOutRepository
-	userRepo       repository.UserRepository
-	weekendDays    map[string]bool
+	mealRepo         repository.MealRepository
+	scheduleRepo     repository.ScheduleRepository
+	bulkOptOutRepo   repository.BulkOptOutRepository
+	userRepo         repository.UserRepository
+	workLocationRepo repository.WorkLocationRepository
+	weekendDays      map[string]bool
 }
 
 // NewParticipationResolver creates a new participation resolver
@@ -29,6 +30,7 @@ func NewParticipationResolver(
 	scheduleRepo repository.ScheduleRepository,
 	bulkOptOutRepo repository.BulkOptOutRepository,
 	userRepo repository.UserRepository,
+	workLocationRepo repository.WorkLocationRepository,
 	cfg *config.Config,
 ) ParticipationResolver {
 	// Build weekend days map for quick lookup
@@ -38,11 +40,12 @@ func NewParticipationResolver(
 	}
 
 	return &participationResolver{
-		mealRepo:       mealRepo,
-		scheduleRepo:   scheduleRepo,
-		bulkOptOutRepo: bulkOptOutRepo,
-		userRepo:       userRepo,
-		weekendDays:    weekendDays,
+		mealRepo:         mealRepo,
+		scheduleRepo:     scheduleRepo,
+		bulkOptOutRepo:   bulkOptOutRepo,
+		userRepo:         userRepo,
+		workLocationRepo: workLocationRepo,
+		weekendDays:      weekendDays,
 	}
 }
 
@@ -123,6 +126,17 @@ func (r *participationResolver) ResolveParticipation(userID, date, mealType stri
 		return false, "user_default", nil
 	}
 
-	// Priority 5: System default (opt-in)
+	// Priority 5: Check for global WFH policy
+	globalPolicy, err := r.workLocationRepo.FindActiveGlobalPolicyByDate(date)
+	if err != nil {
+		return false, "", err
+	}
+
+	if globalPolicy != nil && globalPolicy.Location == models.WorkLocationWFH {
+		// Global WFH day → default to opt-out
+		return false, "global_wfh_default", nil
+	}
+
+	// Priority 6: System default (opt-in)
 	return true, "system_default", nil
 }
