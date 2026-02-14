@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { useHeadcountSSE } from "../hooks/useHeadcountSSE";
 import { Header, Footer, Navbar, LoadingSpinner } from "../components";
 import type {
   HeadcountReportDay,
@@ -81,6 +82,20 @@ export const HeadcountDashboard: React.FC = () => {
     };
     fetchReport();
   }, []);
+
+  const handleLiveUpdate = useCallback((incoming: HeadcountReportDay[]) => {
+    setReportData((prev) => {
+      const map = new Map(prev.map((d) => [d.date, d]));
+      incoming.forEach((d) => map.set(d.date, d));
+      return Array.from(map.values()).sort((a, b) =>
+        a.date.localeCompare(b.date)
+      );
+    });
+  }, []);
+
+  const canSeeHeadcount = user?.role === "admin" || user?.role === "logistics";
+
+  useHeadcountSSE(handleLiveUpdate, canSeeHeadcount);
 
   /* ── Announcement modal lock ────────────────────── */
 
@@ -185,6 +200,19 @@ export const HeadcountDashboard: React.FC = () => {
             Team-wise meal participation & headcount report
           </p>
         </div>
+
+        {/* Live indicator — only shown for admin/logistics */}
+          {canSeeHeadcount && (
+            <div className="mb-2 max-w-[70px] mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-green-50 border border-green-100">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+              </span>
+              <span className="text-xs font-bold text-green-600 tracking-wide">
+                Live
+              </span>
+            </div>
+          )}
 
         {/* Error */}
         {error && (
