@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"craftsbite-backend/internal/services"
+	"craftsbite-backend/internal/sse"
 	"craftsbite-backend/internal/utils"
+	"encoding/json"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -11,12 +13,14 @@ import (
 // HeadcountHandler handles headcount reporting endpoints
 type HeadcountHandler struct {
 	headcountService services.HeadcountService
+	sseHub           *sse.Hub
 }
 
 // NewHeadcountHandler creates a new headcount handler
-func NewHeadcountHandler(headcountService services.HeadcountService) *HeadcountHandler {
+func NewHeadcountHandler(headcountService services.HeadcountService, sseHub *sse.Hub) *HeadcountHandler {
 	return &HeadcountHandler{
 		headcountService: headcountService,
+		sseHub:           sseHub,
 	}
 }
 
@@ -108,4 +112,27 @@ func (h *HeadcountHandler) GetEnhancedHeadcountReport(c *gin.Context) {
 	}
 
 	utils.SuccessResponse(c, 200, reports, "Today's and tomorrow's headcount retrieved successfully")
+}
+
+// BroadcastUpdatedHeadcount recalculates and pushes fresh data to all SSE clients.
+// Call this from any handler that mutates participation data.
+func (h *HeadcountHandler) BroadcastUpdatedHeadcount() {
+	today := time.Now().Format("2006-01-02")
+	tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+
+	reports, err := h.headcountService.GetEnhancedHeadcountReport(today, tomorrow)
+	if err != nil {
+		return
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"success": true,
+		"data":    reports,
+		"message": "Today's and tomorrow's headcount retrieved successfully",
+	})
+	if err != nil {
+		return
+	}
+
+	h.sseHub.BroadcastHeadcount(payload)
 }

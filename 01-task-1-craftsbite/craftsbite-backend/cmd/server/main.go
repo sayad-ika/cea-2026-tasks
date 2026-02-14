@@ -17,6 +17,7 @@ import (
 	"craftsbite-backend/internal/models"
 	"craftsbite-backend/internal/repository"
 	"craftsbite-backend/internal/services"
+	"craftsbite-backend/internal/sse"
 	"craftsbite-backend/pkg/logger"
 
 	"github.com/gin-gonic/gin"
@@ -75,6 +76,10 @@ func main() {
 	teamRepo := repository.NewTeamRepository(db)
 	workLocationRepo := repository.NewWorkLocationRepository(db)
 
+	// Initialize SSE hub
+	sseHub := sse.NewHub()
+	go sseHub.Run()
+
 	// Initialize services
 	authService := services.NewAuthService(userRepo, cfg)
 	userService := services.NewUserService(userRepo, teamRepo)
@@ -92,9 +97,9 @@ func main() {
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService, userService)
 	userHandler := handlers.NewUserHandler(userService)
-	mealHandler := handlers.NewMealHandler(mealService)
 	scheduleHandler := handlers.NewScheduleHandler(scheduleService)
-	headcountHandler := handlers.NewHeadcountHandler(headcountService)
+	headcountHandler := handlers.NewHeadcountHandler(headcountService, sseHub)
+	mealHandler := handlers.NewMealHandler(mealService, headcountHandler)
 
 	// Phase 4: Initialize advanced feature handlers
 	preferenceHandler := handlers.NewPreferenceHandler(preferenceService)
@@ -238,6 +243,8 @@ func main() {
 			headcount.GET("/report/:date", headcountHandler.GetEnhancedHeadcountReport)
 			headcount.GET("/:date", headcountHandler.GetHeadcountByDate)
 			headcount.GET("/:date/:meal_type", headcountHandler.GetDetailedHeadcount)
+
+			headcount.GET("/report/live", handlers.HeadcountSSEHandler(sseHub))
 		}
 
 		// Phase 4: Admin history routes

@@ -9,13 +9,15 @@ import (
 
 // MealHandler handles meal participation endpoints
 type MealHandler struct {
-	mealService services.MealService
+	mealService      services.MealService
+	headcountHandler *HeadcountHandler
 }
 
 // NewMealHandler creates a new meal handler
-func NewMealHandler(mealService services.MealService) *MealHandler {
+func NewMealHandler(mealService services.MealService, headcountHandler *HeadcountHandler) *MealHandler {
 	return &MealHandler{
-		mealService: mealService,
+		mealService:      mealService,
+		headcountHandler: headcountHandler,
 	}
 }
 
@@ -95,6 +97,9 @@ func (h *MealHandler) SetParticipation(c *gin.Context) {
 		return
 	}
 
+	// Broadcast updated headcount to SSE clients
+	go h.headcountHandler.BroadcastUpdatedHeadcount()
+
 	utils.SuccessResponse(c, 200, nil, "Participation updated successfully")
 }
 
@@ -137,6 +142,9 @@ func (h *MealHandler) OverrideParticipation(c *gin.Context) {
 		utils.ErrorResponse(c, 400, "OVERRIDE_ERROR", err.Error())
 		return
 	}
+
+	// Broadcast updated headcount to SSE clients
+	go h.headcountHandler.BroadcastUpdatedHeadcount()
 
 	utils.SuccessResponse(c, 200, nil, "Participation overridden successfully")
 }
