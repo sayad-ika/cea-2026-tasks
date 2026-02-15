@@ -7,3 +7,4 @@ export * from './feedback';
 export * from './modals';
 export * from './layout';
 export * from './guards';
+export { TeamParticipationView } from './TeamParticipationView';
