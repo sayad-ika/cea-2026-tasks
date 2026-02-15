@@ -10,4 +10,4 @@ export type { StandardCardProps } from './StandardCard';
 export { AccentBorderCard } from './AccentBorderCard';
 export type { AccentBorderCardProps } from './AccentBorderCard';
 
-export { TeamCard } from './TeamCard';
+
