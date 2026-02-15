@@ -14,12 +14,14 @@ type CreateBulkOptOutInput struct {
 	StartDate string `json:"start_date" binding:"required"`
 	EndDate   string `json:"end_date" binding:"required"`
 	MealType  string `json:"meal_type" binding:"required"`
+	Reason    string `json:"reason"`
 }
 
 // BulkOptOutService defines the interface for bulk opt-out management
 type BulkOptOutService interface {
 	GetBulkOptOuts(userID string) ([]models.BulkOptOut, error)
-	CreateBulkOptOut(userID string, input CreateBulkOptOutInput) (*models.BulkOptOut, error)
+	CreateBulkOptOut(userID string, input CreateBulkOptOutInput, createdByUserID string) (*models.BulkOptOut, error)
+	CreateBatchBulkOptOut(userIDs []string, input CreateBulkOptOutInput, createdByUserID string) ([]models.BulkOptOut, error)
 	DeleteBulkOptOut(userID, id string) error
 }
 
@@ -47,7 +49,7 @@ func (s *bulkOptOutService) GetBulkOptOuts(userID string) ([]models.BulkOptOut, 
 }
 
 // CreateBulkOptOut creates a new bulk opt-out for a user
-func (s *bulkOptOutService) CreateBulkOptOut(userID string, input CreateBulkOptOutInput) (*models.BulkOptOut, error) {
+func (s *bulkOptOutService) CreateBulkOptOut(userID string, input CreateBulkOptOutInput, createdByUserID string) (*models.BulkOptOut, error) {
 	// Validate date format
 	startDate, err := time.Parse("2006-01-02", input.StartDate)
 	if err != nil {
@@ -78,11 +80,13 @@ func (s *bulkOptOutService) CreateBulkOptOut(userID string, input CreateBulkOptO
 
 	// Create bulk opt-out
 	bulkOptOut := &models.BulkOptOut{
-		UserID:    userUUID,
-		StartDate: input.StartDate,
-		EndDate:   input.EndDate,
-		MealType:  mealType,
-		IsActive:  true,
+		UserID:          userUUID,
+		StartDate:       input.StartDate,
+		EndDate:         input.EndDate,
+		MealType:        mealType,
+		IsActive:        true,
+		CreatedByUserID: uuid.MustParse(createdByUserID),
+		Reason:          input.Reason,
 	}
 
 	if err := s.bulkOptOutRepo.Create(bulkOptOut); err != nil {
@@ -96,7 +100,7 @@ func (s *bulkOptOutService) CreateBulkOptOut(userID string, input CreateBulkOptO
 		MealType:        mealType,
 		Action:          models.HistoryActionOptedOut,
 		ChangedByUserID: &userUUID,
-		Reason:          strPtr(fmt.Sprintf("Bulk opt-out from %s to %s", input.StartDate, input.EndDate)),
+		Reason:          strPtr(fmt.Sprintf("Bulk opt-out from %s to %s. Reason: %s", input.StartDate, input.EndDate, input.Reason)),
 	}
 
 	if err := s.historyRepo.Create(historyRecord); err != nil {
@@ -105,6 +109,33 @@ func (s *bulkOptOutService) CreateBulkOptOut(userID string, input CreateBulkOptO
 	}
 
 	return bulkOptOut, nil
+}
+
+// CreateBatchBulkOptOut creates bulk opt-outs for multiple users
+func (s *bulkOptOutService) CreateBatchBulkOptOut(userIDs []string, input CreateBulkOptOutInput, createdByUserID string) ([]models.BulkOptOut, error) {
+	var results []models.BulkOptOut
+
+	// Basic validation of the input once
+	_, err := time.Parse("2006-01-02", input.StartDate)
+	if err != nil {
+		return nil, fmt.Errorf("invalid start_date format: must be YYYY-MM-DD")
+	}
+	_, err = time.Parse("2006-01-02", input.EndDate)
+	if err != nil {
+		return nil, fmt.Errorf("invalid end_date format: must be YYYY-MM-DD")
+	}
+	// Note: Detailed validation happens inside CreateBulkOptOut
+
+	for _, userID := range userIDs {
+		optOut, err := s.CreateBulkOptOut(userID, input, createdByUserID)
+		if err != nil {
+			// for now, if one fails, we return error. In future we might want partial success.
+			return nil, fmt.Errorf("failed to create opt-out for user %s: %w", userID, err)
+		}
+		results = append(results, *optOut)
+	}
+
+	return results, nil
 }
 
 // DeleteBulkOptOut deletes a bulk opt-out if it belongs to the user

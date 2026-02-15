@@ -8,17 +8,19 @@ import (
 
 // BulkOptOut represents a date-range opt-out for a user
 type BulkOptOut struct {
-	ID        uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	UserID    uuid.UUID `gorm:"type:uuid;not null;index:idx_bulk_user_dates" json:"user_id" validate:"required"`
-	StartDate string    `gorm:"type:date;not null;index:idx_bulk_user_dates" json:"start_date" validate:"required"`
-	EndDate   string    `gorm:"type:date;not null;index:idx_bulk_user_dates" json:"end_date" validate:"required"`
-	MealType  MealType  `gorm:"type:varchar(50);not null" json:"meal_type" validate:"required"`
-	IsActive  bool      `gorm:"not null;default:true" json:"is_active"`
-	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+	ID              uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	UserID          uuid.UUID `gorm:"type:uuid;not null;index:idx_bulk_user_dates" json:"user_id" validate:"required"`
+	StartDate       string    `gorm:"type:date;not null;index:idx_bulk_user_dates" json:"start_date" validate:"required"`
+	EndDate         string    `gorm:"type:date;not null;index:idx_bulk_user_dates" json:"end_date" validate:"required"`
+	MealType        MealType  `gorm:"type:varchar(50);not null" json:"meal_type" validate:"required"`
+	IsActive        bool      `gorm:"not null;default:true" json:"is_active"`
+	CreatedByUserID uuid.UUID `gorm:"type:uuid;not null" json:"created_by_user_id"`
+	Reason          string    `gorm:"type:text" json:"reason,omitempty"`
+	CreatedAt       time.Time `gorm:"autoCreateTime" json:"created_at"`
 
 	// Relationships
-	User User `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"user,omitempty"`
+	User      User `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"user,omitempty"`
+	CreatedBy User `gorm:"foreignKey:CreatedByUserID;constraint:OnDelete:SET NULL" json:"created_by,omitempty"`
 }
 
 // TableName specifies the table name for GORM

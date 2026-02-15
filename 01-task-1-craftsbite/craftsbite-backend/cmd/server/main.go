@@ -189,6 +189,7 @@ func main() {
 			// Phase 4: Bulk opt-out routes
 			meals.GET("/bulk-optouts", bulkOptOutHandler.GetBulkOptOuts)
 			meals.POST("/bulk-optouts", bulkOptOutHandler.CreateBulkOptOut)
+			meals.POST("/bulk-optouts/batch", bulkOptOutHandler.CreateBatchBulkOptOut)
 			meals.DELETE("/bulk-optouts/:id", bulkOptOutHandler.DeleteBulkOptOut)
 
 			// Phase 4: History routes

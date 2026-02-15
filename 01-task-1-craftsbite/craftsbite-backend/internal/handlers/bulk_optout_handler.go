@@ -43,6 +43,16 @@ type CreateBulkOptOutRequest struct {
 	StartDate string `json:"start_date" binding:"required"`
 	EndDate   string `json:"end_date" binding:"required"`
 	MealType  string `json:"meal_type" binding:"required"`
+	Reason    string `json:"reason"`
+}
+
+// CreateBatchBulkOptOutRequest represents the request body for creating a batch bulk opt-out
+type CreateBatchBulkOptOutRequest struct {
+	UserIDs   []string `json:"user_ids" binding:"required"`
+	StartDate string   `json:"start_date" binding:"required"`
+	EndDate   string   `json:"end_date" binding:"required"`
+	MealType  string   `json:"meal_type" binding:"required"`
+	Reason    string   `json:"reason"`
 }
 
 // CreateBulkOptOut creates a new bulk opt-out for the current user
@@ -67,9 +77,11 @@ func (h *BulkOptOutHandler) CreateBulkOptOut(c *gin.Context) {
 		StartDate: req.StartDate,
 		EndDate:   req.EndDate,
 		MealType:  req.MealType,
+		Reason:    req.Reason,
 	}
 
-	optOut, err := h.bulkOptOutService.CreateBulkOptOut(userID.(string), input)
+	// For single create, CreatedBy is the user themselves
+	optOut, err := h.bulkOptOutService.CreateBulkOptOut(userID.(string), input, userID.(string))
 	if err != nil {
 		utils.ErrorResponse(c, 400, "CREATE_BULK_OPTOUT_ERROR", err.Error())
 		return
@@ -103,4 +115,39 @@ func (h *BulkOptOutHandler) DeleteBulkOptOut(c *gin.Context) {
 	}
 
 	utils.SuccessResponse(c, 200, nil, "Bulk opt-out deleted successfully")
+}
+
+// CreateBatchBulkOptOut creates bulk opt-outs for multiple users
+// POST /api/v1/meals/bulk-optouts/batch
+func (h *BulkOptOutHandler) CreateBatchBulkOptOut(c *gin.Context) {
+	// Get user ID from context
+	userID, exists := c.Get("user_id")
+	if !exists {
+		utils.ErrorResponse(c, 401, "UNAUTHORIZED", "User not authenticated")
+		return
+	}
+
+	// Parse request body
+	var req CreateBatchBulkOptOutRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorResponse(c, 400, "VALIDATION_ERROR", "Invalid request body: "+err.Error())
+		return
+	}
+
+	// Create bulk opt-out input
+	input := services.CreateBulkOptOutInput{
+		StartDate: req.StartDate,
+		EndDate:   req.EndDate,
+		MealType:  req.MealType,
+		Reason:    req.Reason,
+	}
+
+	// Call service
+	optOuts, err := h.bulkOptOutService.CreateBatchBulkOptOut(req.UserIDs, input, userID.(string))
+	if err != nil {
+		utils.ErrorResponse(c, 400, "CREATE_BATCH_BULK_OPTOUT_ERROR", err.Error())
+		return
+	}
+
+	utils.SuccessResponse(c, 201, optOuts, "Batch bulk opt-outs created successfully")
 }
