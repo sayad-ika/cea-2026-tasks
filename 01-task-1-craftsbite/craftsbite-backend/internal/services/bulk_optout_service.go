@@ -13,7 +13,7 @@ import (
 type CreateBulkOptOutInput struct {
 	StartDate string `json:"start_date" binding:"required"`
 	EndDate   string `json:"end_date" binding:"required"`
-	MealType  string `json:"meal_type" binding:"required"`
+	MealType  string `json:"meal_type"` // Optional, used for single create
 	Reason    string `json:"reason"`
 }
 
@@ -21,7 +21,7 @@ type CreateBulkOptOutInput struct {
 type BulkOptOutService interface {
 	GetBulkOptOuts(userID string) ([]models.BulkOptOut, error)
 	CreateBulkOptOut(userID string, input CreateBulkOptOutInput, createdByUserID string) (*models.BulkOptOut, error)
-	CreateBatchBulkOptOut(userIDs []string, input CreateBulkOptOutInput, createdByUserID string) ([]models.BulkOptOut, error)
+	CreateBatchBulkOptOut(userIDs []string, input CreateBulkOptOutInput, mealTypes []string, createdByUserID string) ([]models.BulkOptOut, error)
 	DeleteBulkOptOut(userID, id string) error
 }
 
@@ -112,10 +112,10 @@ func (s *bulkOptOutService) CreateBulkOptOut(userID string, input CreateBulkOptO
 }
 
 // CreateBatchBulkOptOut creates bulk opt-outs for multiple users
-func (s *bulkOptOutService) CreateBatchBulkOptOut(userIDs []string, input CreateBulkOptOutInput, createdByUserID string) ([]models.BulkOptOut, error) {
+func (s *bulkOptOutService) CreateBatchBulkOptOut(userIDs []string, input CreateBulkOptOutInput, mealTypes []string, createdByUserID string) ([]models.BulkOptOut, error) {
 	var results []models.BulkOptOut
 
-	// Basic validation of the input once
+	// Basic validation of dates
 	_, err := time.Parse("2006-01-02", input.StartDate)
 	if err != nil {
 		return nil, fmt.Errorf("invalid start_date format: must be YYYY-MM-DD")
@@ -124,15 +124,32 @@ func (s *bulkOptOutService) CreateBatchBulkOptOut(userIDs []string, input Create
 	if err != nil {
 		return nil, fmt.Errorf("invalid end_date format: must be YYYY-MM-DD")
 	}
-	// Note: Detailed validation happens inside CreateBulkOptOut
+
+	// Validate meal types
+	if len(mealTypes) == 0 {
+		mealTypes = []string{string(models.MealTypeAll)}
+	}
+
+	for _, mt := range mealTypes {
+		if !models.MealType(mt).IsValid() {
+			return nil, fmt.Errorf("invalid meal_type: %s", mt)
+		}
+	}
 
 	for _, userID := range userIDs {
-		optOut, err := s.CreateBulkOptOut(userID, input, createdByUserID)
-		if err != nil {
-			// for now, if one fails, we return error. In future we might want partial success.
-			return nil, fmt.Errorf("failed to create opt-out for user %s: %w", userID, err)
+		for _, mt := range mealTypes {
+			// Create input for specific meal type
+			currentInput := input
+			currentInput.MealType = mt
+
+			optOut, err := s.CreateBulkOptOut(userID, currentInput, createdByUserID)
+			if err != nil {
+				// Log error but treat as partial failure? Or fail all?
+				// For now failing all to keep it safe.
+				return nil, fmt.Errorf("failed to create opt-out for user %s, meal %s: %w", userID, mt, err)
+			}
+			results = append(results, *optOut)
 		}
-		results = append(results, *optOut)
 	}
 
 	return results, nil

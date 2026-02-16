@@ -51,7 +51,7 @@ type CreateBatchBulkOptOutRequest struct {
 	UserIDs   []string `json:"user_ids" binding:"required"`
 	StartDate string   `json:"start_date" binding:"required"`
 	EndDate   string   `json:"end_date" binding:"required"`
-	MealType  string   `json:"meal_type" binding:"required"`
+	MealTypes []string `json:"meal_types"` // Optional, defaults to "all"
 	Reason    string   `json:"reason"`
 }
 
@@ -134,16 +134,15 @@ func (h *BulkOptOutHandler) CreateBatchBulkOptOut(c *gin.Context) {
 		return
 	}
 
-	// Create bulk opt-out input
+	// Create bulk opt-out input (MealType is ignored here as we pass list)
 	input := services.CreateBulkOptOutInput{
 		StartDate: req.StartDate,
 		EndDate:   req.EndDate,
-		MealType:  req.MealType,
 		Reason:    req.Reason,
 	}
 
 	// Call service
-	optOuts, err := h.bulkOptOutService.CreateBatchBulkOptOut(req.UserIDs, input, userID.(string))
+	optOuts, err := h.bulkOptOutService.CreateBatchBulkOptOut(req.UserIDs, input, req.MealTypes, userID.(string))
 	if err != nil {
 		utils.ErrorResponse(c, 400, "CREATE_BATCH_BULK_OPTOUT_ERROR", err.Error())
 		return

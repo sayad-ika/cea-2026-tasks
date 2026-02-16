@@ -111,7 +111,7 @@ func (r *participationResolver) ResolveParticipation(userID, date, mealType stri
 	}
 
 	for _, optOut := range bulkOptOuts {
-		if string(optOut.MealType) == mealType {
+		if string(optOut.MealType) == mealType || optOut.MealType == models.MealTypeAll {
 			return false, "bulk_opt_out", nil
 		}
 	}

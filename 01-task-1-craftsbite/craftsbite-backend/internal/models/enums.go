@@ -7,14 +7,15 @@ const (
 	MealTypeLunch          MealType = "lunch"
 	MealTypeSnacks         MealType = "snacks"
 	MealTypeIftar          MealType = "iftar"
-	MealTypeEventDinner    MealType = "event_dinner"
 	MealTypeOptionalDinner MealType = "optional_dinner"
+	MealTypeEventDinner    MealType = "event_dinner"
+	MealTypeAll            MealType = "all"
 )
 
 // IsValid checks if the meal type is valid
 func (m MealType) IsValid() bool {
 	switch m {
-	case MealTypeLunch, MealTypeSnacks, MealTypeIftar, MealTypeEventDinner, MealTypeOptionalDinner:
+	case MealTypeLunch, MealTypeSnacks, MealTypeIftar, MealTypeEventDinner, MealTypeOptionalDinner, MealTypeAll:
 		return true
 	}
 	return false
