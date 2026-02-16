@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import type { UserRole } from "../types";
 
 export const Register: React.FC = () => {
   const navigate = useNavigate();
@@ -9,7 +8,6 @@ export const Register: React.FC = () => {
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<UserRole>("employee");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -86,7 +84,7 @@ export const Register: React.FC = () => {
     try {
       // Import authService dynamically to avoid circular dependency
       const { register } = await import("../services/authService");
-      await register(name, email, role, password);
+      await register(name, email, "employee", password);
 
       // Show success message and redirect to login
       navigate("/login");
@@ -214,7 +212,7 @@ export const Register: React.FC = () => {
               </div>
 
               {/* Role Field */}
-              <div className="space-y-2">
+              {/* <div className="space-y-2">
                 <label
                   className="block text-sm font-bold text-[#23170f] ml-1"
                   htmlFor="role"
@@ -244,7 +242,7 @@ export const Register: React.FC = () => {
                     </span>
                   </div>
                 </div>
-              </div>
+              </div> */}
 
               {/* Password Field */}
               <div className="space-y-2">

@@ -64,9 +64,6 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	// Validate role
 	validRoles := map[string]bool{
 		"employee":  true,
-		"team_lead": true,
-		"admin":     true,
-		"logistics": true,
 	}
 	if !validRoles[req.Role] {
 		utils.ErrorResponse(c, 400, "INVALID_ROLE", "Role must be one of: employee, team_lead, admin, logistics")
