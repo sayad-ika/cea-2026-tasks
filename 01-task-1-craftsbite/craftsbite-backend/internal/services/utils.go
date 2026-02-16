@@ -8,7 +8,7 @@ import (
 // parseMealTypes parses a comma-separated string of meal types into a slice
 func parseMealTypes(mealsStr string) []models.MealType {
 	if mealsStr == "" {
-		return []models.MealType{models.MealTypeLunch, models.MealTypeSnacks}
+		return []models.MealType{}
 	}
 
 	parts := strings.Split(mealsStr, ",")

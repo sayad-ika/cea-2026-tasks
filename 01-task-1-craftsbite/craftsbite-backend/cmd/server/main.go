@@ -172,7 +172,7 @@ func main() {
 			meals.POST("/participation", mealHandler.SetParticipation)
 
 			// Override routes - Admin, Team Lead, or Logistics
-			meals.POST("/participation/override", middleware.RequireRoles(models.RoleAdmin, models.RoleTeamLead, models.RoleLogistics), mealHandler.OverrideParticipation)
+			meals.POST("/participation/override", middleware.RequireRoles(models.RoleAdmin, models.RoleTeamLead), mealHandler.OverrideParticipation)
 
 			// Phase 4: Bulk opt-out routes
 			meals.GET("/bulk-optouts", bulkOptOutHandler.GetBulkOptOuts)

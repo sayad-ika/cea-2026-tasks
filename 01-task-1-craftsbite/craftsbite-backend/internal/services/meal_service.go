@@ -217,6 +217,13 @@ func (s *mealService) OverrideParticipation(requesterID, userID, date, mealType 
 		return fmt.Errorf("invalid date format, expected YYYY-MM-DD: %w", err)
 	}
 
+	parsedDate, err := time.Parse("2006-01-02", date)
+	
+	// Validate cutoff time
+	if err := s.validateCutoffTime(parsedDate); err != nil {
+		return err
+	}
+
 	// Parse requester UUID
 	requesterUUID, err := uuid.Parse(requesterID)
 	if err != nil {

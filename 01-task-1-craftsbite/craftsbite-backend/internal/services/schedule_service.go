@@ -90,6 +90,20 @@ func (s *scheduleService) CreateSchedule(adminID string, input CreateScheduleInp
 		return nil, fmt.Errorf("invalid admin ID: %w", err)
 	}
 
+	if !input.DayStatus.IsValid() {
+		return nil, fmt.Errorf("invalid day status: %s", input.DayStatus)
+	}
+
+	if len(input.AvailableMeals) > 0 {
+    	for _, meal := range input.AvailableMeals {
+    	    mealType := models.MealType(meal)
+    	    if !mealType.IsValid() {
+    	        return nil, fmt.Errorf("invalid meal type: %s", meal)
+    	    }
+    	    input.AvailableMeals = append(input.AvailableMeals, mealType)
+    	}
+	}
+
 	// Convert meal types slice to comma-separated string
 	mealsStr := serializeMealTypes(input.AvailableMeals)
 

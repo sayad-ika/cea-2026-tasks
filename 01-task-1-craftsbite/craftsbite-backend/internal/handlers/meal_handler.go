@@ -35,7 +35,7 @@ func (h *MealHandler) GetTodayMeals(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessResponse(c, 200, response, "Today's meals retrieved successfully")
+	utils.SuccessResponse(c, 200, response, "Tomorrow's meals retrieved successfully")
 }
 
 // GetParticipationByDate returns participation status for a specific date
