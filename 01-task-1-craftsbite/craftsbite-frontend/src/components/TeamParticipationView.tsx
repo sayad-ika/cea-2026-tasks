@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { format, addDays, subDays } from "date-fns";
 import { Header, Navbar, Footer, LoadingSpinner } from ".";
-// import { BulkOptOutModal } from "./modals/BulkOptOutModal";
+import { BulkOptOutModal } from "./modals/BulkOptOutModal";
 import type { TeamData, TeamParticipationResponse, ApiResponse } from "../types";
 import { useAuth } from "../contexts/AuthContext";
-// import * as mealService from "../services/mealService";
+import * as mealService from "../services/mealService";
 import toast from "react-hot-toast";
 
 interface TeamParticipationViewProps {
@@ -31,7 +31,7 @@ export const TeamParticipationView: React.FC<TeamParticipationViewProps> = ({
   // Bulk Opt-Out State
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
-  // const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
 
   const loadData = async (date: Date) => {
     try {
@@ -92,6 +92,32 @@ export const TeamParticipationView: React.FC<TeamParticipationViewProps> = ({
     setSelectedUserIds(newSelection);
   };
 
+  const handleBulkOptOutConfirm = async (
+    startDate: string,
+    endDate: string,
+    reason: string,
+    mealTypes: string[]
+  ) => {
+    try {
+      // Execute bulk opt-out once with the list of meal types (or ['all'])
+      await mealService.batchBulkOptOut({
+        user_ids: Array.from(selectedUserIds),
+        start_date: startDate,
+        end_date: endDate,
+        meal_types: mealTypes,
+        reason: reason,
+      });
+
+      toast.success(`Bulk opt-out applied for ${selectedUserIds.size} members (${mealTypes.includes('all') ? 'All Meals' : mealTypes.length + ' Meal Types'})`);
+      setIsSelectionMode(false);
+      setSelectedUserIds(new Set());
+      loadData(selectedDate); // Refresh data
+    } catch (err: any) {
+      console.error("Bulk opt-out failed:", err);
+      toast.error(err?.response?.data?.error?.message || "Failed to apply bulk opt-out");
+      throw err; // Re-throw to handle loading state in modal
+    }
+  };
 
 
   if (isLoading && teamData.length === 0) {
@@ -130,9 +156,7 @@ export const TeamParticipationView: React.FC<TeamParticipationViewProps> = ({
                     Cancel
                   </button>
                   <button
-                    onClick={() => {
-                        toast("Feature coming soon", { icon: "🚧" });
-                    }}
+                    onClick={() => setIsBulkModalOpen(true)}
                     disabled={selectedUserIds.size === 0}
                     className="px-6 py-2 rounded-xl bg-[var(--color-primary)] text-white text-sm font-bold shadow-md hover:bg-[var(--color-primary-dark)] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                   >
@@ -340,6 +364,14 @@ export const TeamParticipationView: React.FC<TeamParticipationViewProps> = ({
           { label: "Terms", href: "#" },
           { label: "Support", href: "#" },
         ]}
+      />
+
+      {/* Modals */}
+      <BulkOptOutModal
+        isOpen={isBulkModalOpen}
+        onClose={() => setIsBulkModalOpen(false)}
+        onConfirm={handleBulkOptOutConfirm}
+        selectedCount={selectedUserIds.size}
       />
     </div>
   );

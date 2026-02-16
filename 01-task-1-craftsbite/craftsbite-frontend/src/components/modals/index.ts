@@ -6,3 +6,5 @@ export type { MealOptOutModalProps } from './MealOptOutModal';
 
 export { ScheduleModal } from './CreateScheduleModal';
 export { DeleteConfirmationModal } from './DeleteConfirmationModal';
+
+export { BulkOptOutModal } from './BulkOptOutModal';

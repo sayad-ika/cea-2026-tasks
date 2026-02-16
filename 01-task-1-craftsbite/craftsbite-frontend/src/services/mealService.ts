@@ -101,3 +101,12 @@ export async function getAllTeamsParticipation(date: string): Promise<ApiRespons
     });
     return response.data;
 }
+
+/**
+ * Batch bulk opt-out for multiple users
+ * POST /meals/bulk-optouts/batch
+ */
+export async function batchBulkOptOut(payload: import('../types').BatchOptOutRequest): Promise<ApiResponse<null>> {
+    const response = await api.post<ApiResponse<null>>('/meals/bulk-optouts/batch', payload);
+    return response.data;
+}

@@ -13,8 +13,20 @@ export interface BulkOptOut {
     updatedAt: string;
 }
 
+
 export interface CreateBulkOptOutRequest {
     startDate: string;
     endDate: string;
     mealType: MealType;
 }
+
+
+export interface BatchOptOutRequest {
+    user_ids: string[];
+    start_date: string;
+    end_date: string;
+    meal_types: string[];
+    reason: string;
+}
+
+
