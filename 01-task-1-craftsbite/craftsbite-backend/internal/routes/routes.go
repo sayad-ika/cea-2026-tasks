@@ -72,7 +72,7 @@ func registerUserRoutes(v1 *gin.RouterGroup, h *Handlers, cfg *config.Config) {
         // Team Lead routes
         users.GET("/me/team-members", middleware.RequireRoles(models.RoleTeamLead), h.User.GetMyTeamMembers)
 
-        users.GET("/me/team", middleware.RequireRoles(models.RoleEmployee), h.User.GetMyTeam)
+        users.GET("/me/team", middleware.RequireRoles(models.RoleEmployee, models.RoleTeamLead), h.User.GetMyTeam)
     }
 }
 
@@ -96,6 +96,8 @@ func registerMealRoutes(v1 *gin.RouterGroup, h *Handlers, cfg *config.Config) {
         // History routes
         meals.GET("/history", h.History.GetHistory)
         meals.GET("/participation-audit", h.History.GetAuditTrail)
+
+        meals.GET("/team-participation", middleware.RequireRoles(models.RoleTeamLead), h.Meal.GetTeamParticipation)
     }
 }
 

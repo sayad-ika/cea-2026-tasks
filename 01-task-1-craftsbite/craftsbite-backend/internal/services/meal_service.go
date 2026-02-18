@@ -16,6 +16,7 @@ type MealService interface {
 	GetParticipation(userID, date string) ([]ParticipationStatus, error)
 	SetParticipation(userID, date, mealType string, participating bool) error
 	OverrideParticipation(adminID, userID, date, mealType string, participating bool, reason string) error
+	GetTeamParticipation(teamLeadID, date string) (*TeamParticipationResponse, error)
 }
 
 // TodayMealsResponse represents the response for today's meals
@@ -43,6 +44,25 @@ type mealService struct {
 	resolver       ParticipationResolver
 	cutoffTime     string
 	cutoffTimezone string
+}
+
+type TeamMemberParticipation struct {
+    UserID   string                 `json:"user_id"`
+    Name     string                 `json:"name"`
+    Email    string                 `json:"email"`
+    Meals    map[string]bool        `json:"meals"`
+}
+
+type TeamParticipationGroup struct {
+    TeamID         string                    `json:"team_id"`
+    TeamName       string                    `json:"team_name"`
+    TeamLeadUserID string                    `json:"team_lead_user_id"`
+    Members        []TeamMemberParticipation `json:"members"`
+}
+
+type TeamParticipationResponse struct {
+    Date  string                   `json:"date"`
+    Teams []TeamParticipationGroup `json:"teams"`
 }
 
 // NewMealService creates a new meal service
@@ -83,7 +103,7 @@ func (s *mealService) GetTodayMeals(userID string) (*TodayMealsResponse, error) 
 	response := &TodayMealsResponse{
 		Date:           tomorrow,
 		DayStatus:      models.DayStatusNormal,
-		AvailableMeals: []models.MealType{models.MealTypeLunch, models.MealTypeSnacks},
+		AvailableMeals: []models.MealType{},
 		Participations: []ParticipationStatus{},
 	}
 
@@ -331,4 +351,70 @@ func (s *mealService) validateCutoffTime(targetDate time.Time) error {
 	}
 
 	return nil
+}
+
+func (s *mealService) getMealStatus(userID, date string, availableMeals []models.MealType) (map[string]bool, error) {
+    mealStatus := make(map[string]bool)
+    for _, mealType := range availableMeals {
+        isParticipating, _, err := s.resolver.ResolveParticipation(userID, date, string(mealType))
+        if err != nil {
+            return nil, err
+        }
+        mealStatus[string(mealType)] = isParticipating
+    }
+    return mealStatus, nil
+}
+
+func (s *mealService) getAvailableMeals(date string) []models.MealType {
+    schedule, _ := s.scheduleRepo.FindByDate(date)
+    if schedule != nil && schedule.AvailableMeals != nil {
+        return parseMealTypes(*schedule.AvailableMeals)
+    }
+    return []models.MealType{}
+}
+
+func (s *mealService) GetTeamParticipation(teamLeadID, date string) (*TeamParticipationResponse, error) {
+    return s.getTeamParticipationWithMeals(teamLeadID, date, s.getAvailableMeals(date))
+}
+
+func (s *mealService) getTeamParticipationWithMeals(teamLeadID, date string, availableMeals []models.MealType) (*TeamParticipationResponse, error) {
+    teams, err := s.teamRepo.FindByTeamLeadID(teamLeadID)
+    if err != nil {
+        return nil, fmt.Errorf("failed to find teams: %w", err)
+    }
+
+    var teamGroups []TeamParticipationGroup
+    for _, team := range teams {
+        var members []TeamMemberParticipation
+        for _, member := range team.Members {
+            memberID := member.ID.String()
+            mealStatus, err := s.getMealStatus(memberID, date, availableMeals)
+            if err != nil {
+                return nil, err
+            }
+            members = append(members, TeamMemberParticipation{
+                UserID: memberID,
+                Name:   member.Name,
+                Email:  member.Email,
+                Meals:  mealStatus,
+            })
+        }
+        if members == nil {
+            members = []TeamMemberParticipation{}
+        }
+        teamGroups = append(teamGroups, TeamParticipationGroup{
+            TeamID:         team.ID.String(),
+            TeamName:       team.Name,
+            TeamLeadUserID: teamLeadID,
+            Members:        members,
+        })
+    }
+
+    if teamGroups == nil {
+        teamGroups = []TeamParticipationGroup{}
+    }
+    return &TeamParticipationResponse{
+        Date:  date,
+        Teams: teamGroups,
+    }, nil
 }

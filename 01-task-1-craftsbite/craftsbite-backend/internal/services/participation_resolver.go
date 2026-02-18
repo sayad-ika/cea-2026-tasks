@@ -85,9 +85,10 @@ func (r *participationResolver) ResolveParticipation(userID, date, mealType stri
 	}
 
 	if schedule != nil {
-		if schedule.DayStatus == models.DayStatusOfficeClosed || schedule.DayStatus == models.DayStatusGovtHoliday {
-			return false, "day_schedule", nil
-		}
+	    if schedule.DayStatus == models.DayStatusOfficeClosed || 
+	       (schedule.DayStatus == models.DayStatusGovtHoliday && schedule.AvailableMeals == nil) {
+	        return false, "day_schedule", nil
+	    }
 	}
 
 	// Priority 2: Check explicit participation record

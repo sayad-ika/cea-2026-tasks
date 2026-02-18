@@ -80,10 +80,11 @@ export const Home: React.FC = () => {
         const response = await getTeamDetails(); 
         if (response.success && response.data) {
           setTeamName(response.data.team_name);
+        } else {
+          setTeamName("");
         }
       } catch (err: any) {
         console.error("Error fetching team details:", err);
-        setError("Failed to load team details.");
       }
     };
 
