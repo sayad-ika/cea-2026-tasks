@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -261,7 +262,7 @@ func splitAndTrim(s string, sep rune) []string {
 
 	for _, char := range s {
 		if char == sep {
-			if trimmed := trim(current); trimmed != "" {
+			if trimmed := strings.TrimSpace(current); trimmed != "" {
 				result = append(result, trimmed)
 			}
 			current = ""
@@ -270,25 +271,9 @@ func splitAndTrim(s string, sep rune) []string {
 		}
 	}
 
-	if trimmed := trim(current); trimmed != "" {
+	if trimmed := strings.TrimSpace(current); trimmed != "" {
 		result = append(result, trimmed)
 	}
 
 	return result
-}
-
-func trim(s string) string {
-	// Simple trim implementation
-	start := 0
-	end := len(s)
-
-	for start < end && (s[start] == ' ' || s[start] == '\t' || s[start] == '\n') {
-		start++
-	}
-
-	for end > start && (s[end-1] == ' ' || s[end-1] == '\t' || s[end-1] == '\n') {
-		end--
-	}
-
-	return s[start:end]
 }
