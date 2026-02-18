@@ -17,6 +17,7 @@ type MealService interface {
 	SetParticipation(userID, date, mealType string, participating bool) error
 	OverrideParticipation(adminID, userID, date, mealType string, participating bool, reason string) error
 	GetTeamParticipation(teamLeadID, date string) (*TeamParticipationResponse, error)
+	GetAllTeamsParticipation(date string) (*TeamParticipationResponse, error)
 }
 
 // TodayMealsResponse represents the response for today's meals
@@ -407,6 +408,59 @@ func (s *mealService) getTeamParticipationWithMeals(teamLeadID, date string, ava
             TeamName:       team.Name,
             TeamLeadUserID: teamLeadID,
             Members:        members,
+        })
+    }
+
+    if teamGroups == nil {
+        teamGroups = []TeamParticipationGroup{}
+    }
+    return &TeamParticipationResponse{
+        Date:  date,
+        Teams: teamGroups,
+    }, nil
+}
+
+func (s *mealService) GetAllTeamsParticipation(date string) (*TeamParticipationResponse, error) {
+    teams, err := s.teamRepo.FindAllWithMembers()
+    if err != nil {
+        return nil, fmt.Errorf("failed to find teams: %w", err)
+    }
+
+    availableMeals := s.getAvailableMeals(date)
+
+    var teamGroups []TeamParticipationGroup
+    for _, team := range teams {
+        leadMealStatus, err := s.getMealStatus(team.TeamLeadID.String(), date, availableMeals)
+        if err != nil {
+            return nil, err
+        }
+
+        leadMember := TeamMemberParticipation{
+            UserID: team.TeamLeadID.String(),
+            Name:   team.TeamLead.Name,
+            Email:  team.TeamLead.Email,
+            Meals:  leadMealStatus,
+        }
+
+        var members []TeamMemberParticipation
+        for _, member := range team.Members {
+            mealStatus, err := s.getMealStatus(member.ID.String(), date, availableMeals)
+            if err != nil {
+                return nil, err
+            }
+            members = append(members, TeamMemberParticipation{
+                UserID: member.ID.String(),
+                Name:   member.Name,
+                Email:  member.Email,
+                Meals:  mealStatus,
+            })
+        }
+
+        teamGroups = append(teamGroups, TeamParticipationGroup{
+            TeamID:         team.ID.String(),
+            TeamName:       team.Name,
+            TeamLeadUserID: team.TeamLeadID.String(),
+            Members:        append([]TeamMemberParticipation{leadMember}, members...),
         })
     }
 
