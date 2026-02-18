@@ -98,6 +98,7 @@ func registerMealRoutes(v1 *gin.RouterGroup, h *Handlers, cfg *config.Config) {
         meals.GET("/participation-audit", h.History.GetAuditTrail)
 
         meals.GET("/team-participation", middleware.RequireRoles(models.RoleTeamLead), h.Meal.GetTeamParticipation)
+        meals.GET("/all-teams-participation", middleware.RequireRoles(models.RoleAdmin, models.RoleLogistics), h.Meal.GetAllTeamsParticipation)
     }
 }
 

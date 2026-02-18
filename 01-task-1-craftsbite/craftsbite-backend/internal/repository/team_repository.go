@@ -22,6 +22,7 @@ type TeamRepository interface {
 	IsTeamMember(teamID, userID string) (bool, error)
 	IsUserInAnyTeamLedBy(teamLeadID, userID string) (bool, error)
 	FindTeamByUserId(userID string) (*models.Team, error)
+	FindAllWithMembers() ([]models.Team, error)
 }
 
 // teamRepository implements TeamRepository
@@ -163,4 +164,12 @@ func (r *teamRepository) FindTeamByUserId(userID string) (*models.Team, error) {
         return nil, fmt.Errorf("failed to find team by user ID: %w", err)
     }
     return &team, nil
+}
+
+func (r *teamRepository) FindAllWithMembers() ([]models.Team, error) {
+	var teams []models.Team
+	if err := r.db.Preload("TeamLead").Preload("Members").Where("active = ?", true).Find(&teams).Error; err != nil {
+		return nil, fmt.Errorf("failed to find teams: %w", err)
+	}
+	return teams, nil
 }
