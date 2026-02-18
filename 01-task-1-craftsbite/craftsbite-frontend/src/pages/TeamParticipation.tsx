@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Header, Navbar, Footer, LoadingSpinner } from "../components";
 import { useAuth } from "../contexts/AuthContext";
-import { getTeamParticipation } from "../services/mealService";
+import { getAllTeamsParticipation, getTeamParticipation } from "../services/mealService";
 import toast from "react-hot-toast";
 import type { TeamParticipationGroup } from "../types/team.types";
 
@@ -13,7 +13,11 @@ export const TeamParticipation: React.FC = () => {
   useEffect(() => {
     const fetchTeamParticipation = async () => {
       try {
-        const response = await getTeamParticipation();
+        const response =
+          user?.role === "admin" || user?.role === "logistics"
+            ? await getAllTeamsParticipation()
+            : await getTeamParticipation();
+
         if (response.success && response.data) {
           setTeams(response.data.teams);
         }
@@ -24,7 +28,8 @@ export const TeamParticipation: React.FC = () => {
       }
     };
     fetchTeamParticipation();
-  }, []);
+  }, [user?.role]);
+
 
   if (isLoading)
     return <LoadingSpinner message="Loading participation data..." />;

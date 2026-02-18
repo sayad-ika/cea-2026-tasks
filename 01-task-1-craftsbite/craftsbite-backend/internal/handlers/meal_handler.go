@@ -163,3 +163,15 @@ func (h *MealHandler) GetTeamParticipation(c *gin.Context) {
 	
     utils.SuccessResponse(c, 200, response, "Team participation retrieved successfully")
 }
+
+func (h *MealHandler) GetAllTeamsParticipation(c *gin.Context) {
+	today := time.Now().Format("2006-01-02")
+
+	response, err := h.mealService.GetAllTeamsParticipation(today)
+	if err != nil {
+		utils.ErrorResponse(c, 500, "INTERNAL_ERROR", err.Error())
+		return
+	}
+	
+	utils.SuccessResponse(c, 200, response, "All teams participation retrieved successfully")
+}

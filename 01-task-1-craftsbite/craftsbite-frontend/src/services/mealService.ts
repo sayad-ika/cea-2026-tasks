@@ -84,3 +84,8 @@ export async function getTeamParticipation(): Promise<ApiResponse<TeamParticipat
     const response = await api.get<ApiResponse<TeamParticipationResponse>>(`/meals/team-participation`);
     return response.data;
 }
+
+export async function getAllTeamsParticipation(): Promise<ApiResponse<TeamParticipationResponse>> {
+    const response = await api.get<ApiResponse<TeamParticipationResponse>>(`/meals/all-teams-participation`);
+    return response.data;
+}
