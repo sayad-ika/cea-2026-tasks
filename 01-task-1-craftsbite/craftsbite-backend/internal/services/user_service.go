@@ -44,6 +44,13 @@ type TeamMembersResponse struct {
 	Members      []TeamMemberResponse `json:"members"`
 }
 
+type MyTeamResponse struct {
+    TeamID       string `json:"team_id"`
+    TeamName     string `json:"team_name"`
+    Description  string `json:"description,omitempty"`
+    TeamLeadName string `json:"team_lead_name"`
+}
+
 // UserService defines the interface for user management operations
 type UserService interface {
 	CreateUser(input CreateUserInput) (*models.User, error)
@@ -52,6 +59,7 @@ type UserService interface {
 	DeactivateUser(id string) error
 	ListUsers(filters map[string]interface{}) ([]models.User, error)
 	GetMyTeamMembers(teamLeadID string) (*TeamMembersResponse, error)
+	GetMyTeam(userID string) (*MyTeamResponse, error)
 }
 
 // userService implements UserService
@@ -200,4 +208,21 @@ func (s *userService) GetMyTeamMembers(teamLeadID string) (*TeamMembersResponse,
 		TotalMembers: len(members),
 		Members:      members,
 	}, nil
+}
+
+func (s *userService) GetMyTeam(userID string) (*MyTeamResponse, error) {
+    team, err := s.teamRepo.FindTeamByUserId(userID)
+    if err != nil {
+        return nil, fmt.Errorf("user does not belong to any team")
+    }
+
+    r := &MyTeamResponse{
+        TeamID:      team.ID.String(),
+        TeamName:    team.Name,
+        Description: team.Description,
+    }
+    if team.TeamLead != nil {
+        r.TeamLeadName = team.TeamLead.Name
+    }
+    return r, nil
 }

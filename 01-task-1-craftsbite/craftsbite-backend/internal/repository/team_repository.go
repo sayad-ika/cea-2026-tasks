@@ -21,6 +21,7 @@ type TeamRepository interface {
 	GetTeamMembers(teamID string) ([]models.User, error)
 	IsTeamMember(teamID, userID string) (bool, error)
 	IsUserInAnyTeamLedBy(teamLeadID, userID string) (bool, error)
+	FindTeamByUserId(userID string) (*models.Team, error)
 }
 
 // teamRepository implements TeamRepository
@@ -149,4 +150,17 @@ func (r *teamRepository) IsUserInAnyTeamLedBy(teamLeadID, userID string) (bool, 
 		return false, fmt.Errorf("failed to check team lead membership: %w", err)
 	}
 	return count > 0, nil
+}
+
+
+func (r *teamRepository) FindTeamByUserId(userID string) (*models.Team, error) {
+    var team models.Team
+    if err := r.db.
+        Joins("JOIN team_members ON team_members.team_id = teams.id").
+        Preload("TeamLead").
+        Where("team_members.user_id = ? AND teams.active = ?", userID, true).
+        First(&team).Error; err != nil {
+        return nil, fmt.Errorf("failed to find team by user ID: %w", err)
+    }
+    return &team, nil
 }

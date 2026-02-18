@@ -133,3 +133,24 @@ func (h *UserHandler) GetMyTeamMembers(c *gin.Context) {
 
 	utils.SuccessResponse(c, 200, response, "Team members retrieved successfully")
 }
+
+
+func (h *UserHandler) GetMyTeam(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		utils.ErrorResponse(c, 401, "UNAUTHORIZED", "User not authenticated")
+		return
+	}
+
+	team, err := h.userService.GetMyTeam(userID.(string))
+	if err != nil {
+		if err.Error() == "user is not an employee" {
+			utils.ErrorResponse(c, 403, "FORBIDDEN", "Only employees can access this endpoint")
+			return
+		}
+		utils.ErrorResponse(c, 500, "INTERNAL_ERROR", err.Error())
+		return
+	}
+
+	utils.SuccessResponse(c, 200, team, "My team retrieved successfully")
+}
