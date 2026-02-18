@@ -25,7 +25,10 @@ export const Navbar: React.FC = () => {
             ? [{ id: 'headcount', label: 'Headcount', icon: 'groups', href: '/headcount' }]
             : []),
         ...(user?.role === 'admin' || user?.role === 'team_lead'
-            ? [{ id: 'override', label: 'Override', icon: 'swap_horiz', href: '/override' }]
+            ? [
+                { id: 'team', label: 'Team', icon: 'people', href: '/team' },
+                { id: 'override', label: 'Override', icon: 'swap_horiz', href: '/override' }
+            ]
             : []),
     ];
 

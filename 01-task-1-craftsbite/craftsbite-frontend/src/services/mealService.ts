@@ -6,6 +6,7 @@ import type {
     SetParticipationRequest,
     OverrideParticipationRequest,
 } from '../types';
+import type { TeamParticipationResponse } from '../types/team.types';
 
 export interface TodaysMealsResponse {
     success: boolean;
@@ -76,5 +77,10 @@ export async function overrideParticipation(
     payload: OverrideParticipationRequest
 ): Promise<ApiResponse<null>> {
     const response = await api.post<ApiResponse<null>>('/meals/participation/override', payload);
+    return response.data;
+}
+
+export async function getTeamParticipation(): Promise<ApiResponse<TeamParticipationResponse>> {
+    const response = await api.get<ApiResponse<TeamParticipationResponse>>(`/meals/team-participation`);
     return response.data;
 }
