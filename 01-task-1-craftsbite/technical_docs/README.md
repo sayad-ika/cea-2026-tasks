@@ -10,9 +10,9 @@ The documentation has been intentionally split into focused, review-friendly fil
 
 - **Project:** CraftsBite
 - **Document Type:** Technical Design Document
-- **Version:** 3.0
-- **Status:** Iteration 1
-- **Last Updated:** February 9, 2026
+- **Version:** 5.0
+- **Status:** Iteration 2
+- **Last Updated:** February 17, 2026
 - **Author:** Sayad Ibn Khairul Alam
 
 ---
@@ -34,17 +34,29 @@ The documentation has been intentionally split into focused, review-friendly fil
 5. **04-architecture-design.md**  
    Technical architecture, tech stack rationale, and key design decisions.
 
-6. **05-security.md**  
-   Authentication, authorization, RBAC, and security controls.
+6. **05-security-testing.md**  
+   Authentication, authorization, RBAC, security controls, and complete testing strategy.
 
-7. **06-testing.md**  
-   Complete testing strategy including automated tests, integration scenarios, and manual QA checklist.
-
-8. **07-operations-risks.md**  
+7. **06-operations-risks.md**  
    Deployment, monitoring, maintenance, risks, assumptions, and open questions.
 
-9. **08-appendix.md** *(Reference)*  
+8. **07-appendix.md** _(Reference)_  
    Glossary, algorithms, database indexes, environment variables, and revision history.
+
+---
+
+## Iteration 2 Features
+
+The following features have been added in Iteration 2:
+
+- **Team-based visibility** - Employees see their team, Team Leads view team participation
+- **Bulk actions** - Team Leads/Admin can apply bulk opt-out for their scope
+- **Enhanced special day controls** - Special Celebration Day with notes
+- **Improved headcount reporting** - By meal type, team, Office/WFH split
+- **Live updates** - Real-time headcount updates for Admin/Logistics views
+- **Daily announcement draft** - Generate copy/paste-friendly messages
+- **Work location tracking** - Employees can set Office/WFH per date
+- **Company-wide WFH period** - Admin can declare WFH date ranges
 
 ---
 

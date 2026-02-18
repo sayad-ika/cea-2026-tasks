@@ -3,6 +3,7 @@
 ### Deployment Architecture
 
 **Environment:** Single server deployment (initial iteration)
+
 - **Frontend:** Static files served via Nginx
 - **Backend:** Go binary running as systemd service
 - **Database:** PostgreSQL 17.x
@@ -28,18 +29,21 @@
 ### Monitoring (future iteration)
 
 **Application Metrics:**
+
 - Request latency (p50, p95, p99)
 - Error rates (4xx, 5xx)
 - Active users
 - API endpoint usage
 
 **Infrastructure Metrics:**
+
 - CPU/Memory usage
 - Disk space
 - Database connection pool
 - Network I/O
 
 **Logging:**
+
 - Application logs: Structured JSON (Zap logger)
 - Access logs: Nginx format
 - Log retention: 30 days
@@ -48,6 +52,7 @@
 ### Backup and Recovery
 
 **Database Backups:**
+
 - Frequency: Daily at 2 AM
 - Retention: 30 days
 - Method: pg_dump
@@ -59,31 +64,34 @@
 ### Maintenance
 
 **Scheduled Jobs:**
+
 - **Participation history cleanup:** Daily at 3 AM
   - Delete records older than 3 months
 - **Database vacuum:** Weekly on Sunday at 1 AM
   - Reclaim storage, update statistics
 
 **Dependency Updates:**
+
 - Security patches: Apply within 48 hours
 - Minor updates: Monthly review
 - Major updates: Quarterly review with testing
 
 ---
 
-
 ## 13. Risks, Assumptions, and Open Questions
 
 ### Risks
 
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| **Low user adoption** | Medium | High | Comprehensive training, intuitive UI, stakeholder engagement |
-| **Performance issues at scale** | Low | Medium | Performance testing before launch, database indexing, query optimization |
-| **Cutoff time confusion** | Medium | Medium | Clear UI indicators, email reminders, grace period for first week |
-| **Security breach** | Low | High | Security best practices, regular audits, HTTPS only, input validation |
-| **Database corruption** | Low | High | Daily backups, transaction support, database replication (future) |
-| **Team lead override abuse** | Low | Medium | Audit logging, monthly access reviews, change notifications |
+| Risk                            | Probability | Impact | Mitigation                                                               |
+| ------------------------------- | ----------- | ------ | ------------------------------------------------------------------------ |
+| **Low user adoption**           | Low         | High   | Intuitive UI, stakeholder engagement                                     |
+| **Performance issues at scale** | Low         | Medium | Performance testing before launch, database indexing, query optimization |
+| **Cutoff time confusion**       | Medium      | Medium | Clear UI indicators, grace period for first week                         |
+| **Security breach**             | Low         | High   | Security best practices, regular audits, HTTPS only, input validation    |
+| **Database corruption**         | Low         | High   | Daily backups, transaction support, database replication (future)        |
+| **Team lead override abuse**    | Low         | Medium | Audit logging, monthly access reviews, change notifications              |
+| **SSE connection drops**        | Medium      | Medium | Browser auto-reconnects natively, graceful degradation to manual refresh |
+| **Bulk action misuse**          | Low         | Medium | Audit logging, confirmation dialogs, role-based restrictions             |
 
 ### Assumptions
 
@@ -94,8 +102,9 @@
 5. **Cutoff Times:** 9 AM for lunch/snacks
 6. **Working Days:** Monday-Friday (weekends assumed office closed unless specified)
 7. **Single Organization:** No multi-tenancy required
-9. **Role Assignment:** User roles managed manually by admin (no self-registration)
-10. **Language:** English only (no i18n required for iteration 1)
+8. **Language:** English only
+9. **SSE Support:** Modern browsers natively support EventSource API (Chrome 42+, Firefox 53+, Safari 10.1+, Edge 79+)
+10. **Network Stability:** Stable connections required for live updates
 
 ### Open Questions
 
@@ -104,15 +113,15 @@
    **Decision needed by:** N/A
 
 2. **Q:** Should we allow employees to see team-wide headcount?
-   **Status:** Open – privacy concerns  
-   **Decision needed by:** Before launch
+   **Status:** Resolved – Employees can see team membership only
+   **Decision needed by:** Resolved
 
 3. **Q:** How should conflicting date-range participation rules (overlapping ranges) be handled?
    **Status:** Last-created rule wins (current implementation)  
    **Decision needed by:** Resolved
 
 4. **Q:** Should Team Leads be able to apply date-range participation changes to their entire team?
-   **Status:** No for iteration 1 – individual overrides only  
+   **Status:** Yes – Implemented in Iteration 2 (bulk actions)
    **Decision needed by:** Resolved
 
 5. **Q:** What happens to meal participation when a user’s role changes?
@@ -130,5 +139,13 @@
 8. **Q:** Should the system support recurring date-range participation rules (e.g., every Friday)?
    **Status:** No for iteration 1 – manual creation only  
    **Decision needed by:** N/A
+
+9. **Q:** How long should WFH period history be retained?
+   **Status:** At least 1 year
+   **Decision needed by:** Resolved
+
+10. **Q:** Should bulk actions be reversible?
+    **Status:** Yes
+    **Decision needed by:** Resolved
 
 ---
