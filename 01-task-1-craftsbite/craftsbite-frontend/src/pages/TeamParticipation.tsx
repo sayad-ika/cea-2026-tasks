@@ -1,9 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Header, Navbar, Footer, LoadingSpinner } from "../components";
 import { useAuth } from "../contexts/AuthContext";
-import { getTeamParticipation } from "../services/mealService";
+import { getAllTeamsParticipation, getTeamParticipation } from "../services/mealService";
 import toast from "react-hot-toast";
 import type { TeamParticipationGroup } from "../types/team.types";
+import { MEAL_TYPES } from "../utils/constants";
+import type { MealType } from "../types";
 
 export const TeamParticipation: React.FC = () => {
   const { user } = useAuth();
@@ -13,7 +15,11 @@ export const TeamParticipation: React.FC = () => {
   useEffect(() => {
     const fetchTeamParticipation = async () => {
       try {
-        const response = await getTeamParticipation();
+        const response =
+          user?.role === "admin" || user?.role === "logistics"
+            ? await getAllTeamsParticipation()
+            : await getTeamParticipation();
+
         if (response.success && response.data) {
           setTeams(response.data.teams);
         }
@@ -24,12 +30,18 @@ export const TeamParticipation: React.FC = () => {
       }
     };
     fetchTeamParticipation();
-  }, []);
+  }, [user?.role]);
+
+  const totalMembers = teams.reduce((acc, team) => acc + team.members.length, 0);
+
+  const mealColumns = useMemo(() => {
+    const firstMember = teams[0]?.members[0];
+    if (!firstMember) return [];
+    return (Object.keys(MEAL_TYPES) as MealType[]).filter((k) => k in firstMember.meals);
+  }, [teams]);
 
   if (isLoading)
     return <LoadingSpinner message="Loading participation data..." />;
-
-  const totalMembers = teams.reduce((acc, team) => acc + team.members.length, 0);
 
   return (
     <div className="font-display bg-[var(--color-background-light)] text-[var(--color-text-main)] min-h-screen flex flex-col overflow-x-hidden">
@@ -65,14 +77,17 @@ export const TeamParticipation: React.FC = () => {
               <thead>
                 <tr className="text-[var(--color-text-sub)] text-sm">
                   <th className="font-bold py-2 px-4">Employee</th>
-                  <th className="font-bold py-2 px-4 text-center">Lunch</th>
-                  <th className="font-bold py-2 px-4 text-center">Snacks</th>
+                  {mealColumns.map((meal) => (
+                    <th key={meal} className="font-bold py-2 px-4 text-center">
+                      {MEAL_TYPES[meal] ?? meal}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {teams.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="py-12 text-center text-[var(--color-text-sub)] opacity-60">
+                    <td colSpan={1 + mealColumns.length} className="py-12 text-center text-[var(--color-text-sub)] opacity-60">
                       <span className="material-symbols-outlined text-5xl mb-2 block">group_off</span>
                       <span className="font-medium text-lg">No members found</span>
                     </td>
@@ -111,12 +126,18 @@ export const TeamParticipation: React.FC = () => {
                               </div>
                             </div>
                           </td>
-                          <td className="py-4 px-4 border-y border-transparent text-center">
-                            <ParticipationBadge isParticipating={member.meals["lunch"]} />
-                          </td>
-                          <td className="py-4 px-4 rounded-r-xl border-r border-y border-transparent text-center">
-                            <ParticipationBadge isParticipating={member.meals["snacks"]} />
-                          </td>
+                          {mealColumns.map((meal, i) => (
+                            <td
+                              key={meal}
+                              className={`py-4 px-4 border-y border-transparent text-center ${
+                                i === mealColumns.length - 1
+                                  ? "rounded-r-xl border-r"
+                                  : ""
+                              }`}
+                            >
+                              <ParticipationBadge isParticipating={member.meals[meal]} />
+                            </td>
+                          ))}
                         </tr>
                       ))}
                     </>
