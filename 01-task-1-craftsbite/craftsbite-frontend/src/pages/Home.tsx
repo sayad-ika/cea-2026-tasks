@@ -12,6 +12,7 @@ import type { MealType } from "../components/cards/EmployeeMenuCard";
 import * as mealService from "../services/mealService";
 import { CUTOFF_TIMES } from "../utils/constants";
 import toast from "react-hot-toast";
+import { getTeamDetails } from "../services/userService";
 
 /**
  * Returns true if the cutoff time (9 PM) has passed today.
@@ -30,6 +31,7 @@ function isCutoffPassed(mealType: MealTypeEnum): boolean {
 export const Home: React.FC = () => {
   const { user } = useAuth();
   const [meals, setMeals] = useState<MealType[]>([]);
+  const [teamName, setTeamName] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [currentDate, setCurrentDate] = useState("");
@@ -72,11 +74,26 @@ export const Home: React.FC = () => {
         setIsLoading(false);
       }
     };
+    
+    const fetchTeamDetails = async () => {
+      try {
+        const response = await getTeamDetails(); 
+        if (response.success && response.data) {
+          setTeamName(response.data.team_name);
+        }
+      } catch (err: any) {
+        console.error("Error fetching team details:", err);
+        setError("Failed to load team details.");
+      }
+    };
 
     fetchMeals();
+    if (user?.role === 'employee')  {
+      fetchTeamDetails();
+    }
   }, []);
 
-  // Handle meal toggle → POST /meals/participation
+
   const handleToggle = async (mealType: string) => {
     const mealTypeEnum = mealType as MealTypeEnum;
 
@@ -176,6 +193,19 @@ export const Home: React.FC = () => {
             {error}
           </div>
         )}
+
+        <div className="mb-10 text-center md:text-left">
+          {teamName && (
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-50 to-orange-100 text-orange-700 rounded-2xl border border-orange-200 shadow-sm mb-4">
+              <span className="material-symbols-outlined text-[20px] leading-none">
+                groups
+              </span>
+              <span className="text-sm font-bold tracking-wide">
+                {teamName}
+              </span>
+            </div>
+          )}
+        </div>
 
         {/* Meal Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">

@@ -55,7 +55,7 @@ func main() {
 		fmt.Printf("JWT Expiration: %s\n", cfg.JWT.Expiration)
 		fmt.Printf("CORS Allowed Origins: %v\n", cfg.CORS.AllowedOrigins)
 		fmt.Printf("Log Level: %s\n", cfg.Logging.Level)
-		fmt.Println("=================================\n")
+		fmt.Println("=================================")
 	}
 
 	// Initialize database
