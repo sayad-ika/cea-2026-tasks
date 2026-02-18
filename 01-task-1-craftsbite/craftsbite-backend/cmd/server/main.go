@@ -14,8 +14,8 @@ import (
 	"craftsbite-backend/internal/database"
 	"craftsbite-backend/internal/handlers"
 	"craftsbite-backend/internal/middleware"
-	"craftsbite-backend/internal/models"
 	"craftsbite-backend/internal/repository"
+	"craftsbite-backend/internal/routes"
 	"craftsbite-backend/internal/services"
 	"craftsbite-backend/pkg/logger"
 
@@ -92,8 +92,6 @@ func main() {
 	mealHandler := handlers.NewMealHandler(mealService)
 	scheduleHandler := handlers.NewScheduleHandler(scheduleService)
 	headcountHandler := handlers.NewHeadcountHandler(headcountService)
-
-	// Phase 4: Initialize advanced feature handlers
 	preferenceHandler := handlers.NewPreferenceHandler(preferenceService)
 	bulkOptOutHandler := handlers.NewBulkOptOutHandler(bulkOptOutService)
 	historyHandler := handlers.NewHistoryHandler(historyService)
@@ -120,102 +118,16 @@ func main() {
 	router.Use(middleware.LoggerMiddleware())
 	router.Use(middleware.CORSMiddleware(cfg.CORS.AllowedOrigins))
 
-	// Health check endpoint (public)
-	router.GET("/health", healthCheck(cfg))
-
-	// API v1 routes
-	v1 := router.Group("/api/v1")
-	{
-		// Public auth routes
-		auth := v1.Group("/auth")
-		{
-			auth.POST("/login", authHandler.Login)
-			auth.POST("/register", authHandler.Register)
-		}
-
-		// Protected auth routes
-		authProtected := v1.Group("/auth")
-		authProtected.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
-		{
-			authProtected.GET("/me", authHandler.GetCurrentUser)
-			authProtected.POST("/logout", authHandler.Logout)
-		}
-
-		// Protected user routes
-		users := v1.Group("/users")
-		users.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
-		{
-			// Admin only routes
-			users.GET("", middleware.RequireRoles(models.RoleAdmin), userHandler.ListUsers)
-			users.POST("", middleware.RequireRoles(models.RoleAdmin), userHandler.CreateUser)
-			users.DELETE("/:id", middleware.RequireRoles(models.RoleAdmin), userHandler.DeactivateUser)
-
-			// Admin or Self routes
-			users.GET("/:id", userHandler.GetUser)
-			users.PUT("/:id", userHandler.UpdateUser)
-
-			// Phase 4: User preferences routes
-			users.GET("/me/preferences", preferenceHandler.GetPreferences)
-			users.PUT("/me/preferences", preferenceHandler.UpdatePreferences)
-
-			// Team Lead: fetch own team members for override panel
-			users.GET("/me/team-members", middleware.RequireRoles(models.RoleTeamLead), userHandler.GetMyTeamMembers)
-		}
-
-		// Protected meal routes
-		meals := v1.Group("/meals")
-		meals.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
-		{
-			// User routes - any authenticated user
-			meals.GET("/today", mealHandler.GetTodayMeals)
-			meals.GET("/participation/:date", mealHandler.GetParticipationByDate)
-			meals.POST("/participation", mealHandler.SetParticipation)
-
-			// Override routes - Admin, Team Lead, or Logistics
-			meals.POST("/participation/override", middleware.RequireRoles(models.RoleAdmin, models.RoleTeamLead), mealHandler.OverrideParticipation)
-
-			// Phase 4: Bulk opt-out routes
-			meals.GET("/bulk-optouts", bulkOptOutHandler.GetBulkOptOuts)
-			meals.POST("/bulk-optouts", bulkOptOutHandler.CreateBulkOptOut)
-			meals.DELETE("/bulk-optouts/:id", bulkOptOutHandler.DeleteBulkOptOut)
-
-			// Phase 4: History routes
-			meals.GET("/history", historyHandler.GetHistory)
-			meals.GET("/participation-audit", historyHandler.GetAuditTrail)
-		}
-
-		// Protected schedule routes (Admin only)
-		schedules := v1.Group("/schedules")
-		schedules.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
-		{
-			// Read routes - all authenticated users
-			schedules.GET("/:date", scheduleHandler.GetSchedule)
-			schedules.GET("/range", scheduleHandler.GetScheduleRange)
-
-			// Write routes - admin only
-			schedules.POST("", middleware.RequireRoles(models.RoleAdmin), scheduleHandler.CreateSchedule)
-			schedules.PUT("/:date", middleware.RequireRoles(models.RoleAdmin), scheduleHandler.UpdateSchedule)
-			schedules.DELETE("/:date", middleware.RequireRoles(models.RoleAdmin), scheduleHandler.DeleteSchedule)
-		}
-
-		// Protected headcount routes (Admin and Logistics)
-		headcount := v1.Group("/headcount")
-		headcount.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
-		headcount.Use(middleware.RequireRoles(models.RoleAdmin, models.RoleLogistics))
-		{
-			headcount.GET("/today", headcountHandler.GetTodayHeadcount)
-			headcount.GET("/:date", headcountHandler.GetHeadcountByDate)
-			headcount.GET("/:date/:meal_type", headcountHandler.GetDetailedHeadcount)
-		}
-
-		// Phase 4: Admin history routes
-		admin := v1.Group("/admin")
-		admin.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
-		admin.Use(middleware.RequireRoles(models.RoleAdmin, models.RoleTeamLead))
-		{
-			admin.GET("/meals/history/:user_id", historyHandler.GetUserHistoryAdmin)
-		}
-	}
+	routes.RegisterRoutes(router, &routes.Handlers{
+        Auth:       authHandler,
+        User:       userHandler,
+        Meal:       mealHandler,
+        Schedule:   scheduleHandler,
+        Headcount:  headcountHandler,
+        Preference: preferenceHandler,
+        BulkOptOut: bulkOptOutHandler,
+        History:    historyHandler,
+    }, cfg)
 
 	// Create HTTP server
 	srv := &http.Server{
@@ -246,14 +158,4 @@ func main() {
 	}
 
 	logger.Info("Server exited")
-}
-
-func healthCheck(cfg *config.Config) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"status":      "healthy",
-			"service":     "craftsbite-api",
-			"environment": cfg.Server.Env,
-		})
-	}
 }
