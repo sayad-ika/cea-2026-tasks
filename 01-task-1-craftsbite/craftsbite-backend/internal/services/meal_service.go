@@ -48,22 +48,22 @@ type mealService struct {
 }
 
 type TeamMemberParticipation struct {
-    UserID   string                 `json:"user_id"`
-    Name     string                 `json:"name"`
-    Email    string                 `json:"email"`
-    Meals    map[string]bool        `json:"meals"`
+	UserID string          `json:"user_id"`
+	Name   string          `json:"name"`
+	Email  string          `json:"email"`
+	Meals  map[string]bool `json:"meals"`
 }
 
 type TeamParticipationGroup struct {
-    TeamID         string                    `json:"team_id"`
-    TeamName       string                    `json:"team_name"`
-    TeamLeadUserID string                    `json:"team_lead_user_id"`
-    Members        []TeamMemberParticipation `json:"members"`
+	TeamID         string                    `json:"team_id"`
+	TeamName       string                    `json:"team_name"`
+	TeamLeadUserID string                    `json:"team_lead_user_id"`
+	Members        []TeamMemberParticipation `json:"members"`
 }
 
 type TeamParticipationResponse struct {
-    Date  string                   `json:"date"`
-    Teams []TeamParticipationGroup `json:"teams"`
+	Date  string                   `json:"date"`
+	Teams []TeamParticipationGroup `json:"teams"`
 }
 
 // NewMealService creates a new meal service
@@ -239,7 +239,7 @@ func (s *mealService) OverrideParticipation(requesterID, userID, date, mealType 
 	}
 
 	parsedDate, err := time.Parse("2006-01-02", date)
-	
+
 	// Validate cutoff time
 	if err := s.validateCutoffTime(parsedDate); err != nil {
 		return err
@@ -355,130 +355,130 @@ func (s *mealService) validateCutoffTime(targetDate time.Time) error {
 }
 
 func (s *mealService) getMealStatus(userID, date string, availableMeals []models.MealType) (map[string]bool, error) {
-    mealStatus := make(map[string]bool)
-    for _, mealType := range availableMeals {
-        isParticipating, _, err := s.resolver.ResolveParticipation(userID, date, string(mealType))
-        if err != nil {
-            return nil, err
-        }
-        mealStatus[string(mealType)] = isParticipating
-    }
-    return mealStatus, nil
+	mealStatus := make(map[string]bool)
+	for _, mealType := range availableMeals {
+		isParticipating, _, err := s.resolver.ResolveParticipation(userID, date, string(mealType))
+		if err != nil {
+			return nil, err
+		}
+		mealStatus[string(mealType)] = isParticipating
+	}
+	return mealStatus, nil
 }
 
 func (s *mealService) getAvailableMeals(date string) ([]models.MealType, error) {
-    schedule, err := s.scheduleRepo.FindByDate(date)
-    if err != nil {
-        return nil, fmt.Errorf("failed to fetch schedule for %s: %w", date, err)
-    }
-    if schedule != nil && schedule.AvailableMeals != nil {
-        return parseMealTypes(*schedule.AvailableMeals), nil
-    }
-    return []models.MealType{}, nil
+	schedule, err := s.scheduleRepo.FindByDate(date)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch schedule for %s: %w", date, err)
+	}
+	if schedule != nil && schedule.AvailableMeals != nil {
+		return parseMealTypes(*schedule.AvailableMeals), nil
+	}
+	return []models.MealType{}, nil
 }
 
 func (s *mealService) GetTeamParticipation(teamLeadID, date string) (*TeamParticipationResponse, error) {
-    availableMeals, err := s.getAvailableMeals(date)
-    if err != nil {
-        return nil, err
-    }
-    return s.getTeamParticipationWithMeals(teamLeadID, date, availableMeals)
+	availableMeals, err := s.getAvailableMeals(date)
+	if err != nil {
+		return nil, err
+	}
+	return s.getTeamParticipationWithMeals(teamLeadID, date, availableMeals)
 }
 
 func (s *mealService) getTeamParticipationWithMeals(teamLeadID, date string, availableMeals []models.MealType) (*TeamParticipationResponse, error) {
-    teams, err := s.teamRepo.FindByTeamLeadID(teamLeadID)
-    if err != nil {
-        return nil, fmt.Errorf("failed to find teams: %w", err)
-    }
+	teams, err := s.teamRepo.FindByTeamLeadID(teamLeadID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find teams: %w", err)
+	}
 
-    var teamGroups []TeamParticipationGroup
-    for _, team := range teams {
-        var members []TeamMemberParticipation
-        for _, member := range team.Members {
-            memberID := member.ID.String()
-            mealStatus, err := s.getMealStatus(memberID, date, availableMeals)
-            if err != nil {
-                return nil, err
-            }
-            members = append(members, TeamMemberParticipation{
-                UserID: memberID,
-                Name:   member.Name,
-                Email:  member.Email,
-                Meals:  mealStatus,
-            })
-        }
-        if members == nil {
-            members = []TeamMemberParticipation{}
-        }
-        teamGroups = append(teamGroups, TeamParticipationGroup{
-            TeamID:         team.ID.String(),
-            TeamName:       team.Name,
-            TeamLeadUserID: teamLeadID,
-            Members:        members,
-        })
-    }
+	var teamGroups []TeamParticipationGroup
+	for _, team := range teams {
+		var members []TeamMemberParticipation
+		for _, member := range team.Members {
+			memberID := member.ID.String()
+			mealStatus, err := s.getMealStatus(memberID, date, availableMeals)
+			if err != nil {
+				return nil, err
+			}
+			members = append(members, TeamMemberParticipation{
+				UserID: memberID,
+				Name:   member.Name,
+				Email:  member.Email,
+				Meals:  mealStatus,
+			})
+		}
+		if members == nil {
+			members = []TeamMemberParticipation{}
+		}
+		teamGroups = append(teamGroups, TeamParticipationGroup{
+			TeamID:         team.ID.String(),
+			TeamName:       team.Name,
+			TeamLeadUserID: teamLeadID,
+			Members:        members,
+		})
+	}
 
-    if teamGroups == nil {
-        teamGroups = []TeamParticipationGroup{}
-    }
-    return &TeamParticipationResponse{
-        Date:  date,
-        Teams: teamGroups,
-    }, nil
+	if teamGroups == nil {
+		teamGroups = []TeamParticipationGroup{}
+	}
+	return &TeamParticipationResponse{
+		Date:  date,
+		Teams: teamGroups,
+	}, nil
 }
 
 func (s *mealService) GetAllTeamsParticipation(date string) (*TeamParticipationResponse, error) {
-    teams, err := s.teamRepo.FindAllWithMembers()
-    if err != nil {
-        return nil, fmt.Errorf("failed to find teams: %w", err)
-    }
+	teams, err := s.teamRepo.FindAllWithMembers()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find teams: %w", err)
+	}
 
-    availableMeals, err := s.getAvailableMeals(date)
-    if err != nil {
-        return nil, err
-    }
+	availableMeals, err := s.getAvailableMeals(date)
+	if err != nil {
+		return nil, err
+	}
 
-    var teamGroups []TeamParticipationGroup
-    for _, team := range teams {
-        leadMealStatus, err := s.getMealStatus(team.TeamLeadID.String(), date, availableMeals)
-        if err != nil {
-            return nil, err
-        }
+	var teamGroups []TeamParticipationGroup
+	for _, team := range teams {
+		leadMealStatus, err := s.getMealStatus(team.TeamLeadID.String(), date, availableMeals)
+		if err != nil {
+			return nil, err
+		}
 
-        leadMember := TeamMemberParticipation{
-            UserID: team.TeamLeadID.String(),
-            Name:   team.TeamLead.Name,
-            Email:  team.TeamLead.Email,
-            Meals:  leadMealStatus,
-        }
+		leadMember := TeamMemberParticipation{
+			UserID: team.TeamLeadID.String(),
+			Name:   team.TeamLead.Name,
+			Email:  team.TeamLead.Email,
+			Meals:  leadMealStatus,
+		}
 
-        var members []TeamMemberParticipation
-        for _, member := range team.Members {
-            mealStatus, err := s.getMealStatus(member.ID.String(), date, availableMeals)
-            if err != nil {
-                return nil, err
-            }
-            members = append(members, TeamMemberParticipation{
-                UserID: member.ID.String(),
-                Name:   member.Name,
-                Email:  member.Email,
-                Meals:  mealStatus,
-            })
-        }
+		var members []TeamMemberParticipation
+		for _, member := range team.Members {
+			mealStatus, err := s.getMealStatus(member.ID.String(), date, availableMeals)
+			if err != nil {
+				return nil, err
+			}
+			members = append(members, TeamMemberParticipation{
+				UserID: member.ID.String(),
+				Name:   member.Name,
+				Email:  member.Email,
+				Meals:  mealStatus,
+			})
+		}
 
-        teamGroups = append(teamGroups, TeamParticipationGroup{
-            TeamID:         team.ID.String(),
-            TeamName:       team.Name,
-            TeamLeadUserID: team.TeamLeadID.String(),
-            Members:        append([]TeamMemberParticipation{leadMember}, members...),
-        })
-    }
+		teamGroups = append(teamGroups, TeamParticipationGroup{
+			TeamID:         team.ID.String(),
+			TeamName:       team.Name,
+			TeamLeadUserID: team.TeamLeadID.String(),
+			Members:        append([]TeamMemberParticipation{leadMember}, members...),
+		})
+	}
 
-    if teamGroups == nil {
-        teamGroups = []TeamParticipationGroup{}
-    }
-    return &TeamParticipationResponse{
-        Date:  date,
-        Teams: teamGroups,
-    }, nil
+	if teamGroups == nil {
+		teamGroups = []TeamParticipationGroup{}
+	}
+	return &TeamParticipationResponse{
+		Date:  date,
+		Teams: teamGroups,
+	}, nil
 }
