@@ -20,6 +20,13 @@ export interface TeamMembersData {
     members: TeamMember[];
 }
 
+export interface TeamDetails {
+    team_id: string;
+    team_name: string;
+    description: string;
+    team_lead_name: string;
+}
+
 /**
  * Get all users (Admin only)
  * GET /users
@@ -44,5 +51,10 @@ export async function getUserById(id: string): Promise<ApiResponse<User>> {
  */
 export async function getTeamMembers(): Promise<ApiResponse<TeamMembersData>> {
     const response = await api.get<ApiResponse<TeamMembersData>>('/users/me/team-members');
+    return response.data;
+}
+
+export async function getTeamDetails(): Promise<ApiResponse<TeamDetails>> {
+    const response = await api.get<ApiResponse<TeamDetails>>('/users/me/team');
     return response.data;
 }

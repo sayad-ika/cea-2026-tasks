@@ -71,6 +71,8 @@ func registerUserRoutes(v1 *gin.RouterGroup, h *Handlers, cfg *config.Config) {
 
         // Team Lead routes
         users.GET("/me/team-members", middleware.RequireRoles(models.RoleTeamLead), h.User.GetMyTeamMembers)
+
+        users.GET("/me/team", middleware.RequireRoles(models.RoleEmployee), h.User.GetMyTeam)
     }
 }
 
