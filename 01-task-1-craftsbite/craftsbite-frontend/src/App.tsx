@@ -8,8 +8,8 @@ import { Register } from "./pages/Register";
 import { Home } from "./pages/Home";
 import { HeadcountDashboard } from "./pages/HeadcountDashboard";
 import { OverridePanel } from "./pages/OverridePanel";
-import ComponentShowcase from "./pages/ComponentShowcase";
 import "./App.css";
+import { TeamParticipation } from "./pages/TeamParticipation";
 
 function App() {
   return (
@@ -64,8 +64,16 @@ function App() {
                 }
               />
 
-              {/* Showcase (dev only) */}
-              <Route path="/showcase" element={<ComponentShowcase />} />
+              <Route
+                path="/team"
+                element={
+                  <ProtectedRoute allowedRoles={["admin", "team_lead"]}>
+                    <TeamParticipation />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* <Route path="/showcase" element={<ComponentShowcase />} /> */}
 
               {/* Catch-all */}
               <Route path="*" element={<Navigate to="/home" replace />} />

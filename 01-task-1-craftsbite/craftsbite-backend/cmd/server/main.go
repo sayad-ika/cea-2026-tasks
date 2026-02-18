@@ -89,7 +89,7 @@ func main() {
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService, userService)
 	userHandler := handlers.NewUserHandler(userService)
-	mealHandler := handlers.NewMealHandler(mealService)
+	mealHandler := handlers.NewMealHandler(mealService, teamRepo)
 	scheduleHandler := handlers.NewScheduleHandler(scheduleService)
 	headcountHandler := handlers.NewHeadcountHandler(headcountService)
 	preferenceHandler := handlers.NewPreferenceHandler(preferenceService)
