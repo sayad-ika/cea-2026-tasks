@@ -10,6 +10,7 @@ import { HeadcountDashboard } from "./pages/HeadcountDashboard";
 import { OverridePanel } from "./pages/OverridePanel";
 import "./App.css";
 import { TeamParticipation } from "./pages/TeamParticipation";
+import { Schedule } from "./pages/Schedule";
 
 function App() {
   return (
@@ -69,6 +70,15 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={["admin", "team_lead", "logistics"]}>
                     <TeamParticipation />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/schedule"
+                element={
+                  <ProtectedRoute allowedRoles={["admin", "logistics"]}>
+                    <Schedule />
                   </ProtectedRoute>
                 }
               />
