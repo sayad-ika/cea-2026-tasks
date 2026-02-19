@@ -47,7 +47,6 @@ func (h *ScheduleHandler) GetSchedule(c *gin.Context) {
 // GetScheduleRange returns schedules within a date range
 // GET /api/schedules/range?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
 func (h *ScheduleHandler) GetScheduleRange(c *gin.Context) {
-	// Get query parameters
 	startDate := c.Query("start_date")
 	endDate := c.Query("end_date")
 
@@ -73,11 +72,10 @@ type CreateScheduleRequest struct {
 	AvailableMeals []string `json:"available_meals"`
 }
 
-// CreateSchedule creates a new day schedule (Admin only)
+// CreateSchedule creates a new day schedule (Admin and Logistics only)
 // POST /api/schedules
 func (h *ScheduleHandler) CreateSchedule(c *gin.Context) {
-	// Get admin ID from context
-	adminID, exists := c.Get("user_id")
+	userID, exists := c.Get("user_id")
 	if !exists {
 		utils.ErrorResponse(c, 401, "UNAUTHORIZED", "User not authenticated")
 		return
@@ -104,7 +102,7 @@ func (h *ScheduleHandler) CreateSchedule(c *gin.Context) {
 		}
 	}
 
-	schedule, err := h.scheduleService.CreateSchedule(adminID.(string), input)
+	schedule, err := h.scheduleService.CreateSchedule(userID.(string), input)
 	if err != nil {
 		utils.ErrorResponse(c, 400, "CREATION_ERROR", err.Error())
 		return
@@ -120,7 +118,7 @@ type UpdateScheduleRequest struct {
 	AvailableMeals *[]string `json:"available_meals"`
 }
 
-// UpdateSchedule updates an existing day schedule (Admin only)
+// UpdateSchedule updates an existing day schedule (Admin and Logistics only)
 // PUT /api/schedules/:date
 func (h *ScheduleHandler) UpdateSchedule(c *gin.Context) {
 	// Get date from URL parameter
@@ -166,7 +164,7 @@ func (h *ScheduleHandler) UpdateSchedule(c *gin.Context) {
 	utils.SuccessResponse(c, 200, schedule, "Schedule updated successfully")
 }
 
-// DeleteSchedule deletes a day schedule (Admin only)
+// DeleteSchedule deletes a day schedule (Admin and Logistics only)
 // DELETE /api/schedules/:date
 func (h *ScheduleHandler) DeleteSchedule(c *gin.Context) {
 	//Get date from URL parameter
