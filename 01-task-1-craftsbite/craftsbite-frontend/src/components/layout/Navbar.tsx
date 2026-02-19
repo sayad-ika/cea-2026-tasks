@@ -24,7 +24,8 @@ export const Navbar: React.FC = () => {
         ...(user?.role === 'admin' || user?.role === 'logistics'
             ? [
                 { id: 'headcount', label: 'Headcount', icon: 'groups', href: '/headcount' },
-                { id: 'schedule', label: 'Schedule', icon: 'calendar_today', href: '/schedule' }
+                { id: 'schedule', label: 'Schedule', icon: 'calendar_today', href: '/schedule' },
+                { id: 'wfh-periods', label: 'WFH Periods', icon: 'date_range', href: '/wfh-periods' }
             ]
             : []),
         ...(user?.role === 'admin' || user?.role === 'team_lead'
