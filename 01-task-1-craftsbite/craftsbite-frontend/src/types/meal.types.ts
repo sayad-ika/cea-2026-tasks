@@ -71,30 +71,6 @@ export interface DetailedHeadcount {
   }>;
 }
 
-export interface DaySchedule {
-  id: string;
-  date: string; // YYYY-MM-DD format
-  dayStatus: DayStatus;
-  reason?: string;
-  availableMeals: MealType[];
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CreateScheduleRequest {
-  date: string;
-  dayStatus: DayStatus;
-  reason?: string;
-  availableMeals: MealType[];
-}
-
-export interface UpdateScheduleRequest {
-  dayStatus?: DayStatus;
-  reason?: string;
-  availableMeals?: MealType[];
-}
-
 export interface UserPreference {
   userId: string;
   defaultMealPreference: MealPreference;
