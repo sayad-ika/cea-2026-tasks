@@ -19,6 +19,7 @@ type Handlers struct {
     BulkOptOut  *handlers.BulkOptOutHandler
     History     *handlers.HistoryHandler
     WorkLocation *handlers.WorkLocationHandler
+    WFHPeriod    *handlers.WFHPeriodHandler
 }
 
 func RegisterRoutes(router *gin.Engine, h *Handlers, cfg *config.Config) {
@@ -34,6 +35,7 @@ func RegisterRoutes(router *gin.Engine, h *Handlers, cfg *config.Config) {
         registerHeadcountRoutes(v1, h, cfg)
         registerAdminRoutes(v1, h, cfg)
         registerWorkLocationRoutes(v1, h, cfg)
+        registerWFHPeriodRoutes(v1, h, cfg)
     }
 }
 
@@ -147,6 +149,17 @@ func registerWorkLocationRoutes(v1 *gin.RouterGroup, h *Handlers, cfg *config.Co
 
         wl.POST("/override", middleware.RequireRoles(models.RoleAdmin, models.RoleTeamLead), h.WorkLocation.SetWorkLocationFor)
         wl.GET("/list", middleware.RequireRoles(models.RoleAdmin, models.RoleTeamLead), h.WorkLocation.ListWorkLocationsByDate)
+    }
+}
+
+func registerWFHPeriodRoutes(v1 *gin.RouterGroup, h *Handlers, cfg *config.Config) {
+    periods := v1.Group("/wfh-periods")
+    periods.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+    periods.Use(middleware.RequireRoles(models.RoleAdmin, models.RoleLogistics))
+    {
+        periods.POST("", h.WFHPeriod.CreateWFHPeriod)
+        periods.GET("", h.WFHPeriod.ListWFHPeriods)
+        periods.DELETE("/:id", h.WFHPeriod.DeleteWFHPeriod)
     }
 }
 
