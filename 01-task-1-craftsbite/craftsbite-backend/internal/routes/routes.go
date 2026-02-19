@@ -110,10 +110,9 @@ func registerScheduleRoutes(v1 *gin.RouterGroup, h *Handlers, cfg *config.Config
         schedules.GET("/:date", h.Schedule.GetSchedule)
         schedules.GET("/range", h.Schedule.GetScheduleRange)
 
-        // Write routes - admin only
-        schedules.POST("", middleware.RequireRoles(models.RoleAdmin), h.Schedule.CreateSchedule)
-        schedules.PUT("/:date", middleware.RequireRoles(models.RoleAdmin), h.Schedule.UpdateSchedule)
-        schedules.DELETE("/:date", middleware.RequireRoles(models.RoleAdmin), h.Schedule.DeleteSchedule)
+        schedules.POST("", middleware.RequireRoles(models.RoleAdmin, models.RoleLogistics), h.Schedule.CreateSchedule)
+        schedules.PUT("/:date", middleware.RequireRoles(models.RoleAdmin, models.RoleLogistics), h.Schedule.UpdateSchedule)
+        schedules.DELETE("/:date", middleware.RequireRoles(models.RoleAdmin, models.RoleLogistics), h.Schedule.DeleteSchedule)
     }
 }
 
