@@ -2,7 +2,9 @@ package services
 
 import (
 	"craftsbite-backend/internal/models"
+	"fmt"
 	"strings"
+	"time"
 )
 
 // parseMealTypes parses a comma-separated string of meal types into a slice
@@ -36,4 +38,11 @@ func serializeMealTypes(mealTypes []models.MealType) string {
 	}
 
 	return strings.Join(parts, ",")
+}
+
+func validateDate(date string) error {
+	if _, err := time.Parse("2006-01-02", date); err != nil {
+		return fmt.Errorf("invalid date format, expected YYYY-MM-DD")
+	}
+	return nil
 }
