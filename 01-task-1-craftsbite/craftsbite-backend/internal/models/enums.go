@@ -72,3 +72,18 @@ func (h HistoryAction) IsValid() bool {
 func (h HistoryAction) String() string {
 	return string(h)
 }
+
+type WorkLocationType string
+
+const (
+	WorkLocationOffice WorkLocationType = "office"
+	WorkLocationWFH    WorkLocationType = "wfh"
+)
+
+func (w WorkLocationType) IsValid() bool {
+	return w == WorkLocationOffice || w == WorkLocationWFH
+}
+
+func (w WorkLocationType) String() string {
+	return string(w)
+}
