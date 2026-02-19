@@ -73,6 +73,7 @@ func main() {
 	historyRepo := repository.NewHistoryRepository(db)
 	teamRepo := repository.NewTeamRepository(db)
 	workLocationRepo := repository.NewWorkLocationRepository(db)
+	wfhPeriodRepo := repository.NewWFHPeriodRepository(db)
 
 	// Initialize services
 	authService := services.NewAuthService(userRepo, cfg)
@@ -81,7 +82,8 @@ func main() {
 	mealService := services.NewMealService(mealRepo, scheduleRepo, historyRepo, userRepo, teamRepo, participationResolver, cfg)
 	scheduleService := services.NewScheduleService(scheduleRepo)
 	headcountService := services.NewHeadcountService(userRepo, scheduleRepo, participationResolver)
-	workLocationService := services.NewWorkLocationService(workLocationRepo, userRepo, teamRepo)
+	workLocationService := services.NewWorkLocationService(workLocationRepo, userRepo, teamRepo, wfhPeriodRepo)
+	wfhPeriodService := services.NewWFHPeriodService(wfhPeriodRepo)
 
 	// Phase 4: Initialize advanced feature services
 	preferenceService := services.NewPreferenceService(userRepo, historyRepo)
@@ -98,6 +100,7 @@ func main() {
 	bulkOptOutHandler := handlers.NewBulkOptOutHandler(bulkOptOutService)
 	historyHandler := handlers.NewHistoryHandler(historyService)
 	workLocationHandler := handlers.NewWorkLocationHandler(workLocationService)
+	wfhPeriodHandler := handlers.NewWFHPeriodHandler(wfhPeriodService)
 
 	// Phase 4: Initialize cleanup job
 	// cleanupJob := jobs.NewCleanupJob(historyRepo, cfg.Cleanup.RetentionMonths)
@@ -131,6 +134,7 @@ func main() {
         BulkOptOut: bulkOptOutHandler,
         History:    historyHandler,
 		WorkLocation: workLocationHandler,
+		WFHPeriod:    wfhPeriodHandler,
     }, cfg)
 
 	// Create HTTP server
