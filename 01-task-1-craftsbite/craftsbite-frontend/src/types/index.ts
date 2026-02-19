@@ -7,3 +7,4 @@ export * from './history.types';
 export * from './api.types';
 export * from './team.types';
 export * from './schedule.types';
+export * from './work-location.types';
