@@ -134,7 +134,7 @@ func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 }
 
 func setAuthCookie(c *gin.Context, token string, expiresAt time.Time) {
-	isProd := os.Getenv("APP_ENV") == "production"
+	isProd := os.Getenv("ENV") == "production"
 
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     "auth_token",
