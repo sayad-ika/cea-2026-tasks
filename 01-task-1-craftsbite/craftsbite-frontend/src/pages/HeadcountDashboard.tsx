@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { useHeadcountStream } from "../hooks/useHeadcountStream";
 import { Header, Footer, Navbar, LoadingSpinner } from "../components";
 import type { HeadcountData, MealType as MealTypeEnum } from "../types";
 import { MEAL_TYPES } from "../utils/constants";
@@ -8,7 +9,7 @@ import { formatDate, getTodayString } from "../utils";
 import { HeadcountDateModal, AnnouncementModal } from "../components/modals";
 
 export const HeadcountDashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
   const [headcountData, setHeadcountData]     = useState<HeadcountData | null>(null);
   const [viewedDate, setViewedDate]           = useState<string>(getTodayString());
@@ -64,10 +65,15 @@ export const HeadcountDashboard: React.FC = () => {
       setIsFetchingAnnouncement(false);
     }
   };
+  
+  const { data: streamData, streamError } = useHeadcountStream(viewedDate, isAuthenticated);
 
   useEffect(() => {
-    fetchByDate(getTodayString(), true);
-  }, []);
+    if (streamData) {
+      setHeadcountData(streamData);
+      setIsLoading(false);
+    }
+  }, [streamData]);
 
   const getMealLabel = (mealType: string): string =>
     MEAL_TYPES[mealType as MealTypeEnum] || mealType;
@@ -129,6 +135,10 @@ export const HeadcountDashboard: React.FC = () => {
           <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-2xl text-sm max-w-2xl mx-auto md:mx-0">
             {error}
           </div>
+        )}
+
+        {streamError && (
+          <p className="mb-4 text-xs text-orange-500 font-semibold">{streamError}</p>
         )}
 
         {/* Announcement error (inline, dismissible) */}
