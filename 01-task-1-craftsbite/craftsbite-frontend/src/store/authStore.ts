@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import type { AuthState, User } from '../types';
-import { getToken, setToken, removeToken, getUser, setUser as setUserStorage, removeUser } from '../utils/storage';
+import { getUser, setUser as setUserStorage, removeUser } from '../utils/storage';
 
 export const useAuthStore = create<AuthState>((set, get) => ({
     user: null,
@@ -12,19 +12,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     // Initialize auth state from localStorage
     initialize: () => {
-        const token = getToken();
         const user = getUser();
 
-        if (token && user) {
+        if (user) {
             set({
-                token,
                 user,
                 isAuthenticated: true,
                 isLoading: false,
             });
         } else {
             set({
-                token: null,
                 user: null,
                 isAuthenticated: false,
                 isLoading: false,
@@ -59,11 +56,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     // Logout action
     logout: () => {
-        removeToken();
         removeUser();
         set({
             user: null,
-            token: null,
             isAuthenticated: false,
             isLoading: false,
         });
@@ -88,25 +83,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     // Check authentication status
     checkAuth: async () => {
-        const token = getToken();
         const user = getUser();
 
-        if (!token || !user) {
+        if (!user) {
             get().logout();
             return;
         }
 
         set({
-            token,
             user,
             isAuthenticated: true,
             isLoading: false,
         });
     },
 }));
-
-// Helper function to set token in store and storage
-export const setAuthToken = (token: string) => {
-    setToken(token);
-    useAuthStore.setState({ token, isAuthenticated: true });
-};
