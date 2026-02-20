@@ -5,3 +5,5 @@ export * from './meal.types';
 export * from './bulk-optout.types';
 export * from './history.types';
 export * from './api.types';
+export * from './team.types';
+export * from './schedule.types';
