@@ -6,6 +6,7 @@ import type {
   HeadcountData,
   HeadcountDataArray,
   DetailedHeadcountData,
+  AnnouncementResponse,
 } from "../types";
 
 /**
@@ -46,3 +47,8 @@ export async function getDetailedHeadcount(
   );
   return response.data;
 }
+
+export const getHeadcountAnnouncement = async (date: string): Promise<ApiResponse<AnnouncementResponse>> => {
+  const response = await api.get(`/headcount/${date}/announcement`);
+  return response.data;
+};

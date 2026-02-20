@@ -70,3 +70,22 @@ func (h *HeadcountHandler) GetDetailedHeadcount(c *gin.Context) {
 
 	utils.SuccessResponse(c, 200, details, "Detailed headcount retrieved successfully")
 }
+
+func (h *HeadcountHandler) GetAnnouncement(c *gin.Context) {
+    date := c.Param("date")
+    if date == "" {
+        utils.ErrorResponse(c, 400, "VALIDATION_ERROR", "Date parameter is required")
+        return
+    }
+
+    message, err := h.headcountService.GenerateAnnouncement(date)
+    if err != nil {
+        utils.ErrorResponse(c, 400, "ANNOUNCEMENT_ERROR", err.Error())
+        return
+    }
+
+    utils.SuccessResponse(c, 200, gin.H{
+        "date":    date,
+        "message": message,
+    }, "Announcement generated")
+}

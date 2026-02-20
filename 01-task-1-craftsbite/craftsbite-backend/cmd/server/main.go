@@ -81,7 +81,7 @@ func main() {
 	participationResolver := services.NewParticipationResolver(mealRepo, scheduleRepo, bulkOptOutRepo, userRepo, cfg)
 	mealService := services.NewMealService(mealRepo, scheduleRepo, historyRepo, userRepo, teamRepo, participationResolver, cfg)
 	scheduleService := services.NewScheduleService(scheduleRepo)
-	headcountService := services.NewHeadcountService(userRepo, scheduleRepo, participationResolver)
+	headcountService := services.NewHeadcountService(userRepo, scheduleRepo, participationResolver, teamRepo, workLocationRepo, wfhPeriodRepo)
 	workLocationService := services.NewWorkLocationService(workLocationRepo, userRepo, teamRepo, wfhPeriodRepo)
 	wfhPeriodService := services.NewWFHPeriodService(wfhPeriodRepo)
 

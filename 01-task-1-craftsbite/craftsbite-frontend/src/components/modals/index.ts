@@ -5,3 +5,7 @@ export { MealOptOutModal } from './MealOptOutModal';
 export type { MealOptOutModalProps } from './MealOptOutModal';
 export { CreateWFHPeriodModal } from './CreateWFHPeriodModal';
 export type { CreateWFHPeriodModalProps } from './CreateWFHPeriodModal';
+export { AnnouncementModal } from './AnnouncementModal';
+export type { AnnouncementModalProps } from './AnnouncementModal';
+export { HeadcountDateModal } from './HeadcountDateModal';
+export type { HeadcountDateModalProps } from './HeadcountDateModal';
