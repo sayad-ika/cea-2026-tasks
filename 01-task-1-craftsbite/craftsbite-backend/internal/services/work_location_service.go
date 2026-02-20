@@ -27,12 +27,14 @@ type workLocationService struct {
 	repo     repository.WorkLocationRepository
 	userRepo repository.UserRepository
 	teamRepo repository.TeamRepository
+ 	wfhPeriodRepo repository.WFHPeriodRepository
 }
 
 func NewWorkLocationService(
 	repo repository.WorkLocationRepository,
 	userRepo repository.UserRepository,
 	teamRepo repository.TeamRepository,
+	wfhPeriodRepo repository.WFHPeriodRepository,
 ) WorkLocationService {
 	return &workLocationService{repo: repo, userRepo: userRepo, teamRepo: teamRepo}
 }
@@ -75,17 +77,31 @@ func (s *workLocationService) GetMyLocation(userID, date string) (*WorkLocationR
 	if err != nil {
 		return nil, err
 	}
-	if wl == nil {
-		return &WorkLocationResponse{UserID: userID, Date: date, Location: "not_set"}, nil
-	}
 
-	resp := &WorkLocationResponse{UserID: userID, Date: date, Location: string(wl.Location)}
-	if wl.SetBy != nil {
-		resp.SetBy = wl.SetBy.String()
-	}
-	
-	resp.Reason = wl.Reason
-	return resp, nil
+    if wl != nil {
+        resp := &WorkLocationResponse{UserID: userID, Date: date, Location: string(wl.Location)}
+        if wl.SetBy != nil {
+            resp.SetBy = wl.SetBy.String()
+        }
+        resp.Reason = wl.Reason
+        return resp, nil
+    }
+
+	period, err := s.wfhPeriodRepo.FindActiveByDate(date)
+    if err != nil {
+        return nil, err
+    }
+
+    if period != nil {
+        return &WorkLocationResponse{
+            UserID:   userID,
+            Date:     date,
+            Location: "wfh",
+            Reason:   period.Reason,
+        }, nil
+    }
+
+    return &WorkLocationResponse{UserID: userID, Date: date, Location: "not_set"}, nil
 }
 
 func (s *workLocationService) SetLocationFor(requesterID, targetUserID, date, location string, reason *string) error {

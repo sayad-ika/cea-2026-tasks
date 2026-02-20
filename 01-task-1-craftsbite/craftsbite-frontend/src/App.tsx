@@ -11,6 +11,7 @@ import { OverridePanel } from "./pages/OverridePanel";
 import "./App.css";
 import { TeamParticipation } from "./pages/TeamParticipation";
 import { Schedule } from "./pages/Schedule";
+import { WFHPeriodPage } from "./pages/WFHPeriod";
 
 function App() {
   return (
@@ -79,6 +80,15 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={["admin", "logistics"]}>
                     <Schedule />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/wfh-periods"
+                element={
+                  <ProtectedRoute allowedRoles={["admin", "logistics"]}>
+                    <WFHPeriodPage />
                   </ProtectedRoute>
                 }
               />
