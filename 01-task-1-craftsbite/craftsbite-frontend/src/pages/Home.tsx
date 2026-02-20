@@ -6,6 +6,7 @@ import {
   EmployeeMenuCard,
   LoadingSpinner,
   Navbar,
+  WorkLocationCard,
 } from "../components";
 import type { MealType as MealTypeEnum } from "../types";
 import type { MealType } from "../components/cards/EmployeeMenuCard";
@@ -172,12 +173,14 @@ export const Home: React.FC = () => {
       />
       <Navbar />
 
+
       {/* Main Content */}
       <main className="flex-grow container mx-auto px-6 py-8 md:px-12 flex flex-col">
+        
         {/* Page Title */}
         <div className="mb-10 text-center md:text-left">
-          <h2 className="text-4xl md:text-5xl font-black text-[var(--color-background-dark)] mb-2 tracking-tight">
-            Tomorrow's Menu
+          <h2 className="text-4xl md:text-4xl font-black text-[var(--color-background-dark)] mb-2 tracking-tight">
+            Manage Meal Participation and Work Location 
           </h2>
           <p className="text-lg text-[var(--color-text-sub)] font-medium">
             Manage your meals for{" "}
@@ -207,6 +210,10 @@ export const Home: React.FC = () => {
             </div>
           )}
         </div>
+            
+        {user?.role === 'employee' && (
+          <WorkLocationCard />
+        )}
 
         {/* Meal Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">

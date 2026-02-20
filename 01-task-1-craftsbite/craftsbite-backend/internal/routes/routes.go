@@ -1,12 +1,12 @@
 package routes
 
 import (
-    "craftsbite-backend/internal/config"
-    "craftsbite-backend/internal/handlers"
-    "craftsbite-backend/internal/middleware"
-    "craftsbite-backend/internal/models"
+	"craftsbite-backend/internal/config"
+	"craftsbite-backend/internal/handlers"
+	"craftsbite-backend/internal/middleware"
+	"craftsbite-backend/internal/models"
 
-    "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 type Handlers struct {
@@ -18,6 +18,7 @@ type Handlers struct {
     Preference  *handlers.PreferenceHandler
     BulkOptOut  *handlers.BulkOptOutHandler
     History     *handlers.HistoryHandler
+    WorkLocation *handlers.WorkLocationHandler
 }
 
 func RegisterRoutes(router *gin.Engine, h *Handlers, cfg *config.Config) {
@@ -32,6 +33,7 @@ func RegisterRoutes(router *gin.Engine, h *Handlers, cfg *config.Config) {
         registerScheduleRoutes(v1, h, cfg)
         registerHeadcountRoutes(v1, h, cfg)
         registerAdminRoutes(v1, h, cfg)
+        registerWorkLocationRoutes(v1, h, cfg)
     }
 }
 
@@ -133,6 +135,18 @@ func registerAdminRoutes(v1 *gin.RouterGroup, h *Handlers, cfg *config.Config) {
     admin.Use(middleware.RequireRoles(models.RoleAdmin, models.RoleTeamLead))
     {
         admin.GET("/meals/history/:user_id", h.History.GetUserHistoryAdmin)
+    }
+}
+
+func registerWorkLocationRoutes(v1 *gin.RouterGroup, h *Handlers, cfg *config.Config) {
+    wl := v1.Group("/work-location")
+    wl.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+    {
+        wl.GET("", h.WorkLocation.GetMyWorkLocation)
+        wl.POST("", h.WorkLocation.SetMyWorkLocation)
+
+        wl.POST("/override", middleware.RequireRoles(models.RoleAdmin, models.RoleTeamLead), h.WorkLocation.SetWorkLocationFor)
+        wl.GET("/list", middleware.RequireRoles(models.RoleAdmin, models.RoleTeamLead), h.WorkLocation.ListWorkLocationsByDate)
     }
 }
 
