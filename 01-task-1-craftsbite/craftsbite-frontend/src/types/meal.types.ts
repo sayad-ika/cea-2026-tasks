@@ -124,6 +124,8 @@ export interface HeadcountData {
   date: string;
   day_status: DayStatus;
   total_active_users: number;
+  location_split?: LocationSplit;
+  teams?: TeamHeadcount[];
   meals: Record<string, HeadcountMealSummary>;
 }
 
@@ -145,3 +147,22 @@ export interface DetailedHeadcountData {
 
 // Array of headcount data (e.g., today and tomorrow)
 export type HeadcountDataArray = HeadcountData[];
+
+export interface LocationSplit {
+  office: number;
+  wfh: number;
+  not_set: number;
+}
+
+export interface TeamMealHeadcount {
+  participating: number;
+  opted_out: number;
+}
+
+export interface TeamHeadcount {
+  team_id: string;
+  team_name: string;
+  total_members: number;
+  location_split: LocationSplit;
+  meals: Record<string, TeamMealHeadcount>;
+}
