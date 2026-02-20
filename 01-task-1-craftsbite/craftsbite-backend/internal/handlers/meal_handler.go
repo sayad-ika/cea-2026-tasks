@@ -3,7 +3,9 @@ package handlers
 import (
 	"craftsbite-backend/internal/repository"
 	"craftsbite-backend/internal/services"
+	"craftsbite-backend/internal/sse"
 	"craftsbite-backend/internal/utils"
+	"encoding/json"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -11,15 +13,19 @@ import (
 
 // MealHandler handles meal participation endpoints
 type MealHandler struct {
-	mealService services.MealService
-	teamRepo repository.TeamRepository
+	mealService      services.MealService
+	teamRepo         repository.TeamRepository
+	headcountService services.HeadcountService
+	hub              *sse.Hub
 }
 
 // NewMealHandler creates a new meal handler
-func NewMealHandler(mealService services.MealService, teamRepo repository.TeamRepository) *MealHandler {
+func NewMealHandler(mealService services.MealService, teamRepo repository.TeamRepository, headcountService services.HeadcountService, hub *sse.Hub) *MealHandler {
 	return &MealHandler{
-		mealService: mealService,
-		teamRepo: teamRepo,
+		mealService:      mealService,
+		teamRepo:         teamRepo,
+		headcountService: headcountService,
+		hub:              hub,
 	}
 }
 
@@ -99,6 +105,12 @@ func (h *MealHandler) SetParticipation(c *gin.Context) {
 		return
 	}
 
+	if summary, broadcastErr := h.headcountService.GetHeadcountByDate(req.Date); broadcastErr == nil {
+		if payload, marshalErr := json.Marshal(summary); marshalErr == nil {
+			h.hub.Broadcast(req.Date, string(payload))
+		}
+	}
+
 	utils.SuccessResponse(c, 200, nil, "Participation updated successfully")
 }
 
@@ -142,26 +154,32 @@ func (h *MealHandler) OverrideParticipation(c *gin.Context) {
 		return
 	}
 
+	if summary, broadcastErr := h.headcountService.GetHeadcountByDate(req.Date); broadcastErr == nil {
+		if payload, marshalErr := json.Marshal(summary); marshalErr == nil {
+			h.hub.Broadcast(req.Date, string(payload))
+		}
+	}
+
 	utils.SuccessResponse(c, 200, nil, "Participation overridden successfully")
 }
 
 func (h *MealHandler) GetTeamParticipation(c *gin.Context) {
-    userID, exists := c.Get("user_id")
-    if !exists {
-        utils.ErrorResponse(c, 401, "UNAUTHORIZED", "User not authenticated")
-        return
-    }
+	userID, exists := c.Get("user_id")
+	if !exists {
+		utils.ErrorResponse(c, 401, "UNAUTHORIZED", "User not authenticated")
+		return
+	}
 
 	today := time.Now().Format("2006-01-02")
 
-    response, err := h.mealService.GetTeamParticipation(userID.(string), today)
+	response, err := h.mealService.GetTeamParticipation(userID.(string), today)
 
-    if err != nil {
-        utils.ErrorResponse(c, 500, "INTERNAL_ERROR", err.Error())
-        return
-    }
-	
-    utils.SuccessResponse(c, 200, response, "Team participation retrieved successfully")
+	if err != nil {
+		utils.ErrorResponse(c, 500, "INTERNAL_ERROR", err.Error())
+		return
+	}
+
+	utils.SuccessResponse(c, 200, response, "Team participation retrieved successfully")
 }
 
 func (h *MealHandler) GetAllTeamsParticipation(c *gin.Context) {
@@ -172,6 +190,6 @@ func (h *MealHandler) GetAllTeamsParticipation(c *gin.Context) {
 		utils.ErrorResponse(c, 500, "INTERNAL_ERROR", err.Error())
 		return
 	}
-	
+
 	utils.SuccessResponse(c, 200, response, "All teams participation retrieved successfully")
 }

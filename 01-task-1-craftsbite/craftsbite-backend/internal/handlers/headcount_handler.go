@@ -2,7 +2,11 @@ package handlers
 
 import (
 	"craftsbite-backend/internal/services"
+	"craftsbite-backend/internal/sse"
 	"craftsbite-backend/internal/utils"
+	"encoding/json"
+	"fmt"
+	"io"
 
 	"github.com/gin-gonic/gin"
 )
@@ -10,12 +14,14 @@ import (
 // HeadcountHandler handles headcount reporting endpoints
 type HeadcountHandler struct {
 	headcountService services.HeadcountService
+	hub              *sse.Hub
 }
 
 // NewHeadcountHandler creates a new headcount handler
-func NewHeadcountHandler(headcountService services.HeadcountService) *HeadcountHandler {
+func NewHeadcountHandler(headcountService services.HeadcountService, hub *sse.Hub) *HeadcountHandler {
 	return &HeadcountHandler{
 		headcountService: headcountService,
+		hub:              hub,
 	}
 }
 
@@ -88,4 +94,39 @@ func (h *HeadcountHandler) GetAnnouncement(c *gin.Context) {
         "date":    date,
         "message": message,
     }, "Announcement generated")
+}
+
+func (h *HeadcountHandler) StreamHeadcount(c *gin.Context) {
+	date := c.Param("date")
+	if date == "" {
+		utils.ErrorResponse(c, 400, "VALIDATION_ERROR", "Date parameter is required")
+		return
+	}
+
+	summary, err := h.headcountService.GetHeadcountByDate(date)
+	if err != nil {
+		utils.ErrorResponse(c, 400, "VALIDATION_ERROR", err.Error())
+		return
+	}
+
+	initial, _ := json.Marshal(summary)
+
+	ch := h.hub.Register(date)
+	defer h.hub.Deregister(date, ch)
+
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no")
+
+	c.Stream(func(w io.Writer) bool {
+		fmt.Fprintf(w, "data: %s\n\n", initial)
+		c.Writer.Flush()
+
+		for payload := range ch {
+			fmt.Fprintf(w, "data: %s\n\n", payload)
+			c.Writer.Flush()
+		}
+		return false
+	})
 }

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import type { AuthState, User } from '../types';
 import * as authService from '../services/authService';
-import { getToken, setToken, getUser, setUser as saveUser, clearAuthData } from '../utils/storage';
+import { getUser, setUser as saveUser, clearAuthData } from '../utils/storage';
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
@@ -11,32 +11,36 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [user, setUserState] = useState<User | null>(null);
-    const [token, setTokenState] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Initialize auth state from localStorage
-    const initialize = () => {
-        const storedToken = getToken();
+    const initialize = async () => {
         const storedUser = getUser();
 
-        if (storedToken && storedUser) {
-            setTokenState(storedToken);
+        if (storedUser) {
             setUserState(storedUser);
         }
 
-        setIsLoading(false);
+        try {
+            const currentUser = await authService.getCurrentUser();
+            saveUser(currentUser);
+            setUserState(currentUser);
+        } catch {
+            clearAuthData();
+            setUserState(null);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     // Check authentication status
     const checkAuth = async () => {
         try {
             const currentUser = await authService.getCurrentUser();
+            saveUser(currentUser);
             setUserState(currentUser);
         } catch (error) {
-            // If check fails, clear auth data
             clearAuthData();
             setUserState(null);
-            setTokenState(null);
         }
     };
 
@@ -44,25 +48,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const login = async (email: string, password: string) => {
         setIsLoading(true);
         try {
-            const response = await authService.login(email, password);
+            await authService.login(email, password);
 
-            // Get token from the nested data object
-            const { token } = response.data;
-
-            // Save token immediately so subsequent requests work
-            setToken(token);
-            setTokenState(token);
-
-            // Fetch full user details since login response might be partial
             const fullUser = await authService.getCurrentUser();
 
-            // Save full user data
             saveUser(fullUser);
             setUserState(fullUser);
         } catch (error) {
-            // Clean up if getting user fails
             clearAuthData();
-            setTokenState(null);
             setUserState(null);
             throw error;
         } finally {
@@ -71,10 +64,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     // Logout function
-    const logout = () => {
-        clearAuthData();
-        setUserState(null);
-        setTokenState(null);
+    const logout = async () => {
+        setIsLoading(true);
+        try {
+            await authService.logout();
+        } catch (error) {
+            throw error;
+        } finally {
+            clearAuthData();
+            setUserState(null);
+            setIsLoading(false);
+        }
     };
 
     // Set user manually
@@ -82,6 +82,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUserState(newUser);
         if (newUser) {
             saveUser(newUser);
+        }   else    {
+            clearAuthData();
         }
     };
 
@@ -94,14 +96,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const register = async (name: string, email: string, role: any, password: string) => {
         setIsLoading(true);
         try {
-            const response = await authService.register(name, email, role, password);
-
-            // Get token from the nested data object
-            const { token } = response.data;
-
-            // Save token immediately so subsequent requests work
-            setToken(token);
-            setTokenState(token);
+            await authService.register(name, email, role, password);
 
             // Fetch full user details since login response might be partial
             const fullUser = await authService.getCurrentUser();
@@ -112,7 +107,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         } catch (error) {
             // Clean up if getting user fails
             clearAuthData();
-            setTokenState(null);
             setUserState(null);
             throw error;
         } finally {
@@ -122,8 +116,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const value: AuthState = {
         user,
-        token,
-        isAuthenticated: !!token && !!user,
+        token: null,             
+        isAuthenticated: !!user, // ← was: !!token && !!user — cookie isn't visible so just check user
         isLoading,
         login,
         register,
@@ -135,6 +129,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+
 
 // Custom hook to use auth context
 export const useAuth = (): AuthState => {

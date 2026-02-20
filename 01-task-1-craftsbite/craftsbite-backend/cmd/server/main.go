@@ -17,6 +17,7 @@ import (
 	"craftsbite-backend/internal/repository"
 	"craftsbite-backend/internal/routes"
 	"craftsbite-backend/internal/services"
+	"craftsbite-backend/internal/sse"
 	"craftsbite-backend/pkg/logger"
 
 	"github.com/gin-gonic/gin"
@@ -75,6 +76,8 @@ func main() {
 	workLocationRepo := repository.NewWorkLocationRepository(db)
 	wfhPeriodRepo := repository.NewWFHPeriodRepository(db)
 
+	sseHub := sse.NewHub()
+
 	// Initialize services
 	authService := services.NewAuthService(userRepo, cfg)
 	userService := services.NewUserService(userRepo, teamRepo)
@@ -93,9 +96,9 @@ func main() {
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService, userService)
 	userHandler := handlers.NewUserHandler(userService)
-	mealHandler := handlers.NewMealHandler(mealService, teamRepo)
+	mealHandler := handlers.NewMealHandler(mealService, teamRepo, headcountService, sseHub)
 	scheduleHandler := handlers.NewScheduleHandler(scheduleService)
-	headcountHandler := handlers.NewHeadcountHandler(headcountService)
+	headcountHandler := handlers.NewHeadcountHandler(headcountService, sseHub)
 	preferenceHandler := handlers.NewPreferenceHandler(preferenceService)
 	bulkOptOutHandler := handlers.NewBulkOptOutHandler(bulkOptOutService)
 	historyHandler := handlers.NewHistoryHandler(historyService)

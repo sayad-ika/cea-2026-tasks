@@ -3,7 +3,6 @@ package middleware
 import (
 	"craftsbite-backend/internal/models"
 	"craftsbite-backend/internal/utils"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -12,24 +11,14 @@ import (
 func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Extract token from Authorization header
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			utils.ErrorResponse(c, 401, "UNAUTHORIZED", "Authorization header required")
+		tokenString, err := c.Cookie("auth_token")
+		if err != nil {
+			utils.ErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
 			c.Abort()
 			return
 		}
 
 		// Check Bearer prefix
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			utils.ErrorResponse(c, 401, "UNAUTHORIZED", "Invalid authorization header format")
-			c.Abort()
-			return
-		}
-
-		tokenString := parts[1]
-
-		// Validate token
 		claims, err := utils.ValidateToken(tokenString, jwtSecret)
 		if err != nil {
 			utils.ErrorResponse(c, 401, "UNAUTHORIZED", "Invalid or expired token")

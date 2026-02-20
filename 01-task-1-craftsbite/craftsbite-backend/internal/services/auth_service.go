@@ -11,7 +11,7 @@ import (
 
 // LoginResponse represents the response after successful login
 type LoginResponse struct {
-	Token     string       `json:"token"`
+	Token     string       `json:"token,omitempty"`
 	User      *models.User `json:"user"`
 	ExpiresAt time.Time    `json:"expires_at"`
 }
