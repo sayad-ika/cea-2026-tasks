@@ -1,6 +1,8 @@
-import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
+// Axios API Instance Configuration
+
+import axios, { AxiosError } from 'axios';
 import type { ApiErrorResponse } from '../types';
-import { getToken, clearAuthData } from '../utils/storage';
+import { clearAuthData } from '../utils/storage';
 import { API_BASE_URL } from '../utils/constants';
 
 const api = axios.create({
@@ -9,47 +11,50 @@ const api = axios.create({
         'Content-Type': 'application/json',
     },
     timeout: 30000,
+    withCredentials: true,
 });
 
-function buildApiError(error: AxiosError<ApiErrorResponse>): ApiErrorResponse {
-    return {
-        success: false,
-        error: {
-            code: error.response?.data?.error?.code || 'UNKNOWN_ERROR',
-            message: error.response?.data?.error?.message || error.message || 'An unexpected error occurred',
-            details: error.response?.data?.error?.details,
-        },
-    };
-}
+// Request interceptor - attach JWT token
+// api.interceptors.request.use(
+//     (config: InternalAxiosRequestConfig) => {
+//         const token = getToken();
 
-api.interceptors.request.use(
-    (config: InternalAxiosRequestConfig) => {
-        const token = getToken();
+//         if (token && config.headers) {
+//             config.headers.Authorization = `Bearer ${token}`;
+//         }
 
-        if (token && config.headers) {
-            config.headers.Authorization = `Bearer ${token}`;
-        }
+//         return config;
+//     },
+//     (error: AxiosError) => {
+//         return Promise.reject(error);
+//     }
+// );
 
-        return config;
-    },
-    (error: AxiosError) => {
-        return Promise.reject(error);
-    }
-);
-
+// Response interceptor - handle errors
 api.interceptors.response.use(
-    (response) => response,
+    (response) => {
+        return response;
+    },
     (error: AxiosError<ApiErrorResponse>) => {
         if (error.response?.status === 401) {
             clearAuthData();
+
             if (window.location.pathname !== '/login') {
                 window.location.href = '/login';
             }
         }
 
-        return Promise.reject(buildApiError(error));
+        const errorResponse: ApiErrorResponse = {
+            success: false,
+            error: {
+                code: error.response?.data?.error?.code || 'UNKNOWN_ERROR',
+                message: error.response?.data?.error?.message || error.message || 'An unexpected error occurred',
+                details: error.response?.data?.error?.details,
+            },
+        };
+
+        return Promise.reject(errorResponse);
     }
 );
 
 export default api;
-export { buildApiError };
