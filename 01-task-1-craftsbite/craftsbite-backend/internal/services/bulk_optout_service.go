@@ -7,7 +7,26 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
+
+type AdminBulkOptOutInput struct {
+	UserIDs   []string
+	StartDate string
+	EndDate   string
+	MealTypes []string
+	Reason    string
+}
+
+type AdminBulkOptOutFailure struct {
+	UserID string `json:"user_id"`
+	Reason string `json:"reason"`
+}
+
+type AdminBulkOptOutResult struct {
+	Succeeded []string                 `json:"succeeded"`
+	Failed    []AdminBulkOptOutFailure `json:"failed"`
+}
 
 // CreateBulkOptOutInput represents input for creating a bulk opt-out
 type CreateBulkOptOutInput struct {
@@ -21,19 +40,24 @@ type BulkOptOutService interface {
 	GetBulkOptOuts(userID string) ([]models.BulkOptOut, error)
 	CreateBulkOptOut(userID string, input CreateBulkOptOutInput) (*models.BulkOptOut, error)
 	DeleteBulkOptOut(userID, id string) error
+	AdminBulkOptOut(actorID, actorRole string, input AdminBulkOptOutInput) (*AdminBulkOptOutResult, error)
 }
 
 // bulkOptOutService implements BulkOptOutService
 type bulkOptOutService struct {
+	db             *gorm.DB
 	bulkOptOutRepo repository.BulkOptOutRepository
 	historyRepo    repository.HistoryRepository
+	teamRepo       repository.TeamRepository
 }
 
 // NewBulkOptOutService creates a new bulk opt-out service
-func NewBulkOptOutService(bulkOptOutRepo repository.BulkOptOutRepository, historyRepo repository.HistoryRepository) BulkOptOutService {
+func NewBulkOptOutService(db *gorm.DB, bulkOptOutRepo repository.BulkOptOutRepository, historyRepo repository.HistoryRepository, teamRepo repository.TeamRepository) BulkOptOutService {
 	return &bulkOptOutService{
+		db:             db,
 		bulkOptOutRepo: bulkOptOutRepo,
 		historyRepo:    historyRepo,
+		teamRepo:       teamRepo,
 	}
 }
 
@@ -139,4 +163,133 @@ func (s *bulkOptOutService) DeleteBulkOptOut(userID, id string) error {
 // strPtr returns a pointer to a string
 func strPtr(s string) *string {
 	return &s
+}
+
+func (s *bulkOptOutService) AdminBulkOptOut(actorID, actorRole string, input AdminBulkOptOutInput) (*AdminBulkOptOutResult, error) {
+	if validateDate(input.StartDate) != nil || validateDate(input.EndDate) != nil {
+		return nil, fmt.Errorf("invalid date format, expected YYYY-MM-DD")
+	}
+	startDate, _ := time.Parse("2006-01-02", input.StartDate)
+	endDate, _ := time.Parse("2006-01-02", input.EndDate)
+
+	if endDate.Before(startDate) {
+		return nil, fmt.Errorf("end_date must be on or after start_date")
+	}
+	if len(input.MealTypes) == 0 {
+		return nil, fmt.Errorf("meal_types must not be empty")
+	}
+
+	var mealTypes []models.MealType
+	for _, mt := range input.MealTypes {
+		mealType := models.MealType(mt)
+		if !mealType.IsValid() {
+			return nil, fmt.Errorf("invalid meal_type '%s': must be one of lunch, snacks, iftar, event_dinner, optional_dinner", mt)
+		}
+		mealTypes = append(mealTypes, mealType)
+	}
+
+	if len(input.UserIDs) == 0 {
+		return nil, fmt.Errorf("user_ids must not be empty")
+	}
+
+	actorUUID, err := uuid.Parse(actorID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid actor ID format")
+	}
+
+	result, err := s.validateUsers(actorID, actorRole, input.UserIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate users: %w", err)
+	}
+
+	if len(result.Failed) > 0 {
+		return result, nil
+	}
+
+	tx := s.db.Begin()
+	if tx.Error != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", tx.Error)
+	}
+
+	reason := input.Reason
+	if reason == "" {
+		reason = fmt.Sprintf("Admin bulk opt-out from %s to %s", input.StartDate, input.EndDate)
+	}
+
+	for _, userID := range input.UserIDs {
+		userUUID, _ := uuid.Parse(userID)
+
+		for _, mealType := range mealTypes {
+			var previousValue *string
+			existing, err := s.bulkOptOutRepo.FindActiveByUserAndMealType(userUUID, mealType, input.StartDate)
+			if err == nil && existing != nil {
+				v := string(existing.MealType)
+				previousValue = &v
+			}
+
+			bulkOptOut := &models.BulkOptOut{
+				UserID:         userUUID,
+				StartDate:      input.StartDate,
+				EndDate:        input.EndDate,
+				MealType:       mealType,
+				IsActive:       true,
+				OverrideBy:     &actorUUID,
+				OverrideReason: reason,
+			}
+			if err := tx.Create(bulkOptOut).Error; err != nil {
+				tx.Rollback()
+				return nil, fmt.Errorf("failed to create bulk opt-out for user %s meal %s: %w", userID, mealType, err)
+			}
+
+			historyRecord := &models.MealParticipationHistory{
+				UserID:          userUUID,
+				Date:            input.StartDate,
+				MealType:        mealType,
+				Action:          models.HistoryActionOverrideOut,
+				ChangedByUserID: &actorUUID,
+				Reason:          strPtr(reason),
+				PreviousValue:   previousValue,
+			}
+			if err := tx.Create(historyRecord).Error; err != nil {
+				tx.Rollback()
+				return nil, fmt.Errorf("failed to create history for user %s meal %s: %w", userID, mealType, err)
+			}
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+	return result, nil
+}
+
+func (s *bulkOptOutService) validateUsers(actorID, actorRole string, userIDs []string) (*AdminBulkOptOutResult, error) {
+	result := &AdminBulkOptOutResult{
+		Succeeded: []string{},
+		Failed:    []AdminBulkOptOutFailure{},
+	}
+
+	for _, userID := range userIDs {
+		_, err := uuid.Parse(userID)
+		if err != nil {
+			result.Failed = append(result.Failed, AdminBulkOptOutFailure{UserID: userID, Reason: "invalid user ID format"})
+			continue
+		}
+
+		if actorRole == string(models.RoleTeamLead) {
+			isMember, err := s.teamRepo.IsUserInAnyTeamLedBy(actorID, userID)
+			if err != nil {
+				result.Failed = append(result.Failed, AdminBulkOptOutFailure{UserID: userID, Reason: "failed to verify team membership"})
+				continue
+			}
+			if !isMember {
+				result.Failed = append(result.Failed, AdminBulkOptOutFailure{UserID: userID, Reason: "user is not a member of your team"})
+				continue
+			}
+		}
+
+		result.Succeeded = append(result.Succeeded, userID)
+	}
+
+	return result, nil
 }
