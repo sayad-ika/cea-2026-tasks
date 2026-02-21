@@ -5,6 +5,7 @@ import type {
     ApiResponse,
     SetParticipationRequest,
     OverrideParticipationRequest,
+    BatchBulkOptOutRequest,
 } from '../types';
 import type { TeamParticipationResponse } from '../types/team.types';
 
@@ -87,5 +88,10 @@ export async function getTeamParticipation(): Promise<ApiResponse<TeamParticipat
 
 export async function getAllTeamsParticipation(): Promise<ApiResponse<TeamParticipationResponse>> {
     const response = await api.get<ApiResponse<TeamParticipationResponse>>(`/meals/all-teams-participation`);
+    return response.data;
+}
+
+export async function createBatchBulkOptOut(payload: BatchBulkOptOutRequest): Promise<ApiResponse<unknown[]>> {
+    const response = await api.post<ApiResponse<unknown[]>>('admin/meals/bulk-optouts', payload);
     return response.data;
 }
