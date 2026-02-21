@@ -171,3 +171,11 @@ export interface AnnouncementResponse {
   date: string;
   message: string;
 }
+
+export interface BatchBulkOptOutRequest {
+    user_ids: string[];
+    start_date: string;   
+    end_date: string;     
+    meal_types: string[];
+    reason?: string;
+}

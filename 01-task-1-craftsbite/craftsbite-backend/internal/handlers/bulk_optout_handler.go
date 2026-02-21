@@ -104,3 +104,46 @@ func (h *BulkOptOutHandler) DeleteBulkOptOut(c *gin.Context) {
 
 	utils.SuccessResponse(c, 200, nil, "Bulk opt-out deleted successfully")
 }
+
+type AdminBulkOptOutRequest struct {
+	UserIDs   []string `json:"user_ids"   binding:"required,min=1"`
+	StartDate string   `json:"start_date" binding:"required"`
+	EndDate   string   `json:"end_date"   binding:"required"`
+	MealTypes []string `json:"meal_types" binding:"required,min=1"`
+	Reason    string   `json:"reason"     binding:"required"`
+}
+
+func (h *BulkOptOutHandler) AdminBulkOptOut(c *gin.Context) {
+	actorID, exists := c.Get("user_id")
+	if !exists {
+		utils.ErrorResponse(c, 401, "UNAUTHORIZED", "User not authenticated")
+		return
+	}
+	actorRole, exists := c.Get("role")
+	if !exists {
+		utils.ErrorResponse(c, 401, "UNAUTHORIZED", "User role not found in context")
+		return
+	}
+
+	var req AdminBulkOptOutRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorResponse(c, 400, "VALIDATION_ERROR", "Invalid request body: "+err.Error())
+		return
+	}
+
+	input := services.AdminBulkOptOutInput{
+		UserIDs:   req.UserIDs,
+		StartDate: req.StartDate,
+		EndDate:   req.EndDate,
+		MealTypes: req.MealTypes,
+		Reason:    req.Reason,
+	}
+
+	result, err := h.bulkOptOutService.AdminBulkOptOut(actorID.(string), actorRole.(string), input)
+	if err != nil {
+		utils.ErrorResponse(c, 400, "ADMIN_BULK_OPTOUT_ERROR", err.Error())
+		return
+	}
+
+	utils.SuccessResponse(c, 200, result, "Admin bulk opt-out processed")
+}

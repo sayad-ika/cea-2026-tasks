@@ -139,6 +139,7 @@ func registerAdminRoutes(v1 *gin.RouterGroup, h *Handlers, cfg *config.Config) {
     admin.Use(middleware.RequireRoles(models.RoleAdmin, models.RoleTeamLead))
     {
         admin.GET("/meals/history/:user_id", h.History.GetUserHistoryAdmin)
+        admin.POST("/meals/bulk-optouts", h.BulkOptOut.AdminBulkOptOut)
     }
 }
 
