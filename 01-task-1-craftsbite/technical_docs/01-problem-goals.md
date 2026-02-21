@@ -27,10 +27,12 @@ The meal planning process relies on manual Excel spreadsheet tracking, which cre
 2. **Empower employees** - Enable self-service preference management
 3. **Improve accuracy** - Provide real-time, accurate headcount to logistics
 4. **Reduce overhead** - Minimize administrative burden by 70%
-5. **Maintain transparency** - Comprehensive audit trail for all changes
-6. **Flexible participation** - Support default preferences and bulk exception management
+5. **Maintain transparency** - Comprehensive audit trail for all changes, including changer identity and role
+6. **Flexible participation** - Support default preferences, bulk exception management, and future date planning within a forward window
 7. **Enable team coordination** - Support team-level visibility and management for Team Leads
 8. **Track work location** - Enable Office/WFH tracking for better planning and headcount accuracy
+9. **Operational foresight** - Provide logistics with headcount forecasts and special-day indicators for upcoming dates
+10. **WFH governance** - Surface monthly WFH usage per employee against a configurable soft limit; highlight and filter over-limit cases for Team Leads and Admin
 
 ### Non-Goals
 
