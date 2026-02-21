@@ -22,6 +22,18 @@
 - ✅ Work location tracking (Office/WFH) per date
 - ✅ Company-wide WFH period management
 
+### In Scope (Iteration 3)
+
+- ✅ Future meal participation planning (forward window, configurable)
+- ✅ Headcount forecast snapshot for upcoming dates (Admin/Logistics)
+- ✅ Event day scheduling via `day_schedules` (`event_day` status)
+- ✅ Auditability: changer role visible in participation history
+- ✅ Admin cross-user audit trail endpoint
+- ✅ Monthly WFH usage summary per employee (soft limit: 5 days)
+- ✅ Over-limit indicators in Team Lead / Admin reports
+- ✅ Over-limit filter in team and admin WFH reports
+- ✅ Policy refinements: forward window constraint, past-date guard
+
 ### Out of Scope (Future Iterations)
 
 - ❌ Personal meal history view for users (future iteration)
@@ -136,6 +148,54 @@
 - During WFH period, all employees treated as WFH by default
 - WFH period overrides individual work location settings
 - WFH period visible on calendar with indicator
+
+**FR16: Future Meal Participation Planning**
+
+- Employees can set meal participation for future dates within a configurable forward window (default: 14 days ahead)
+- Requests beyond the forward window are rejected with a clear error
+- The forward window is server-configured (env var) and exposed to the frontend
+
+**FR17: Event Meals**
+
+- Admin/Logistics can create a day schedule with `day_status = event_day`
+- Event day includes: date, available meals (e.g., `lunch`, `event_dinner`), optional reason/note
+- Employees can opt in/out for event meals the same way as regular meals
+- `event_dinner` MealType already exists; no new meal type needed
+
+**FR18: Auditability and Accountability**
+
+- Participation history already records `changed_by_user_id`; the changer's role must be surfaced in the API response
+- Admin/Logistics can view a cross-user audit trail via a new endpoint
+- Team Lead and Admin edits are identifiable by role in history records
+- History records are append-only and immutable — no role (Employee, Team Lead, Admin or Logistics) may update or delete an existing history entry; the audit trail must remain tamper-proof
+
+**FR19: Headcount Forecast Snapshot**
+
+- Admin/Logistics can view upcoming headcount forecast for the next N days (default: 7, max: 14)
+- Forecast returns one `DailyHeadcountSummary` per day, skipping days with no schedule or weekends
+- Special day status and meal counts are included per day
+
+**FR20: Monthly WFH Usage Summary**
+
+- The system shows WFH days used per employee for a given month
+- The standard allowance is 5 WFH days per month (configurable); entries beyond the allowance are still accepted
+- Each employee summary returns: `used`, `allowance`, `is_over_limit`
+
+**FR21: Over-Limit Indicators in Reports**
+
+- Team Lead and Admin/Logistics views clearly highlight employees who exceed the monthly WFH allowance
+- Reports include rollup fields: `employees_over_limit` (count) and `total_extra_wfh_days` (sum of excess)
+
+**FR22: Over-Limit Filters**
+
+- Team Lead and Admin/Logistics WFH report endpoints accept `?over_limit_only=true`
+- When set, only employees exceeding the monthly allowance are returned
+
+**FR23: Policy Refinements**
+
+- Forward window enforced server-side (employees cannot set participation beyond `today + ForwardWindowDays`)
+- Past-date guard: employees cannot set participation for dates before today via self-service
+- Existing cutoff, RBAC, and schedule constraints remain unchanged
 
 ### Non-Functional Requirements
 

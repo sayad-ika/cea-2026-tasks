@@ -100,4 +100,51 @@
 5. System applies WFH status to all employees for period
 6. Calendar shows WFH period indicator
 
+### Flow 12: Employee Sets Meal Participation for a Future Date
+
+1. Employee navigates to Home or Participation page
+2. Uses date picker to select a future date (within the configured forward window)
+3. System checks: date must be ≤ today + ForwardWindowDays
+4. System displays available meals and current participation status for that date
+5. Employee toggles participation for desired meals
+6. Server validates forward window and cutoff; records change
+
+### Flow 13: Admin/Logistics Creates an Event Meal Day
+
+1. Admin navigates to Day Schedules page
+2. Creates or updates schedule for target date
+3. Sets `day_status = event_day`
+4. Selects available meals (e.g., lunch, event_dinner)
+5. Optionally enters a note (e.g., "Company Anniversary Dinner")
+6. Saves — employees can now opt in/out for that event day's meals
+
+### Flow 14: Admin Views Headcount Forecast
+
+1. Admin navigates to Headcount Dashboard
+2. Views "Upcoming Forecast" section (next 7 days by default)
+3. Each day shows: day status badge, meal participation totals, event/holiday indicators
+4. Admin uses forecast to prepare announcements or logistics
+
+### Flow 15: Admin/Team Lead Views Cross-user Audit Trail
+
+1. Admin/Logistics navigates to Audit Trail page or section
+2. Filters by date range, user, or meal type
+3. System returns list of participation changes with: user name, date, meal type, action, changer name, changer role, timestamp
+4. Team Lead edits are labeled "[Team Lead]"; Admin edits labeled "[Admin]"
+
+### Flow 16: Employee Views Monthly WFH Summary
+
+1. Employee views their Home or Profile page
+2. System shows a WFH usage indicator: "3 / 5 WFH days used this month"
+3. If over limit: indicator turns red, shows "6 / 5 WFH days — 1 over limit"
+4. Employee can still record WFH days (soft limit, not a hard block)
+
+### Flow 17: Team Lead Views Team WFH Report with Over-Limit Filter
+
+1. Team Lead navigates to Team Participation page
+2. Selects current month
+3. Sees WFH usage column per member; over-limit rows highlighted
+4. Rollup shows: "2 employees over limit | 3 extra WFH days total"
+5. Toggles "Show over-limit only" filter to focus on affected members
+
 ---
