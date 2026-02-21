@@ -12,10 +12,10 @@
 
 | Role          | Permissions                                                                                                                                                    |
 | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Employee**  | View/update own preferences, view own participation, manage own bulk opt-outs, view own history, view own team membership, set own work location               |
-| **Team Lead** | All employee permissions + override team member participation, view team headcount, apply bulk actions for team, correct team member work location             |
-| **Admin**     | All team lead permissions + manage day schedules, view all users, system-wide headcount, manage WFH periods, generate announcements, bulk actions across teams |
-| **Logistics** | View headcounts, view schedules, generate announcements, view all teams participation                                                                          |
+| **Employee**  | View/update own preferences, view own participation, manage own bulk opt-outs, view own history, view own team membership, set own work location, view own monthly WFH summary, set future participation within forward window |
+| **Team Lead** | All employee permissions + override team member participation, view team headcount, apply bulk actions for team, correct team member work location, view team WFH report with over-limit filter |
+| **Admin**     | All team lead permissions + manage day schedules (incl. event_day), view all users, system-wide headcount, forecast snapshot, cross-user audit trail, manage WFH periods, generate announcements, bulk actions across teams, view all-users WFH report |
+| **Logistics** | View headcounts, forecast snapshot, view schedules, generate announcements, view all teams participation, view all-users WFH report |
 
 ### Middleware Stack
 
@@ -758,5 +758,89 @@ and documented in future iterations if required.
 - [ ] View headcount
 - [ ] **Verify:** Office count and WFH count displayed
 - [ ] **Verify:** Totals add up correctly
+
+---
+
+#### Test Suite 19: Future Planning
+
+**TC19.1: Employee Sets Participation for Future Date Within Window**
+
+- [ ] Login as Employee
+- [ ] Navigate to Home/Participation page
+- [ ] Select date: today + 7 days
+- [ ] Toggle lunch participation
+- [ ] **Verify:** Change accepted (200 OK)
+- [ ] **Verify:** Participation status updated for that date
+
+**TC19.2: Forward Window Rejected**
+
+- [ ] Attempt to set participation for today + 15 days (when window = 14)
+- [ ] **Verify:** 400 error returned
+- [ ] **Verify:** Error message mentions forward window limit
+
+**TC19.3: Admin Views Headcount Forecast**
+
+- [ ] Login as Admin
+- [ ] Call `GET /headcount/forecast?days=7`
+- [ ] **Verify:** Up to 7 entries returned
+- [ ] **Verify:** Each entry has `date`, `day_status`, `meals`, `location_split`
+
+---
+
+#### Test Suite 20: Event Meals
+
+**TC20.1: Admin Creates Event Day Schedule**
+
+- [ ] Login as Admin
+- [ ] Create schedule: `day_status=event_day`, `available_meals=["lunch","event_dinner"]`, `reason="Company Anniversary"`
+- [ ] **Verify:** Schedule saved with correct fields
+- [ ] **Verify:** `reason` returned in GET response
+
+**TC20.2: Employee Sees Event Meals**
+
+- [ ] Login as Employee
+- [ ] View participation for event day
+- [ ] **Verify:** `event_dinner` appears in available meals
+- [ ] **Verify:** Day status shows `event_day` indicator
+
+**TC20.3: Headcount Includes Event Dinner**
+
+- [ ] Login as Admin, view headcount for event day
+- [ ] **Verify:** `event_dinner` key present in meals breakdown
+
+---
+
+#### Test Suite 21: WFH Monthly Summary and Over-Limit
+
+**TC21.1: Employee Views Own WFH Summary**
+
+- [ ] Login as Employee with 6 WFH days logged this month
+- [ ] Call `GET /work-location/monthly-summary?month=2026-02`
+- [ ] **Verify:** `{used: 6, allowance: 5, is_over_limit: true}` returned
+
+**TC21.2: Team Lead Views Team WFH Report**
+
+- [ ] Login as Team Lead
+- [ ] Call `GET /work-location/team-wfh-report?month=2026-02`
+- [ ] **Verify:** Each member has `used`, `allowance`, `is_over_limit` fields
+- [ ] **Verify:** Rollup shows `employees_over_limit` and `total_extra_wfh_days`
+
+**TC21.3: Over-Limit Filter**
+
+- [ ] Call `GET /work-location/team-wfh-report?month=2026-02&over_limit_only=true`
+- [ ] **Verify:** Only members with `is_over_limit=true` returned
+
+**TC21.4: Over-Limit Indicator in Frontend**
+
+- [ ] Login as Team Lead, open Team Participation page
+- [ ] **Verify:** Over-limit members have red highlight on WFH usage cell
+- [ ] **Verify:** Rollup card shows correct totals
+
+**TC21.5: Admin Cross-user Audit Trail**
+
+- [ ] Override multiple users' participation as Admin
+- [ ] Call `GET /admin/meals/audit`
+- [ ] **Verify:** Entries from multiple users returned
+- [ ] **Verify:** `changed_by.role` field present and correctly set
 
 ---
