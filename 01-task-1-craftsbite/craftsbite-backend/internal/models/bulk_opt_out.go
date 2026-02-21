@@ -16,9 +16,12 @@ type BulkOptOut struct {
 	IsActive  bool      `gorm:"not null;default:true" json:"is_active"`
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+    OverrideBy *uuid.UUID `gorm:"column:override_by;type:uuid" json:"override_by"`
+    OverrideReason         string     `gorm:"type:text" json:"override_reason"`
 
 	// Relationships
 	User User `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"user,omitempty"`
+	OverrideUser User `gorm:"foreignKey:OverrideBy;constraint:OnDelete:SET NULL" json:"override_user"`
 }
 
 // TableName specifies the table name for GORM
