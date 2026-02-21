@@ -83,15 +83,15 @@ src/
 │   ├── views/           # Feature views: TeamView, AnnouncementView
 │   └── feedback/        # User feedback: Toast notifications, Loading spinners, error messages
 ├── pages/
-│   ├── AdminTeamParticipation.tsx    # Admin/Logistics team participation view
+│   ├── AdminTeamParticipation.tsx    # Admin/Logistics team participation view (WFH usage + over-limit filter)
 │   ├── GlobalWFH.tsx                 # Global Work From Home period management and view
-│   ├── HeadcountDashboard.tsx        # Admin/Logistics headcount view and reports (with live updates)
-│   ├── Home.tsx                      # Main dashboard with overview
+│   ├── HeadcountDashboard.tsx        # Admin/Logistics headcount view + forecast snapshot + special-day badges
+│   ├── Home.tsx                      # Main dashboard: future date picker + WFH usage badge
 │   ├── LoginPage.tsx                 # Authentication page
-│   ├── OverridePanel.tsx             # Admin & Team lead override and team management
+│   ├── OverridePanel.tsx             # Admin & Team lead override; history shows changer name + role
 │   ├── Registration.tsx              # Registration page
-│   ├── Schedule.tsx                  # Schedule management and view
-│   ├── TeamParticipation.tsx         # Team lead meal participation view
+│   ├── Schedule.tsx                  # Schedule management including event_day status
+│   ├── TeamParticipation.tsx         # Team lead view: WFH usage column, over-limit highlight, filter toggle
 ├── services/            # API service layer: HTTP client, API endpoint wrappers, WebSocket client
 ├── store/               # Zustand state management: Auth store, meal store, global state
 ├── types/               # TypeScript type definitions: Interfaces, enums, API response types
@@ -123,13 +123,13 @@ internal/
 │   ├── auth_handler.go        # Authentication endpoints
 │   ├── meal_handler.go        # Meal participation endpoints
 │   ├── user_handler.go        # User management endpoints
-│   ├── headcount_handler.go   # Headcount reporting endpoints
+│   ├── headcount_handler.go   # Headcount reporting + forecast endpoint (Iteration 3)
 │   ├── headcount_sse.go       # Headcount live updates via Server-Sent Events
-│   ├── schedule_handler.go    # Day schedule management endpoints
+│   ├── schedule_handler.go    # Day schedule management endpoints (event_day support)
 │   ├── preference_handler.go  # User preference endpoints
 │   ├── bulk_optout_handler.go # Bulk opt-out endpoints
-│   ├── history_handler.go     # Meal history endpoints
-│   ├── work_location_handler.go    # Work location endpoints (Iteration 2)
+│   ├── history_handler.go     # Meal history endpoints + admin cross-user audit (Iteration 3)
+│   ├── work_location_handler.go    # Work location + monthly WFH summary endpoints (Iteration 3)
 ├── middleware/
 │   ├── auth.go                # JWT authentication
 │   ├── cors.go                # CORS configuration
@@ -157,15 +157,15 @@ internal/
 │   ├── work_location_repository.go    # Work location data access
 ├── services/
 │   ├── auth_service.go        # Authentication logic
-│   ├── meal_service.go        # Meal business logic (ENHANCED)
-│   ├── schedule_service.go    # Schedule business logic
+│   ├── meal_service.go        # Meal business logic (forward-window guard, Iteration 3)
+│   ├── schedule_service.go    # Schedule business logic (event_day support)
 │   ├── user_service.go        # User management logic
-│   ├── headcount_service.go   # Headcount calculations (ENHANCED)
+│   ├── headcount_service.go   # Headcount calculations + GetForecast (Iteration 3)
 │   ├── preference_service.go  # User preference logic
 │   ├── bulk_optout_service.go # Bulk opt-out logic
-│   ├── history_service.go     # History tracking logic
+│   ├── history_service.go     # History tracking + admin audit trail (Iteration 3)
 │   ├── participation_resolver.go # Participation status resolution
-│   ├── work_location_service.go    # Work location logic
+│   ├── work_location_service.go    # Work location + monthly WFH summary/report (Iteration 3)
 │   ├── utils.go                  # Utility logic
 ├── sse/
 │   ├── hub.go                 # WebSocket connection hub
