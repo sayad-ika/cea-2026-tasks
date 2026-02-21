@@ -2,8 +2,10 @@ package repository
 
 import (
 	"craftsbite-backend/internal/models"
+	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -14,6 +16,7 @@ type BulkOptOutRepository interface {
 	FindActiveByUserAndDate(userID, date string) ([]models.BulkOptOut, error)
 	Delete(id string) error
 	Deactivate(id string) error
+	FindActiveByUserAndMealType (userID uuid.UUID, mealType models.MealType, date string) (*models.BulkOptOut, error)
 }
 
 // bulkOptOutRepository implements BulkOptOutRepository
@@ -74,4 +77,19 @@ func (r *bulkOptOutRepository) Deactivate(id string) error {
 		return fmt.Errorf("failed to deactivate bulk opt-out: %w", err)
 	}
 	return nil
+}
+
+func (r *bulkOptOutRepository) FindActiveByUserAndMealType(userID uuid.UUID, mealType models.MealType, date string) (*models.BulkOptOut, error) {
+    var bulkOptOut models.BulkOptOut
+    err := r.db.Where(
+        "user_id = ? AND meal_type = ? AND is_active = ? AND ? BETWEEN start_date AND end_date",
+        userID, mealType, true, date,
+    ).First(&bulkOptOut).Error
+    if err != nil {
+        if errors.Is(err, gorm.ErrRecordNotFound) {
+            return nil, nil
+        }
+        return nil, fmt.Errorf("failed to find active bulk opt-out: %w", err)
+    }
+    return &bulkOptOut, nil
 }

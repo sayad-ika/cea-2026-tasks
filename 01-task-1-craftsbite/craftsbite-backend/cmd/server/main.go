@@ -90,7 +90,7 @@ func main() {
 
 	// Phase 4: Initialize advanced feature services
 	preferenceService := services.NewPreferenceService(userRepo, historyRepo)
-	bulkOptOutService := services.NewBulkOptOutService(bulkOptOutRepo, historyRepo)
+	bulkOptOutService := services.NewBulkOptOutService(db, bulkOptOutRepo, historyRepo, teamRepo)
 	historyService := services.NewHistoryService(historyRepo)
 
 	// Initialize handlers
