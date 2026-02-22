@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import * as workLocationService from "../../services/workLocationService";
 import type { WorkLocationValue } from "../../types/work-location.types";
 import toast from "react-hot-toast";
+import type { MonthlyWFHSummary } from "../../services/workLocationService";
 
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
@@ -198,15 +199,20 @@ const SetWorkLocationModal: React.FC<SetWorkLocationModalProps> = ({
 export const WorkLocationCard: React.FC = () => {
   const [currentLocation, setCurrentLocation] = useState<WorkLocationValue>("not_set");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [monthlySummary, setMonthlySummary] = useState<MonthlyWFHSummary | null>(null);
 
   useEffect(() => {
     const fetch = async () => {
       try {
+        const summaryRes = await workLocationService.getMonthlyWFHSummary();
         const res = await workLocationService.getWorkLocation(
           getTodayDateStr()
         );
         if (res.data) {
           setCurrentLocation(res.data.location);
+        }
+        if (summaryRes.data) {
+          setMonthlySummary(summaryRes.data);
         }
       } catch (err) {
         console.error("Error fetching work location:", err);
@@ -260,6 +266,18 @@ export const WorkLocationCard: React.FC = () => {
           >
             {locationLabel}
           </div>
+          {monthlySummary && (
+              <div className={`inline-flex items-center gap-1.5 mt-2 ml-1 px-3 py-1 rounded-xl border text-xs font-bold ${
+                  monthlySummary.is_over_limit
+                      ? "bg-red-50 text-red-600 border-red-200"
+                      : "bg-green-50 text-green-700 border-green-200"
+              }`}>
+                  <span className="material-symbols-outlined text-[14px]">
+                      {monthlySummary.is_over_limit ? "warning" : "home_work"}
+                  </span>
+                  WFH this month: {monthlySummary.wfh_days} / {monthlySummary.allowance}
+              </div>
+          )}
         </div>
 
         <button
