@@ -12,6 +12,7 @@ import "./App.css";
 import { TeamParticipation } from "./pages/TeamParticipation";
 import { Schedule } from "./pages/Schedule";
 import { WFHPeriodPage } from "./pages/WFHPeriod";
+import { MealParticipationHistory } from "./pages/MealParticipationHistory";
 
 function App() {
   return (
@@ -89,6 +90,15 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={["admin", "logistics"]}>
                     <WFHPeriodPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/audit-history"
+                element={
+                  <ProtectedRoute allowedRoles={["admin", "logistics"]}>
+                    <MealParticipationHistory />
                   </ProtectedRoute>
                 }
               />

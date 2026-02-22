@@ -25,7 +25,8 @@ export const Navbar: React.FC = () => {
             ? [
                 { id: 'headcount', label: 'Headcount', icon: 'groups', href: '/headcount' },
                 { id: 'schedule', label: 'Schedule', icon: 'calendar_today', href: '/schedule' },
-                { id: 'wfh-periods', label: 'WFH Periods', icon: 'date_range', href: '/wfh-periods' }
+                { id: 'wfh-periods', label: 'WFH Periods', icon: 'date_range', href: '/wfh-periods' },
+                { id: 'audit-history', label: 'Audit History', icon: 'history', href: '/audit-history' },
             ]
             : []),
         ...(user?.role === 'admin' || user?.role === 'team_lead'
