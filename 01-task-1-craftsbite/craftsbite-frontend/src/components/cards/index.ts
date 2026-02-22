@@ -11,3 +11,6 @@ export { AccentBorderCard } from './AccentBorderCard';
 export type { AccentBorderCardProps } from './AccentBorderCard';
 
 export { WorkLocationCard } from './WorkLocationCard';
+
+export { ScheduleCalendar } from './ScheduleCalender';
+export type { ScheduleCalendarProps } from './ScheduleCalender';
