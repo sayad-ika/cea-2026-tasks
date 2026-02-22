@@ -24,10 +24,11 @@ type WorkLocationResponse struct {
 }
 
 type workLocationService struct {
-	repo     repository.WorkLocationRepository
-	userRepo repository.UserRepository
-	teamRepo repository.TeamRepository
- 	wfhPeriodRepo repository.WFHPeriodRepository
+	repo        repository.WorkLocationRepository
+	userRepo    repository.UserRepository
+	teamRepo    repository.TeamRepository
+	wfhPeriodRepo repository.WFHPeriodRepository
+	historyRepo repository.WorkLocationHistoryRepository
 }
 
 func NewWorkLocationService(
@@ -35,8 +36,15 @@ func NewWorkLocationService(
 	userRepo repository.UserRepository,
 	teamRepo repository.TeamRepository,
 	wfhPeriodRepo repository.WFHPeriodRepository,
+	historyRepo repository.WorkLocationHistoryRepository,
 ) WorkLocationService {
-	return &workLocationService{repo: repo, userRepo: userRepo, teamRepo: teamRepo}
+	return &workLocationService{
+		repo:                repo,
+		userRepo:            userRepo,
+		teamRepo:            teamRepo,
+		wfhPeriodRepo:       wfhPeriodRepo,
+		historyRepo:         historyRepo,
+	}
 }
 
 func validateLocation(location string) error {
@@ -59,13 +67,38 @@ func (s *workLocationService) SetMyLocation(userID, date, location string) error
 		return fmt.Errorf("invalid user ID")
 	}
 
+	existing, err := s.repo.FindByUserAndDate(userID, date)
+	if err != nil {
+		return fmt.Errorf("failed to check existing work location: %w", err)
+	}
+
 	wl := &models.WorkLocation{
 		UserID:   userUUID,
 		Date:     date,
 		Location: models.WorkLocationType(location),
 		SetBy:    nil,
 	}
-	return s.repo.Upsert(wl)
+	if err := s.repo.Upsert(wl); err != nil {
+		return err
+	}
+
+	var previousLocation *string
+	if existing != nil {
+		prev := string(existing.Location)
+		previousLocation = &prev
+	}
+
+	history := &models.WorkLocationHistory{
+		ID:               uuid.New(),
+		UserID:           userUUID,
+		Date:             date,
+		Location:         models.WorkLocationType(location),
+		Action:           models.HistoryActionOptedIn,
+		PreviousLocation: previousLocation,
+		OverrideByUserID: nil,
+		OverrideReason:   nil,
+	}
+	return s.historyRepo.Create(history)
 }
 
 func (s *workLocationService) GetMyLocation(userID, date string) (*WorkLocationResponse, error) {
@@ -136,13 +169,39 @@ func (s *workLocationService) SetLocationFor(requesterID, targetUserID, date, lo
 		return fmt.Errorf("invalid requester ID")
 	}
 
+	existing, err := s.repo.FindByUserAndDate(targetUserID, date)
+	if err != nil {
+		return fmt.Errorf("failed to check existing work location: %w", err)
+	}
+
 	wl := &models.WorkLocation{
 		UserID:   targetUUID,
 		Date:     date,
 		Location: models.WorkLocationType(location),
 		SetBy:    &requesterUUID,
+		Reason:   reason,
 	}
-	return s.repo.Upsert(wl)
+	if err := s.repo.Upsert(wl); err != nil {
+		return err
+	}
+
+	var previousLocation *string
+	if existing != nil {
+		prev := string(existing.Location)
+		previousLocation = &prev
+	}
+
+	history := &models.WorkLocationHistory{
+		ID:               uuid.New(),
+		UserID:           targetUUID,
+		Date:             date,
+		Location:         models.WorkLocationType(location),
+		Action:           models.HistoryActionOverrideIn,
+		PreviousLocation: previousLocation,
+		OverrideBy: &requesterUUID,
+		OverrideReason:   reason,
+	}
+	return s.historyRepo.Create(history)
 }
 
 func (s *workLocationService) ListByDate(requesterID, date string) ([]WorkLocationResponse, error) {

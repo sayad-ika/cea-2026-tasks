@@ -74,6 +74,7 @@ func main() {
 	historyRepo := repository.NewHistoryRepository(db)
 	teamRepo := repository.NewTeamRepository(db)
 	workLocationRepo := repository.NewWorkLocationRepository(db)
+	workLocationHistoryRepo := repository.NewWorkLocationHistoryRepository(db)
 	wfhPeriodRepo := repository.NewWFHPeriodRepository(db)
 
 	sseHub := sse.NewHub()
@@ -85,7 +86,7 @@ func main() {
 	mealService := services.NewMealService(mealRepo, scheduleRepo, historyRepo, userRepo, teamRepo, participationResolver, cfg)
 	scheduleService := services.NewScheduleService(scheduleRepo)
 	headcountService := services.NewHeadcountService(userRepo, scheduleRepo, participationResolver, teamRepo, workLocationRepo, wfhPeriodRepo)
-	workLocationService := services.NewWorkLocationService(workLocationRepo, userRepo, teamRepo, wfhPeriodRepo)
+	workLocationService := services.NewWorkLocationService(workLocationRepo, userRepo, teamRepo, wfhPeriodRepo, workLocationHistoryRepo)
 	wfhPeriodService := services.NewWFHPeriodService(wfhPeriodRepo)
 
 	// Phase 4: Initialize advanced feature services
