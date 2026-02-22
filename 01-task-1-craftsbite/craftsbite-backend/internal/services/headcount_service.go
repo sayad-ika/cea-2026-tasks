@@ -131,7 +131,7 @@ func (s *headcountService) getHeadcountByDate(date string) (*DailyHeadcountSumma
 		return nil, err
 	}
 	if schedule == nil {
-		return nil, fmt.Errorf("no schedule set for %s", date)
+		return nil, nil
 	}
 
 	dayStatus := schedule.DayStatus
@@ -140,7 +140,7 @@ func (s *headcountService) getHeadcountByDate(date string) (*DailyHeadcountSumma
 		availableMeals = parseMealTypes(*schedule.AvailableMeals)
 	}
 	if len(availableMeals) == 0 {
-		return nil, fmt.Errorf("no meals configured for %s", date)
+		return nil, nil
 	}
 
 	totalActiveUsers := len(users)
