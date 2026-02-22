@@ -65,7 +65,7 @@ func (h *HistoryHandler) GetAuditTrail(c *gin.Context) {
 	utils.SuccessResponse(c, 200, history, "Audit trail retrieved successfully")
 }
 
-// GetUserHistoryAdmin returns the participation history for a specific user (admin/team lead only)
+// GetUserHistoryAdmin returns the participation history for a specific user (admin/logistics only)
 // GET /api/v1/admin/meals/history/:user_id
 func (h *HistoryHandler) GetUserHistoryAdmin(c *gin.Context) {
 	// Get requester role from context
@@ -75,10 +75,10 @@ func (h *HistoryHandler) GetUserHistoryAdmin(c *gin.Context) {
 		return
 	}
 
-	// Verify requester has permission (admin or team_lead)
+	// Verify requester has permission (admin or logistics)
 	userRole := models.Role(role.(string))
-	if userRole != models.RoleAdmin && userRole != models.RoleTeamLead {
-		utils.ErrorResponse(c, 403, "FORBIDDEN", "Only admins and team leads can view other users' history")
+	if userRole != models.RoleAdmin && userRole != models.RoleLogistics {
+		utils.ErrorResponse(c, 403, "FORBIDDEN", "Only admins and logistics can view other users' history")
 		return
 	}
 
