@@ -20,3 +20,13 @@ export async function getScheduleByDate(
     );
     return response.data;
 }
+
+export async function getScheduleRange(
+    startDate: string,
+    endDate: string,
+): Promise<ApiResponse<ScheduleEntry[]>> {
+    const response = await api.get<ApiResponse<ScheduleEntry[]>>(
+        `/schedules/range?start_date=${startDate}&end_date=${endDate}`,
+    );
+    return response.data;
+}

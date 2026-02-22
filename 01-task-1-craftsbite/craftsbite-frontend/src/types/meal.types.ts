@@ -11,7 +11,9 @@ export type DayStatus =
   | "normal"
   | "office_closed"
   | "govt_holiday"
-  | "celebration";
+  | "celebration"
+  | "weekend"
+  | "event_day";
 
 export type MealPreference = "opt_in" | "opt_out";
 
