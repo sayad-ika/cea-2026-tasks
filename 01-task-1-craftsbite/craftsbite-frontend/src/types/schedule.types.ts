@@ -5,6 +5,8 @@ export const DAY_STATUS_OPTIONS: { value: DayStatus; label: string }[] = [
     { value: "office_closed", label: "Office Closed" },
     { value: "govt_holiday", label: "Govt Holiday" },
     { value: "celebration", label: "Celebration" },
+    { value: "weekend", label: "Weekend" },
+    { value: "event_day", label: "Event Day" },
 ];
 
 export const MEAL_OPTIONS: { value: MealType; label: string }[] = [
@@ -24,6 +26,7 @@ export const STATUS_CONFIG: Record<
     celebration: { icon: "celebration", label: "Celebration" },
     office_closed: { icon: "lock", label: "Office Closed" },
     weekend: { icon: "weekend", label: "Weekend" },
+    event_day: { icon: "star", label: "Event Day" },
 };
 
 export const MEAL_LABELS: Record<string, string> = {
@@ -65,3 +68,12 @@ export interface UpdateScheduleRequest {
     reason?: string;
     available_meals?: MealType[];
 }
+
+export const STATUS_COLORS_FOR_SCHEDULE: Record<string, string> = {
+    normal: "bg-emerald-700 text-emerald-800 border-emerald-400",
+    office_closed: "bg-red-700 text-red-800 border-red-400",
+    govt_holiday: "bg-sky-700 text-sky-800 border-sky-400",
+    celebration: "bg-violet-700 text-violet-800 border-violet-400",
+    weekend: "bg-[#ede8df] text-[var(--color-text-sub)] border-[#d6ccc0]",
+    event_day: "bg-orange-400 text-orange-800 border-orange-400",
+};

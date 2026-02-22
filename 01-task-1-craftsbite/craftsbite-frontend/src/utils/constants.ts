@@ -20,6 +20,8 @@ export const DAY_STATUSES: Record<DayStatus, string> = {
     office_closed: 'Office Closed',
     govt_holiday: 'Government Holiday',
     celebration: 'Celebration',
+    weekend: 'Weekend',
+    event_day: 'Event Day'
 };
 
 // User Roles
