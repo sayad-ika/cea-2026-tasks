@@ -71,8 +71,8 @@ export const HeadcountDashboard: React.FC = () => {
   useEffect(() => {
     if (streamData) {
       setHeadcountData(streamData);
-      setIsLoading(false);
     }
+    setIsLoading(false);
   }, [streamData]);
 
   const getMealLabel = (mealType: string): string =>

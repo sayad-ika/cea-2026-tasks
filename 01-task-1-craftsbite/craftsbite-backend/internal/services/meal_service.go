@@ -45,6 +45,7 @@ type mealService struct {
 	resolver       ParticipationResolver
 	cutoffTime     string
 	cutoffTimezone string
+    forwardWindowDays int
 }
 
 type TeamMemberParticipation struct {
@@ -85,6 +86,7 @@ func NewMealService(
 		resolver:       resolver,
 		cutoffTime:     cfg.Meal.CutoffTime,
 		cutoffTimezone: cfg.Meal.CutoffTimezone,
+	    forwardWindowDays: cfg.Meal.ForwardWindowDays,
 	}
 }
 
@@ -169,14 +171,8 @@ func (s *mealService) GetParticipation(userID, date string) ([]ParticipationStat
 
 // SetParticipation sets a user's participation for a specific date and meal
 func (s *mealService) SetParticipation(userID, date, mealType string, participating bool) error {
-	// Validate date format
-	parsedDate, err := time.Parse("2006-01-02", date)
+	err := s.validateDateWindow(date)
 	if err != nil {
-		return fmt.Errorf("invalid date format, expected YYYY-MM-DD: %w", err)
-	}
-
-	// Validate cutoff time
-	if err := s.validateCutoffTime(parsedDate); err != nil {
 		return err
 	}
 
@@ -233,15 +229,8 @@ func (s *mealService) SetParticipation(userID, date, mealType string, participat
 // OverrideParticipation allows an admin or team lead to override a user's participation
 // Team leads can only override their own team members
 func (s *mealService) OverrideParticipation(requesterID, userID, date, mealType string, participating bool, reason string) error {
-	// Validate date format
-	if _, err := time.Parse("2006-01-02", date); err != nil {
-		return fmt.Errorf("invalid date format, expected YYYY-MM-DD: %w", err)
-	}
-
-	parsedDate, err := time.Parse("2006-01-02", date)
-	
-	// Validate cutoff time
-	if err := s.validateCutoffTime(parsedDate); err != nil {
+	err := s.validateDateWindow(date)
+	if err != nil {
 		return err
 	}
 
@@ -481,4 +470,31 @@ func (s *mealService) GetAllTeamsParticipation(date string) (*TeamParticipationR
         Date:  date,
         Teams: teamGroups,
     }, nil
+}
+
+// Helper function to validate date window and cutoff time
+func (s *mealService) validateDateWindow(date string) error {
+	if err := validateDate(date); err != nil {
+		return fmt.Errorf("invalid date format, expected YYYY-MM-DD: %w", err)
+	}
+
+	parsedDate, _ := time.Parse("2006-01-02", date)
+
+	today := time.Now().Truncate(24 * time.Hour)
+	targetDay := parsedDate.Truncate(24 * time.Hour)
+
+	if targetDay.Before(today) {
+		return fmt.Errorf("cannot set participation for a past date: %s", date)
+	}
+
+	maxDate := today.AddDate(0, 0, s.forwardWindowDays)
+	if targetDay.After(maxDate) {
+		return fmt.Errorf("cannot set participation more than %d days in advance (requested: %s)", s.forwardWindowDays, date)
+	}
+
+	if err := s.validateCutoffTime(parsedDate); err != nil {
+		return err
+	}
+
+	return nil
 }

@@ -14,6 +14,7 @@ import * as mealService from "../services/mealService";
 import { CUTOFF_TIMES } from "../utils/constants";
 import toast from "react-hot-toast";
 import { getTeamDetails } from "../services/userService";
+import { MealParticipationCard } from "../components/cards/MealParticipationCard";
 
 /**
  * Returns true if the cutoff time (9 PM) has passed today.
@@ -212,7 +213,10 @@ export const Home: React.FC = () => {
         </div>
             
         {user?.role === 'employee' && (
-          <WorkLocationCard />
+          <>
+            <WorkLocationCard />
+            <MealParticipationCard />
+          </>
         )}
 
         {/* Meal Cards Grid */}

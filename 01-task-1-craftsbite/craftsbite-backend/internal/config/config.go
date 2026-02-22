@@ -55,6 +55,7 @@ type MealConfig struct {
     CutoffTime     string
     CutoffTimezone string
     WeekendDays    []string
+    ForwardWindowDays int
 }
 
 type CleanupConfig struct {
@@ -114,6 +115,7 @@ func LoadConfig() (*Config, error) {
             CutoffTime:     viper.GetString("MEAL_CUTOFF_TIME"),
             CutoffTimezone: viper.GetString("MEAL_CUTOFF_TIMEZONE"),
             WeekendDays:    parseCommaSeparated(viper.GetString("MEAL_WEEKEND_DAYS")),
+            ForwardWindowDays: viper.GetInt("MEAL_FORWARD_WINDOW_DAYS"),
         },
         Cleanup: CleanupConfig{
             RetentionMonths: viper.GetInt("HISTORY_RETENTION_MONTHS"),
@@ -156,13 +158,14 @@ func setDefaults() {
     viper.SetDefault("MEAL_CUTOFF_TIME", "21:00")
     viper.SetDefault("MEAL_CUTOFF_TIMEZONE", "Asia/Dhaka")
     viper.SetDefault("MEAL_WEEKEND_DAYS", "Saturday,Sunday")
+    viper.SetDefault("MEAL_FORWARD_WINDOW_DAYS", 7)
 
     viper.SetDefault("HISTORY_RETENTION_MONTHS", 3)
     viper.SetDefault("CLEANUP_CRON", "0 2 * * *")
 
     viper.SetDefault("RATE_LIMIT_ENABLED", true)
     viper.SetDefault("RATE_LIMIT_REQUESTS_PER_MINUTE", 100)
-}
+}   
 
 func (c *Config) Validate() error {
     if c.JWT.Secret == "" {
