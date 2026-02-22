@@ -3,6 +3,7 @@ package handlers
 import (
 	"craftsbite-backend/internal/services"
 	"craftsbite-backend/internal/utils"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -114,4 +115,25 @@ func (h *WorkLocationHandler) ListWorkLocationsByDate(c *gin.Context) {
 	}
 
 	utils.SuccessResponse(c, 200, result, "Work locations retrieved")
+}
+
+func (h *WorkLocationHandler) GetMonthlySummary(c *gin.Context) {
+    userID, exists := c.Get("user_id")
+    if !exists {
+        utils.ErrorResponse(c, 401, "UNAUTHORIZED", "User not authenticated")
+        return
+    }
+
+    yearMonth := c.Query("month")
+    if yearMonth == "" {
+        yearMonth = time.Now().Format("2006-01")
+    }
+
+    summary, err := h.svc.GetMonthlySummary(userID.(string), yearMonth)
+    if err != nil {
+        utils.ErrorResponse(c, 400, "SUMMARY_ERROR", err.Error())
+        return
+    }
+
+    utils.SuccessResponse(c, 200, summary, "Monthly WFH summary retrieved")
 }

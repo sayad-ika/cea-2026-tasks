@@ -1,22 +1,23 @@
 package config
 
 import (
-    "fmt"
-    "strings"
-    "time"
+	"fmt"
+	"strings"
+	"time"
 
-    "github.com/spf13/viper"
+	"github.com/spf13/viper"
 )
 
 type Config struct {
-    Server    ServerConfig
-    Database  DatabaseConfig
-    JWT       JWTConfig
-    CORS      CORSConfig
-    Logging   LoggingConfig
-    Meal      MealConfig
-    Cleanup   CleanupConfig
-    RateLimit RateLimitConfig
+    Server       ServerConfig
+    Database     DatabaseConfig
+    JWT          JWTConfig
+    CORS         CORSConfig
+    Logging      LoggingConfig
+    Meal         MealConfig
+    Cleanup      CleanupConfig
+    RateLimit    RateLimitConfig
+    WorkLocation WorkLocationConfig
 }
 
 type ServerConfig struct {
@@ -66,6 +67,10 @@ type CleanupConfig struct {
 type RateLimitConfig struct {
     Enabled           bool
     RequestsPerMinute int
+}
+
+type WorkLocationConfig struct {
+    MonthlyWFHAllowance int
 }
 
 func LoadConfig() (*Config, error) {
@@ -125,6 +130,9 @@ func LoadConfig() (*Config, error) {
             Enabled:           viper.GetBool("RATE_LIMIT_ENABLED"),
             RequestsPerMinute: viper.GetInt("RATE_LIMIT_REQUESTS_PER_MINUTE"),
         },
+        WorkLocation: WorkLocationConfig{
+            MonthlyWFHAllowance: viper.GetInt("WORK_LOCATION_MONTHLY_WFH_ALLOWANCE"),
+        },
     }
 
     if err := config.Validate(); err != nil {
@@ -165,6 +173,8 @@ func setDefaults() {
 
     viper.SetDefault("RATE_LIMIT_ENABLED", true)
     viper.SetDefault("RATE_LIMIT_REQUESTS_PER_MINUTE", 100)
+
+    viper.SetDefault("WORK_LOCATION_MONTHLY_WFH_ALLOWANCE", 5)
 }   
 
 func (c *Config) Validate() error {

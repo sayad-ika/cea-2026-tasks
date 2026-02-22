@@ -86,7 +86,7 @@ func main() {
 	mealService := services.NewMealService(mealRepo, scheduleRepo, historyRepo, userRepo, teamRepo, participationResolver, cfg)
 	scheduleService := services.NewScheduleService(scheduleRepo)
 	headcountService := services.NewHeadcountService(userRepo, scheduleRepo, participationResolver, teamRepo, workLocationRepo, wfhPeriodRepo)
-	workLocationService := services.NewWorkLocationService(workLocationRepo, userRepo, teamRepo, wfhPeriodRepo, workLocationHistoryRepo)
+	workLocationService := services.NewWorkLocationService(workLocationRepo, userRepo, teamRepo, wfhPeriodRepo, workLocationHistoryRepo, cfg)
 	wfhPeriodService := services.NewWFHPeriodService(wfhPeriodRepo)
 
 	// Phase 4: Initialize advanced feature services

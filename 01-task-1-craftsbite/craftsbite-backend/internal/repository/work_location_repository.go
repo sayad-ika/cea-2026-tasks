@@ -3,6 +3,7 @@ package repository
 import (
 	"craftsbite-backend/internal/models"
 	"fmt"
+	"time"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -13,6 +14,7 @@ type WorkLocationRepository interface {
 	FindByUserAndDate(userID, date string) (*models.WorkLocation, error)
 	FindByDate(date string) ([]models.WorkLocation, error)
 	FindByDateAndUserIDs(date string, userIDs []string) ([]models.WorkLocation, error)
+	CountWFHByUserAndMonth(userID, yearMonth string) (int64, error)
 }
 
 type workLocationRepository struct {
@@ -65,4 +67,24 @@ func (r *workLocationRepository) FindByDateAndUserIDs(date string, userIDs []str
 		return nil, fmt.Errorf("failed to list work locations for team: %w", err)
 	}
 	return wls, nil
+}
+
+func (r *workLocationRepository) CountWFHByUserAndMonth(userID, yearMonth string) (int64, error) {
+	// Parse "2026-02" → compute start and exclusive end
+	t, err := time.Parse("2006-01", yearMonth)
+	if err != nil {
+		return 0, fmt.Errorf("invalid yearMonth format, expected YYYY-MM: %w", err)
+	}
+
+	startDate := t.Format("2006-01-02")
+	endDate := t.AddDate(0, 1, 0).Format("2006-01-02")
+
+	var count int64
+	err = r.db.Model(&models.WorkLocation{}).
+		Where("user_id = ? AND location = 'wfh' AND date >= ? AND date <= ?", userID, startDate, endDate).
+		Count(&count).Error
+	if err != nil {
+		return 0, fmt.Errorf("failed to count WFH days: %w", err)
+	}
+	return count, nil
 }

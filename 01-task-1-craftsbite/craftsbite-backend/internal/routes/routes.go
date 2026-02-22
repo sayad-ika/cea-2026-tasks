@@ -147,7 +147,8 @@ func registerWorkLocationRoutes(v1 *gin.RouterGroup, h *Handlers, cfg *config.Co
     {
         wl.GET("", h.WorkLocation.GetMyWorkLocation)
         wl.POST("", h.WorkLocation.SetMyWorkLocation)
-
+        wl.GET("/monthly-summary", h.WorkLocation.GetMonthlySummary)
+        
         wl.POST("/override", middleware.RequireRoles(models.RoleAdmin, models.RoleTeamLead), h.WorkLocation.SetWorkLocationFor)
         wl.GET("/list", middleware.RequireRoles(models.RoleAdmin, models.RoleTeamLead), h.WorkLocation.ListWorkLocationsByDate)
     }

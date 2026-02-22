@@ -27,6 +27,14 @@ export interface WorkLocationListItem {
   location: WorkLocationValue;
 }
 
+
+export interface MonthlyWFHSummary {
+    year_month: string;
+    wfh_days: number;
+    allowance: number;
+    is_over_limit: boolean;
+}
+
 // ---------- API Calls ----------
 
 export async function setWorkLocation(
@@ -62,4 +70,14 @@ export async function getWorkLocationList(
     `/work-location/list?date=${date}`
   );
   return response.data;
+}
+
+export async function getMonthlyWFHSummary(
+    month?: string,
+): Promise<ApiResponse<MonthlyWFHSummary>> {
+    const query = month ? `?month=${month}` : "";
+    const response = await api.get<ApiResponse<MonthlyWFHSummary>>(
+        `/work-location/monthly-summary${query}`,
+    );
+    return response.data;
 }

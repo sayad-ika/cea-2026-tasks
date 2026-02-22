@@ -1,6 +1,7 @@
 package services
 
 import (
+	"craftsbite-backend/internal/config"
 	"craftsbite-backend/internal/models"
 	"craftsbite-backend/internal/repository"
 	"fmt"
@@ -13,7 +14,16 @@ type WorkLocationService interface {
 	GetMyLocation(userID, date string) (*WorkLocationResponse, error)
 	SetLocationFor(requesterID, targetUserID, date, location string, reason *string) error
 	ListByDate(requesterID, date string) ([]WorkLocationResponse, error)
+	GetMonthlySummary(userID, yearMonth string) (*MonthlyWFHSummary, error)
 }
+
+type MonthlyWFHSummary struct {
+    YearMonth  string `json:"year_month"`
+    WFHDays    int64  `json:"wfh_days"`
+    Allowance  int    `json:"allowance"`
+    IsOverLimit bool  `json:"is_over_limit"`
+}
+
 
 type WorkLocationResponse struct {
     UserID   string  `json:"user_id"`
@@ -29,6 +39,7 @@ type workLocationService struct {
 	teamRepo    repository.TeamRepository
 	wfhPeriodRepo repository.WFHPeriodRepository
 	historyRepo repository.WorkLocationHistoryRepository
+	monthlyWFHAllowance int
 }
 
 func NewWorkLocationService(
@@ -37,6 +48,7 @@ func NewWorkLocationService(
 	teamRepo repository.TeamRepository,
 	wfhPeriodRepo repository.WFHPeriodRepository,
 	historyRepo repository.WorkLocationHistoryRepository,
+	cfg *config.Config,
 ) WorkLocationService {
 	return &workLocationService{
 		repo:                repo,
@@ -44,6 +56,7 @@ func NewWorkLocationService(
 		teamRepo:            teamRepo,
 		wfhPeriodRepo:       wfhPeriodRepo,
 		historyRepo:         historyRepo,
+		monthlyWFHAllowance: cfg.WorkLocation.MonthlyWFHAllowance,
 	}
 }
 
@@ -255,4 +268,17 @@ func (s *workLocationService) ListByDate(requesterID, date string) ([]WorkLocati
         result = []WorkLocationResponse{}
     }
     return result, nil
+}
+
+func (s *workLocationService) GetMonthlySummary(userID, yearMonth string) (*MonthlyWFHSummary, error) {
+    count, err := s.repo.CountWFHByUserAndMonth(userID, yearMonth)
+    if err != nil {
+        return nil, err
+    }
+    return &MonthlyWFHSummary{
+        YearMonth:   yearMonth,
+        WFHDays:     count,
+        Allowance:   s.monthlyWFHAllowance,
+        IsOverLimit: count > int64(s.monthlyWFHAllowance),
+    }, nil
 }
