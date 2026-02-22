@@ -5,6 +5,7 @@ import (
 	"craftsbite-backend/internal/models"
 	"craftsbite-backend/internal/repository"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -292,12 +293,22 @@ func (s *mealService) OverrideParticipation(requesterID, userID, date, mealType 
 		action = models.HistoryActionOverrideIn
 	}
 
+	previousValue := func() *string {
+    if existing != nil {
+        v := strconv.FormatBool(existing.IsParticipating)
+        return &v
+    }
+    return nil
+	}()
+
 	history := &models.MealParticipationHistory{
 		ID:              uuid.New(),
 		UserID:          uuid.MustParse(userID),
 		Date:            date,
 		MealType:        models.MealType(mealType),
 		Action:          action,
+		PreviousValue:   previousValue,
+		Reason:          &reason,
 		ChangedByUserID: &requesterUUID,
 	}
 

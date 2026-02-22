@@ -60,8 +60,7 @@ func registerUserRoutes(v1 *gin.RouterGroup, h *Handlers, cfg *config.Config) {
     users := v1.Group("/users")
     users.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
     {
-        // Admin only routes
-        users.GET("", middleware.RequireRoles(models.RoleAdmin), h.User.ListUsers)
+        users.GET("", middleware.RequireRoles(models.RoleAdmin, models.RoleLogistics), h.User.ListUsers)
         users.POST("", middleware.RequireRoles(models.RoleAdmin), h.User.CreateUser)
         users.DELETE("/:id", middleware.RequireRoles(models.RoleAdmin), h.User.DeactivateUser)
 
@@ -135,11 +134,10 @@ func registerHeadcountRoutes(v1 *gin.RouterGroup, h *Handlers, cfg *config.Confi
 
 func registerAdminRoutes(v1 *gin.RouterGroup, h *Handlers, cfg *config.Config) {
     admin := v1.Group("/admin")
-    admin.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
-    admin.Use(middleware.RequireRoles(models.RoleAdmin, models.RoleTeamLead))
+    admin.Use(middleware.AuthMiddleware(cfg.JWT.Secret))    
     {
-        admin.GET("/meals/history/:user_id", h.History.GetUserHistoryAdmin)
-        admin.POST("/meals/bulk-optouts", h.BulkOptOut.AdminBulkOptOut)
+        admin.POST("/meals/bulk-optouts", middleware.RequireRoles(models.RoleAdmin, models.RoleTeamLead), h.BulkOptOut.AdminBulkOptOut)
+        admin.GET("/meals/history/:user_id", middleware.RequireRoles(models.RoleAdmin, models.RoleLogistics), h.History.GetUserHistoryAdmin)
     }
 }
 

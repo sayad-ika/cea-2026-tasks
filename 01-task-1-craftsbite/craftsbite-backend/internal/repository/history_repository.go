@@ -14,6 +14,7 @@ type HistoryRepository interface {
 	FindByUser(userID string, limit int) ([]models.MealParticipationHistory, error)
 	FindByUserAndDateRange(userID, startDate, endDate string) ([]models.MealParticipationHistory, error)
 	DeleteOlderThan(months int) (int64, error)
+	FindAll(limit int) ([]models.MealParticipationHistory, error)
 }
 
 // historyRepository implements HistoryRepository
@@ -38,6 +39,7 @@ func (r *historyRepository) Create(history *models.MealParticipationHistory) err
 func (r *historyRepository) FindByUser(userID string, limit int) ([]models.MealParticipationHistory, error) {
 	var history []models.MealParticipationHistory
 	query := r.db.Where("user_id = ?", userID).
+		Preload("ChangedBy").
 		Order("created_at DESC")
 
 	if limit > 0 {
@@ -55,6 +57,7 @@ func (r *historyRepository) FindByUser(userID string, limit int) ([]models.MealP
 func (r *historyRepository) FindByUserAndDateRange(userID, startDate, endDate string) ([]models.MealParticipationHistory, error) {
 	var history []models.MealParticipationHistory
 	err := r.db.Where("user_id = ? AND date BETWEEN ? AND ?", userID, startDate, endDate).
+		Preload("ChangedBy").
 		Order("created_at DESC").
 		Find(&history).Error
 	if err != nil {
@@ -75,4 +78,20 @@ func (r *historyRepository) DeleteOlderThan(months int) (int64, error) {
 	}
 
 	return result.RowsAffected, nil
+}
+
+func (r *historyRepository) FindAll(limit int) ([]models.MealParticipationHistory, error) {
+    var history []models.MealParticipationHistory
+    query := r.db.Preload("ChangedBy").
+        Order("created_at DESC")
+
+    if limit > 0 {
+        query = query.Limit(limit)
+    }
+
+    err := query.Find(&history).Error
+    if err != nil {
+        return nil, fmt.Errorf("failed to find all history records: %w", err)
+    }
+    return history, nil
 }
