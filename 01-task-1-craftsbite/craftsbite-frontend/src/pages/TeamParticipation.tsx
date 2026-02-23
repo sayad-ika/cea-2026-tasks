@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Header, Navbar, Footer, LoadingSpinner } from "../components";
+import { WFHMonthlyReport } from "../components/cards";
 import { useAuth } from "../contexts/AuthContext";
 import { getAllTeamsParticipation, getTeamParticipation, createBatchBulkOptOut } from "../services/mealService";
 import toast from "react-hot-toast";
@@ -16,6 +17,8 @@ export const TeamParticipation: React.FC = () => {
 
   const [teams, setTeams] = useState<TeamParticipationGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const [showWFHReport, setShowWFHReport] = useState(false);
 
   const [panelStep, setPanelStep] = useState<PanelStep>(null);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -79,6 +82,11 @@ export const TeamParticipation: React.FC = () => {
   };
 
   const allSelected = allMembers.length > 0 && selectedUserIds.length === allMembers.length;
+
+  const memberNames = useMemo<Record<string, string>>(
+    () => Object.fromEntries(allMembers.map((m) => [m.user_id, m.name])),
+    [allMembers],
+  );
 
   const toggleMeal = (meal: string) =>
     setMealTypes((prev) =>
@@ -153,18 +161,32 @@ export const TeamParticipation: React.FC = () => {
           </div>
 
           {isPrivileged && panelStep === null && (
-            <button
-              type="button"
-              onClick={openPicker}
-              className="px-5 py-3 rounded-xl bg-gradient-to-br from-[#fa8c47] to-[#e57a36] text-white font-bold shadow-[6px_6px_12px_#e6dccf,-6px_-6px_12px_#ffffff] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 text-sm self-start md:self-auto"
-            >
-              <span className="material-symbols-outlined text-[18px]">block</span>
-              Bulk Opt-Out
-            </button>
+            <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
+              <button
+                type="button"
+                onClick={() => setShowWFHReport((v) => !v)}
+                className={`px-5 py-3 rounded-xl font-bold transition-all flex items-center gap-2 text-sm ${
+                  showWFHReport
+                    ? "bg-[var(--color-background-dark)] text-white shadow-[6px_6px_12px_#e6dccf,-6px_-6px_12px_#ffffff] hover:scale-[1.02] active:scale-[0.98]"
+                    : "border border-[#e6dccf] bg-[var(--color-background-light)] text-[var(--color-text-sub)] shadow-[var(--shadow-clay-button)] hover:text-[var(--color-text-main)]"
+                }`}
+              >
+                <span className="material-symbols-outlined text-[18px]">home_work</span>
+                WFH Report
+              </button>
+              <button
+                type="button"
+                onClick={openPicker}
+                className="px-5 py-3 rounded-xl bg-gradient-to-br from-[#fa8c47] to-[#e57a36] text-white font-bold shadow-[6px_6px_12px_#e6dccf,-6px_-6px_12px_#ffffff] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 text-sm"
+              >
+                <span className="material-symbols-outlined text-[18px]">block</span>
+                Bulk Opt-Out
+              </button>
+            </div>
           )}
         </div>
 
-        {!panelStep && mealColumns.length > 0 && (
+        {!panelStep && !showWFHReport && mealColumns.length > 0 && (
           <div className="bg-[#FFFDF5] rounded-[2rem] p-6 md:p-8 border border-[#e6dccf] shadow-[var(--shadow-clay-card)]">
             <div className="flex items-center justify-between mb-5">
               <div>
@@ -229,18 +251,18 @@ export const TeamParticipation: React.FC = () => {
                               <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-700 font-bold text-sm shadow-sm shrink-0">
                                 {member.name.charAt(0)}
                               </div>
-                            <div>
-                              <p className="font-bold text-[var(--color-background-dark)]">{member.name}</p>
-                              {member.user_id === team.team_lead_user_id && (
-                                <span className="text-xs text-orange-500 font-semibold">Team Lead</span>
-                              )}
-                              {member.is_over_wfh_limit && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 border border-red-200 rounded-lg px-2 py-0.5 mt-0.5">
-                                  <span className="material-symbols-outlined text-[12px]">warning</span>
-                                  WFH over limit
-                                </span>
-                              )}
-                            </div>
+                              <div>
+                                <p className="font-bold text-[var(--color-background-dark)]">{member.name}</p>
+                                {member.user_id === team.team_lead_user_id && (
+                                  <span className="text-xs text-orange-500 font-semibold">Team Lead</span>
+                                )}
+                                {member.is_over_wfh_limit && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 border border-red-200 rounded-lg px-2 py-0.5 mt-0.5">
+                                    <span className="material-symbols-outlined text-[12px]">warning</span>
+                                    WFH over limit
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </td>
 
@@ -262,6 +284,10 @@ export const TeamParticipation: React.FC = () => {
           </div>
         </div>)
         }
+
+        {isPrivileged && showWFHReport && !panelStep && (
+          <WFHMonthlyReport memberNames={memberNames} />
+        )}
 
         {!panelStep && mealColumns.length === 0 && (
           <div className="bg-[#FFFDF5] rounded-[2rem] p-8 border border-[#e6dccf] shadow-[var(--shadow-clay-card)] flex flex-col items-center justify-center text-center gap-3 py-16">

@@ -35,6 +35,22 @@ export interface MonthlyWFHSummary {
     is_over_limit: boolean;
 }
 
+export interface MemberWFHSummary {
+    user_id: string;
+    wfh_days: number;
+    is_over_limit: boolean;
+    extra_days: number;
+}
+
+export interface TeamMonthlyReport {
+    year_month: string;
+    allowance: number;
+    total_employees: number;
+    over_limit_count: number;
+    total_extra_days: number;
+    members: MemberWFHSummary[];
+}
+
 // ---------- API Calls ----------
 
 export async function setWorkLocation(
@@ -81,3 +97,14 @@ export async function getMonthlyWFHSummary(
     );
     return response.data;
 }
+
+export async function fetchWFHReport(month?: string): Promise<ApiResponse<TeamMonthlyReport>> {
+    const params = month ? `?month=${month}` : "";
+    
+    const response = await api.get<ApiResponse<TeamMonthlyReport>>(
+        `/work-location/team-monthly-report${params}`,
+    );
+
+    return response.data;
+}
+

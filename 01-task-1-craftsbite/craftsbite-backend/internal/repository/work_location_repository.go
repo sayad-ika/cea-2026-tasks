@@ -15,6 +15,7 @@ type WorkLocationRepository interface {
 	FindByDate(date string) ([]models.WorkLocation, error)
 	FindByDateAndUserIDs(date string, userIDs []string) ([]models.WorkLocation, error)
 	CountWFHByUserAndMonth(userID, yearMonth string) (int64, error)
+	GetMonthlyWFHCountsByUsers(yearMonth string, userIDs []string) (map[string]int64, error)
 }
 
 type workLocationRepository struct {
@@ -87,4 +88,39 @@ func (r *workLocationRepository) CountWFHByUserAndMonth(userID, yearMonth string
 		return 0, fmt.Errorf("failed to count WFH days: %w", err)
 	}
 	return count, nil
+}
+
+func (r *workLocationRepository) GetMonthlyWFHCountsByUsers(yearMonth string, userIDs []string) (map[string]int64, error) {
+    if len(userIDs) == 0 {
+        return map[string]int64{}, nil
+    }
+
+    t, err := time.Parse("2006-01", yearMonth)
+    if err != nil {
+        return nil, fmt.Errorf("invalid yearMonth format, expected YYYY-MM: %w", err)
+    }
+
+    startDate := t.Format("2006-01-02")
+    endDate := t.AddDate(0, 1, 0).Format("2006-01-02")
+
+    type row struct {
+        UserID string
+        Count  int64
+    }
+
+    var rows []row
+    err = r.db.Model(&models.WorkLocation{}).
+        Select("user_id, COUNT(*) as count").
+        Where("location = 'wfh' AND date >= ? AND date < ? AND user_id IN ?", startDate, endDate, userIDs).
+        Group("user_id").
+        Scan(&rows).Error
+    if err != nil {
+        return nil, fmt.Errorf("failed to count WFH days by user: %w", err)
+    }
+
+    result := make(map[string]int64, len(userIDs))
+    for _, r := range rows {
+        result[r.UserID] = r.Count
+    }
+    return result, nil
 }

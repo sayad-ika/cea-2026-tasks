@@ -137,3 +137,24 @@ func (h *WorkLocationHandler) GetMonthlySummary(c *gin.Context) {
 
     utils.SuccessResponse(c, 200, summary, "Monthly WFH summary retrieved")
 }
+
+func (h *WorkLocationHandler) GetTeamMonthlyReport(c *gin.Context) {
+    requesterID, exists := c.Get("user_id")
+    if !exists {
+        utils.ErrorResponse(c, 401, "UNAUTHORIZED", "User not authenticated")
+        return
+    }
+
+    yearMonth := c.Query("month")
+    if yearMonth == "" {
+        yearMonth = time.Now().Format("2006-01")
+    }
+
+    rollup, err := h.svc.GetTeamMonthlyReport(requesterID.(string), yearMonth)
+    if err != nil {
+        utils.ErrorResponse(c, 400, "ROLLUP_ERROR", err.Error())
+        return
+    }
+
+    utils.SuccessResponse(c, 200, rollup, "Monthly WFH report retrieved")
+}
