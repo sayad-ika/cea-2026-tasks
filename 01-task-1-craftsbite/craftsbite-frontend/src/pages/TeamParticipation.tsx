@@ -29,6 +29,7 @@ export const TeamParticipation: React.FC = () => {
   const [reason, setReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
+  const [showOverLimitOnly, setShowOverLimitOnly] = useState(false);
 
   const fetchTeamParticipation = useCallback(async () => {
     try {
@@ -50,13 +51,23 @@ export const TeamParticipation: React.FC = () => {
     fetchTeamParticipation();
   }, [fetchTeamParticipation]);
 
-  const allMembers = useMemo(() => teams.flatMap((t) => t.members), [teams]);
+  const displayedTeams = useMemo(() => {
+    if (!showOverLimitOnly) return teams;
+    return teams
+      .map((team) => ({
+        ...team,
+        members: team.members.filter((m) => m.is_over_wfh_limit),
+      }))
+      .filter((team) => team.members.length > 0);
+  }, [teams, showOverLimitOnly]);
+  
+  const allMembers = useMemo(() => displayedTeams.flatMap((t) => t.members), [displayedTeams]);
 
   const mealColumns = useMemo(() => {
-    const firstMember = teams[0]?.members[0];
+    const firstMember = displayedTeams[0]?.members[0];
     if (!firstMember) return [];
     return (Object.keys(MEAL_TYPES) as MealType[]).filter((k) => k in firstMember.meals);
-  }, [teams]);
+  }, [displayedTeams]);
 
   const toggleUser = (id: string) =>
     setSelectedUserIds((prev) =>
@@ -151,39 +162,55 @@ export const TeamParticipation: React.FC = () => {
       <main className="flex-grow container mx-auto px-6 py-8 md:px-12 flex flex-col gap-6">
         {/* Page header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-          <div>
-            <h2 className="text-4xl font-black text-left text-[var(--color-background-dark)] mb-2 tracking-tight">
-              Team Participation
-            </h2>
-            <p className="text-lg text-[var(--color-text-sub)] font-medium">
-              Today's meal participation status for your team.
-            </p>
-          </div>
-
-          {isPrivileged && panelStep === null && (
-            <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
-              <button
-                type="button"
-                onClick={() => setShowWFHReport((v) => !v)}
-                className={`px-5 py-3 rounded-xl font-bold transition-all flex items-center gap-2 text-sm ${
-                  showWFHReport
-                    ? "bg-[var(--color-background-dark)] text-white shadow-[6px_6px_12px_#e6dccf,-6px_-6px_12px_#ffffff] hover:scale-[1.02] active:scale-[0.98]"
-                    : "border border-[#e6dccf] bg-[var(--color-background-light)] text-[var(--color-text-sub)] shadow-[var(--shadow-clay-button)] hover:text-[var(--color-text-main)]"
-                }`}
-              >
-                <span className="material-symbols-outlined text-[18px]">home_work</span>
-                WFH Report
-              </button>
-              <button
-                type="button"
-                onClick={openPicker}
-                className="px-5 py-3 rounded-xl bg-gradient-to-br from-[#fa8c47] to-[#e57a36] text-white font-bold shadow-[6px_6px_12px_#e6dccf,-6px_-6px_12px_#ffffff] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 text-sm"
-              >
-                <span className="material-symbols-outlined text-[18px]">block</span>
-                Bulk Opt-Out
-              </button>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h3 className="text-xl font-black text-left tracking-tight text-[var(--color-background-dark)]">
+                  Participation Roster
+                </h3>
+               <p className="text-sm text-[var(--color-text-sub)] font-medium mt-0.5">
+                  Showing{" "}
+                  <span className="font-bold text-[var(--color-primary)]">{allMembers.length}</span>{" "}
+                  members across {teams.length} team{teams.length !== 1 ? "s" : ""}
+                </p>
+              </div>
             </div>
-          )}
+
+            {isPrivileged && panelStep === null && (
+              <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setShowOverLimitOnly((v) => !v)}
+                  className={`px-5 py-3 rounded-xl font-bold transition-all flex items-center gap-2 text-sm ${
+                    showOverLimitOnly
+                      ? "bg-red-600 text-white shadow-[6px_6px_12px_#e6dccf,-6px_-6px_12px_#ffffff] hover:scale-[1.02] active:scale-[0.98]"
+                      : "border border-red-200 bg-red-50 text-red-600 shadow-[var(--shadow-clay-button)] hover:bg-red-100"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[18px]">warning</span>
+                  Over Limit Only
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowWFHReport((v) => !v)}
+                  className={`px-5 py-3 rounded-xl font-bold transition-all flex items-center gap-2 text-sm ${
+                    showWFHReport
+                      ? "bg-[var(--color-background-dark)] text-white shadow-[6px_6px_12px_#e6dccf,-6px_-6px_12px_#ffffff] hover:scale-[1.02] active:scale-[0.98]"
+                      : "border border-[#e6dccf] bg-[var(--color-background-light)] text-[var(--color-text-sub)] shadow-[var(--shadow-clay-button)] hover:text-[var(--color-text-main)]"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[18px]">home_work</span>
+                  WFH Report
+                </button>
+                <button
+                  type="button"
+                  onClick={openPicker}
+                  className="px-5 py-3 rounded-xl bg-gradient-to-br from-[#fa8c47] to-[#e57a36] text-white font-bold shadow-[6px_6px_12px_#e6dccf,-6px_-6px_12px_#ffffff] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 text-sm"
+                >
+                  <span className="material-symbols-outlined text-[18px]">block</span>
+                  Bulk Opt-Out
+                </button>
+              </div>
+            )}
         </div>
 
         {!panelStep && !showWFHReport && mealColumns.length > 0 && (
@@ -225,7 +252,7 @@ export const TeamParticipation: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  teams.map((team) => (
+                  displayedTeams.map((team) => (
                     <React.Fragment key={team.team_id}>
                       {/* Team header */}
                       <tr>
