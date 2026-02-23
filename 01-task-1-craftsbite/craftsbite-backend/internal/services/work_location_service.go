@@ -15,6 +15,7 @@ type WorkLocationService interface {
 	SetLocationFor(requesterID, targetUserID, date, location string, reason *string) error
 	ListByDate(requesterID, date string) ([]WorkLocationResponse, error)
 	GetMonthlySummary(userID, yearMonth string) (*MonthlyWFHSummary, error)
+	GetTeamMonthlyReport(requesterID, yearMonth string) (*TeamMonthlyReport, error)
 }
 
 type MonthlyWFHSummary struct {
@@ -24,13 +25,28 @@ type MonthlyWFHSummary struct {
     IsOverLimit bool  `json:"is_over_limit"`
 }
 
-
 type WorkLocationResponse struct {
     UserID   string  `json:"user_id"`
     Date     string  `json:"date"`
     Location string  `json:"location"`
     SetBy    string  `json:"set_by,omitempty"`
     Reason   *string `json:"reason,omitempty"`
+}
+
+type MemberWFHSummary struct {
+    UserID      string `json:"user_id"`
+    WFHDays     int64  `json:"wfh_days"`
+    IsOverLimit bool   `json:"is_over_limit"`
+    ExtraDays   int64  `json:"extra_days"`
+}
+
+type TeamMonthlyReport struct {
+    YearMonth      string             `json:"year_month"`
+    Allowance      int                `json:"allowance"`
+    TotalEmployees int                `json:"total_employees"`
+    OverLimitCount int                `json:"over_limit_count"`
+    TotalExtraDays int64              `json:"total_extra_days"`
+    Members        []MemberWFHSummary `json:"members"`
 }
 
 type workLocationService struct {
@@ -281,4 +297,66 @@ func (s *workLocationService) GetMonthlySummary(userID, yearMonth string) (*Mont
         Allowance:   s.monthlyWFHAllowance,
         IsOverLimit: count > int64(s.monthlyWFHAllowance),
     }, nil
+}
+
+func (s *workLocationService) GetTeamMonthlyReport(requesterID, yearMonth string) (*TeamMonthlyReport, error) {
+    requester, err := s.userRepo.FindByID(requesterID)
+    if err != nil {
+        return nil, fmt.Errorf("requester not found")
+    }
+
+    var userIDs []string
+
+    if requester.Role == models.RoleTeamLead {
+        teams, err := s.teamRepo.FindByTeamLeadID(requesterID)
+        if err != nil {
+            return nil, fmt.Errorf("failed to load teams: %w", err)
+        }
+        for _, team := range teams {
+            for _, member := range team.Members {
+                userIDs = append(userIDs, member.ID.String())
+            }
+        }
+    } else {
+        users, err := s.userRepo.FindAll(map[string]interface{}{"active": true})
+        if err != nil {
+            return nil, fmt.Errorf("failed to load users: %w", err)
+        }
+        for _, u := range users {
+            userIDs = append(userIDs, u.ID.String())
+        }
+    }
+
+    counts, err := s.repo.GetMonthlyWFHCountsByUsers(yearMonth, userIDs)
+    if err != nil {
+        return nil, err
+    }
+
+    rollup := &TeamMonthlyReport{
+        YearMonth:  yearMonth,
+        Allowance:  s.monthlyWFHAllowance,
+        TotalEmployees: len(userIDs),
+        Members:    make([]MemberWFHSummary, 0, len(userIDs)),
+    }
+
+    for _, id := range userIDs {
+        wfhDays := counts[id]
+        extra := wfhDays - int64(s.monthlyWFHAllowance)
+        if extra < 0 {
+            extra = 0
+        }
+        member := MemberWFHSummary{
+            UserID:      id,
+            WFHDays:     wfhDays,
+            IsOverLimit: wfhDays > int64(s.monthlyWFHAllowance),
+            ExtraDays:   extra,
+        }
+        if member.IsOverLimit {
+            rollup.OverLimitCount++
+            rollup.TotalExtraDays += extra
+        }
+        rollup.Members = append(rollup.Members, member)
+    }
+
+    return rollup, nil
 }
