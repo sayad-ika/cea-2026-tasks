@@ -43,10 +43,12 @@ type mealService struct {
 	historyRepo    repository.HistoryRepository
 	userRepo       repository.UserRepository
 	teamRepo       repository.TeamRepository
+    wlRepo              repository.WorkLocationRepository
 	resolver       ParticipationResolver
 	cutoffTime     string
 	cutoffTimezone string
     forwardWindowDays int
+    monthlyWFHAllowance int
 }
 
 type TeamMemberParticipation struct {
@@ -54,6 +56,7 @@ type TeamMemberParticipation struct {
     Name     string                 `json:"name"`
     Email    string                 `json:"email"`
     Meals    map[string]bool        `json:"meals"`
+	IsOverWFHLimit  bool            `json:"is_over_wfh_limit"`
 }
 
 type TeamParticipationGroup struct {
@@ -75,6 +78,7 @@ func NewMealService(
 	historyRepo repository.HistoryRepository,
 	userRepo repository.UserRepository,
 	teamRepo repository.TeamRepository,
+	workLocationRepo repository.WorkLocationRepository,
 	resolver ParticipationResolver,
 	cfg *config.Config,
 ) MealService {
@@ -84,10 +88,12 @@ func NewMealService(
 		historyRepo:    historyRepo,
 		userRepo:       userRepo,
 		teamRepo:       teamRepo,
+		wlRepo:         workLocationRepo,
 		resolver:       resolver,
 		cutoffTime:     cfg.Meal.CutoffTime,
 		cutoffTimezone: cfg.Meal.CutoffTimezone,
 	    forwardWindowDays: cfg.Meal.ForwardWindowDays,
+		monthlyWFHAllowance: cfg.WorkLocation.MonthlyWFHAllowance,
 	}
 }
 
@@ -405,6 +411,7 @@ func (s *mealService) getTeamParticipationWithMeals(teamLeadID, date string, ava
                 Name:   member.Name,
                 Email:  member.Email,
                 Meals:  mealStatus,
+    			IsOverWFHLimit: s.isOverWFHLimit(memberID),
             })
         }
         if members == nil {
@@ -450,6 +457,7 @@ func (s *mealService) GetAllTeamsParticipation(date string) (*TeamParticipationR
             Name:   team.TeamLead.Name,
             Email:  team.TeamLead.Email,
             Meals:  leadMealStatus,
+		    IsOverWFHLimit: s.isOverWFHLimit(team.TeamLeadID.String()),
         }
 
         var members []TeamMemberParticipation
@@ -463,6 +471,7 @@ func (s *mealService) GetAllTeamsParticipation(date string) (*TeamParticipationR
                 Name:   member.Name,
                 Email:  member.Email,
                 Meals:  mealStatus,
+				IsOverWFHLimit: s.isOverWFHLimit(member.ID.String()),
             })
         }
 
@@ -508,4 +517,13 @@ func (s *mealService) validateDateWindow(date string) error {
 	}
 
 	return nil
+}
+
+func (s *mealService) isOverWFHLimit(userID string) bool {
+    yearMonth := time.Now().Format("2006-01")
+    count, err := s.wlRepo.CountWFHByUserAndMonth(userID, yearMonth)
+    if err != nil {
+        return false
+    }
+    return count > int64(s.monthlyWFHAllowance)
 }

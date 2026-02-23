@@ -229,12 +229,18 @@ export const TeamParticipation: React.FC = () => {
                               <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-700 font-bold text-sm shadow-sm shrink-0">
                                 {member.name.charAt(0)}
                               </div>
-                              <div>
-                                <p className="font-bold text-[var(--color-background-dark)]">{member.name}</p>
-                                {member.user_id === team.team_lead_user_id && (
-                                  <span className="text-xs text-orange-500 font-semibold">Team Lead</span>
-                                )}
-                              </div>
+                            <div>
+                              <p className="font-bold text-[var(--color-background-dark)]">{member.name}</p>
+                              {member.user_id === team.team_lead_user_id && (
+                                <span className="text-xs text-orange-500 font-semibold">Team Lead</span>
+                              )}
+                              {member.is_over_wfh_limit && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 border border-red-200 rounded-lg px-2 py-0.5 mt-0.5">
+                                  <span className="material-symbols-outlined text-[12px]">warning</span>
+                                  WFH over limit
+                                </span>
+                              )}
+                            </div>
                             </div>
                           </td>
 

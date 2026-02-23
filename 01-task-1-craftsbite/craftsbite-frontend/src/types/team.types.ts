@@ -3,6 +3,7 @@ export interface TeamMemberParticipation {
   name: string;
   email: string;
   meals: Record<string, boolean>;
+  is_over_wfh_limit?: boolean;
 }
 
 export interface TeamParticipationGroup {
