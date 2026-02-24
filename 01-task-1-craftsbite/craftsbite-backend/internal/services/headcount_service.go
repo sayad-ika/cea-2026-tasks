@@ -1,6 +1,7 @@
 package services
 
 import (
+	"craftsbite-backend/internal/config"
 	"craftsbite-backend/internal/models"
 	"craftsbite-backend/internal/repository"
 	"fmt"
@@ -14,6 +15,7 @@ type HeadcountService interface {
 	GetHeadcountByDate(date string) (*DailyHeadcountSummary, error)
 	GetDetailedHeadcount(date, mealType string) (*DetailedHeadcount, error)
 	GenerateAnnouncement(date string) (string, error)
+	GetForecast(days int) ([]*DailyHeadcountSummary, error)
 }
 
 // MealHeadcount represents participation breakdown for a single meal
@@ -72,6 +74,7 @@ type headcountService struct {
 	teamRepo         repository.TeamRepository
 	workLocationRepo repository.WorkLocationRepository
 	wfhPeriodRepo    repository.WFHPeriodRepository
+	maxForecastDays   int
 }
 
 // NewHeadcountService creates a new headcount service
@@ -82,6 +85,7 @@ func NewHeadcountService(
 	teamRepo repository.TeamRepository,
 	workLocationRepo repository.WorkLocationRepository,
 	wfhPeriodRepo repository.WFHPeriodRepository,
+	cfg *config.Config,
 ) HeadcountService {
 	return &headcountService{
 		userRepo:         userRepo,
@@ -90,6 +94,7 @@ func NewHeadcountService(
 		teamRepo:         teamRepo,
 		workLocationRepo: workLocationRepo,
 		wfhPeriodRepo:    wfhPeriodRepo,
+		maxForecastDays: cfg.Headcount.MaxForecastDays,
 	}
 }
 
@@ -427,4 +432,42 @@ func (s *headcountService) GenerateAnnouncement(date string) (string, error) {
 	sb.WriteString("\n\nPlease confirm your meal preference if you haven't already. Thank you! 🙏")
 
 	return sb.String(), nil
+}
+
+func (s *headcountService) GetForecast(days int) ([]*DailyHeadcountSummary, error) {
+	maxDays := s.maxForecastDays
+    if days <= 0 {
+        days = 7
+    }
+    if days > maxDays {
+        days = maxDays
+    }
+
+    results := make([]*DailyHeadcountSummary, 0, days)
+    today := time.Now()
+
+    for i := 0; i <= days; i++ {
+        next := today.AddDate(0, 0, i)
+        if next.Weekday() == time.Saturday || next.Weekday() == time.Sunday {
+            continue
+        }
+
+        date := next.Format("2006-01-02")
+        summary, err := s.getHeadcountByDate(date)
+        if err != nil {
+            return nil, err
+        }
+
+        if summary == nil {
+            results = append(results, &DailyHeadcountSummary{
+                Date:      date,
+                DayStatus: models.DayStatusNormal,
+                Meals:     map[string]MealHeadcount{},
+            })
+        } else {
+            results = append(results, summary)
+        }
+    }
+
+    return results, nil
 }

@@ -125,6 +125,7 @@ func registerHeadcountRoutes(v1 *gin.RouterGroup, h *Handlers, cfg *config.Confi
     headcount.Use(middleware.RequireRoles(models.RoleAdmin, models.RoleLogistics))
     {
         headcount.GET("/today", h.Headcount.GetTodayHeadcount)
+        headcount.GET("/forecast", h.Headcount.GetForecast)
         headcount.GET("/:date/announcement", h.Headcount.GetAnnouncement)
         headcount.GET("/:date/stream", h.Headcount.StreamHeadcount)
         headcount.GET("/:date/:meal_type", h.Headcount.GetDetailedHeadcount)

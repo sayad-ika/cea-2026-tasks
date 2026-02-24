@@ -18,6 +18,7 @@ type Config struct {
     Cleanup      CleanupConfig
     RateLimit    RateLimitConfig
     WorkLocation WorkLocationConfig
+    Headcount HeadcountConfig
 }
 
 type ServerConfig struct {
@@ -71,6 +72,10 @@ type RateLimitConfig struct {
 
 type WorkLocationConfig struct {
     MonthlyWFHAllowance int
+}
+
+type HeadcountConfig struct {
+    MaxForecastDays int
 }
 
 func LoadConfig() (*Config, error) {
@@ -133,6 +138,9 @@ func LoadConfig() (*Config, error) {
         WorkLocation: WorkLocationConfig{
             MonthlyWFHAllowance: viper.GetInt("WORK_LOCATION_MONTHLY_WFH_ALLOWANCE"),
         },
+        Headcount: HeadcountConfig{
+            MaxForecastDays: viper.GetInt("HEADCOUNT_MAX_FORECAST_DAYS"),
+        },
     }
 
     if err := config.Validate(); err != nil {
@@ -175,6 +183,7 @@ func setDefaults() {
     viper.SetDefault("RATE_LIMIT_REQUESTS_PER_MINUTE", 100)
 
     viper.SetDefault("WORK_LOCATION_MONTHLY_WFH_ALLOWANCE", 5)
+    viper.SetDefault("HEADCOUNT_MAX_FORECAST_DAYS", 14)
 }   
 
 func (c *Config) Validate() error {
