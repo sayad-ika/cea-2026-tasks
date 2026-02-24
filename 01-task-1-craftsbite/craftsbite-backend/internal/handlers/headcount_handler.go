@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -130,3 +131,21 @@ func (h *HeadcountHandler) StreamHeadcount(c *gin.Context) {
 		return false
 	})
 }
+
+func (h *HeadcountHandler) GetForecast(c *gin.Context) {
+    days := 7
+    if daysStr := c.Query("days"); daysStr != "" {
+        if parsed, err := strconv.Atoi(daysStr); err == nil {
+            days = parsed
+        }
+    }
+
+    summaries, err := h.headcountService.GetForecast(days)
+    if err != nil {
+        utils.ErrorResponse(c, 500, "INTERNAL_ERROR", err.Error())
+        return
+    }
+
+    utils.SuccessResponse(c, 200, summaries, "Forecast retrieved successfully")
+}
+
