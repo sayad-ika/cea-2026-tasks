@@ -15,6 +15,7 @@ import { CUTOFF_TIMES } from "../utils/constants";
 import toast from "react-hot-toast";
 import { getTeamDetails } from "../services/userService";
 import { MealParticipationCard } from "../components/cards/MealParticipationCard";
+import { ForecastDashboard } from "./ForecastDashboard";
 
 /**
  * Returns true if the cutoff time (9 PM) has passed today.
@@ -174,120 +175,88 @@ export const Home: React.FC = () => {
       />
       <Navbar />
 
-
-      {/* Main Content */}
-      <main className="flex-grow container mx-auto px-6 py-8 md:px-12 flex flex-col">
-        
-        {/* Page Title */}
-        <div className="mb-10 text-center md:text-left">
-          <h2 className="text-4xl md:text-4xl font-black text-[var(--color-background-dark)] mb-2 tracking-tight">
-            Manage Meal Participation and Work Location 
-          </h2>
-          <p className="text-lg text-[var(--color-text-sub)] font-medium">
-            Manage your meals for{" "}
-            <span className="text-[var(--color-primary)] font-bold">
-              {currentDate ? formatDate(currentDate) : "Tomorrow"}
-            </span>{" "}
-            — cutoff is 9 PM today
-          </p>
-        </div>
-
-        {/* Error Message */}
-        {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-2xl text-sm max-w-2xl mx-auto md:mx-0">
-            {error}
+      {(user?.role === 'employee' || user?.role === 'team_lead') && (
+        <main className="flex-grow container mx-auto px-6 py-8 md:px-12 flex flex-col">
+          
+          {/* Page Title */}
+          <div className="mb-10 text-center md:text-left">
+            <h2 className="text-4xl md:text-4xl font-black text-[var(--color-background-dark)] mb-2 tracking-tight">
+              Manage Meal Participation and Work Location 
+            </h2>
+            <p className="text-lg text-[var(--color-text-sub)] font-medium">
+              Manage your meals for{" "}
+              <span className="text-[var(--color-primary)] font-bold">
+                {currentDate ? formatDate(currentDate) : "Tomorrow"}
+              </span>{" "}
+              — cutoff is 9 PM today
+            </p>
           </div>
-        )}
 
-        <div className="mb-10 text-center md:text-left">
-          {teamName && (
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-50 to-orange-100 text-orange-700 rounded-2xl border border-orange-200 shadow-sm mb-4">
-              <span className="material-symbols-outlined text-[20px] leading-none">
-                groups
-              </span>
-              <span className="text-sm font-bold tracking-wide">
-                {teamName}
-              </span>
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-2xl text-sm max-w-2xl mx-auto md:mx-0">
+              {error}
             </div>
           )}
-        </div>
-            
-        {user?.role === 'employee' && (
-          <>
-            <WorkLocationCard />
-            <MealParticipationCard />
-          </>
-        )}
 
-        {/* Meal Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
-          {meals.length > 0 ? (
-            meals.map((meal) => {
-              const locked = isCutoffPassed(meal.meal_type as MealTypeEnum);
-              return (
-                <div key={meal.meal_type} className="relative">
-                  <EmployeeMenuCard
-                    meal={meal}
-                    onToggle={locked ? () => { } : handleToggle}
-                  />
-                  {/* Cutoff badge overlay */}
-                  {locked && (
-                    <div className="absolute top-4 right-4 flex items-center gap-1 bg-red-50 text-red-600 text-xs font-bold px-3 py-1.5 rounded-xl border border-red-200">
-                      <span className="material-symbols-outlined text-sm">
-                        lock_clock
-                      </span>
-                      Cutoff passed
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          ) : (
-            <div className="col-span-full text-center py-12">
-              <span className="material-symbols-outlined text-6xl text-[var(--color-text-sub)] mb-4 block">
-                no_meals
-              </span>
-              <p className="text-[var(--color-text-sub)] text-lg">
-                No meals available for tomorrow.
-              </p>
-            </div>
-          )}
-        </div>
+          <div className="mb-10 text-center md:text-left">
+            {teamName && (
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-50 to-orange-100 text-orange-700 rounded-2xl border border-orange-200 shadow-sm mb-4">
+                <span className="material-symbols-outlined text-[20px] leading-none">
+                  groups
+                </span>
+                <span className="text-sm font-bold tracking-wide">
+                  {teamName}
+                </span>
+              </div>
+            )}
+          </div>
+          
+          <WorkLocationCard />
+          <MealParticipationCard />
 
-        {/* Action Buttons */}
-        {/* <div className="flex flex-col md:flex-row justify-center items-center gap-6 pb-8">
-                    <button
-                        className="flex items-center gap-3 px-8 py-4 bg-[var(--color-background-light)] rounded-2xl text-[var(--color-text-main)] hover:text-[var(--color-primary)] transition-colors min-w-[200px] justify-center group"
-                        style={{ boxShadow: 'var(--shadow-clay-button)' }}
-                        onClick={() => navigate('/calendar')}
-                    >
-                        <span className="material-symbols-outlined group-hover:scale-110 transition-transform">
-                            calendar_month
+          {/* Meal Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+            {meals.length > 0 ? (
+              meals.map((meal) => {
+                const locked = isCutoffPassed(meal.meal_type as MealTypeEnum);
+                return (
+                  <div key={meal.meal_type} className="relative">
+                    <EmployeeMenuCard
+                      meal={meal}
+                      onToggle={locked ? () => { } : handleToggle}
+                    />
+                    {/* Cutoff badge overlay */}
+                    {locked && (
+                      <div className="absolute top-4 right-4 flex items-center gap-1 bg-red-50 text-red-600 text-xs font-bold px-3 py-1.5 rounded-xl border border-red-200">
+                        <span className="material-symbols-outlined text-sm">
+                          lock_clock
                         </span>
-                        <span className="font-bold text-sm uppercase tracking-wider">View Calendar</span>
-                    </button>
-                    <button
-                        className="flex items-center gap-3 px-8 py-4 bg-[var(--color-background-light)] rounded-2xl text-[var(--color-text-main)] hover:text-[var(--color-primary)] transition-colors min-w-[200px] justify-center group"
-                        style={{ boxShadow: 'var(--shadow-clay-button)' }}
-                        onClick={() => navigate('/history')}
-                    >
-                        <span className="material-symbols-outlined group-hover:scale-110 transition-transform">
-                            history
-                        </span>
-                        <span className="font-bold text-sm uppercase tracking-wider">History</span>
-                    </button>
-                    <button
-                        className="flex items-center gap-3 px-8 py-4 bg-[var(--color-background-light)] rounded-2xl text-[var(--color-text-main)] hover:text-[var(--color-primary)] transition-colors min-w-[200px] justify-center group"
-                        style={{ boxShadow: 'var(--shadow-clay-button)' }}
-                        onClick={() => navigate('/preferences')}
-                    >
-                        <span className="material-symbols-outlined group-hover:scale-110 transition-transform">
-                            settings
-                        </span>
-                        <span className="font-bold text-sm uppercase tracking-wider">Preferences</span>
-                    </button>
-                </div> */}
-      </main>
+                        Cutoff passed
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            ) : (
+              <div className="col-span-full text-center py-12">
+                <span className="material-symbols-outlined text-6xl text-[var(--color-text-sub)] mb-4 block">
+                  no_meals
+                </span>
+                <p className="text-[var(--color-text-sub)] text-lg">
+                  No meals available for tomorrow.
+                </p>
+              </div>
+            )}
+          </div>
+        </main>
+      )}
+
+      {(user?.role === 'admin' || user?.role === 'logistics') && (
+        <main className="flex-grow container mx-auto px-6 py-8 md:px-12">
+          <ForecastDashboard />
+        </main>
+      )}
 
       {/* Footer */}
       <Footer

@@ -9,6 +9,8 @@ import type {
   AnnouncementResponse,
 } from "../types";
 
+export type ForecastData = HeadcountData[];
+
 /**
  * Get today's and tomorrow's headcount summary (Admin only)
  * GET /headcount/today
@@ -52,3 +54,12 @@ export const getHeadcountAnnouncement = async (date: string): Promise<ApiRespons
   const response = await api.get(`/headcount/${date}/announcement`);
   return response.data;
 };
+
+export async function getForecast(
+    days = 7,
+): Promise<ApiResponse<ForecastData>> {
+    const response = await api.get<ApiResponse<ForecastData>>(
+        `/headcount/forecast?days=${days}`,
+    );
+    return response.data;
+}
