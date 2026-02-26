@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Use class-based dark mode to match ThemeContext (.dark on <html>) */
+@variant dark (&:where(.dark, .dark *));
+
 @theme {
     /* Color Palette - Claymorphism Orange Theme */
     --color-primary: #fa8c47;
@@ -29,22 +32,29 @@
     /* Custom Box Shadows - Claymorphism */
     --shadow-clay: 20px 20px 60px #e6dccf, -20px -20px 60px #ffffff;
     --shadow-clay-md: 10px 10px 20px #e6dccf, -10px -10px 20px #ffffff;
-    --shadow-clay-inset: inset 6px 6px 12px #e6dccf, inset -6px -6px 12px #ffffff;
+    --shadow-clay-inset:
+        inset 6px 6px 12px #e6dccf, inset -6px -6px 12px #ffffff;
     --shadow-clay-button: 8px 8px 16px #e6dccf, -8px -8px 16px #ffffff;
-    --shadow-clay-button-hover: 10px 10px 20px #e6dccf, -10px -10px 20px #ffffff;
-    --shadow-clay-button-active: inset 4px 4px 8px #d1c0b0, inset -4px -4px 8px #ffffff;
+    --shadow-clay-button-hover:
+        10px 10px 20px #e6dccf, -10px -10px 20px #ffffff;
+    --shadow-clay-button-active:
+        inset 4px 4px 8px #d1c0b0, inset -4px -4px 8px #ffffff;
 
     /* Danger-specific shadows */
     --shadow-clay-danger: 8px 8px 16px #ffcccc, -8px -8px 16px #ffffff;
-    --shadow-clay-danger-hover: 10px 10px 20px #ffcccc, -10px -10px 20px #ffffff;
-    --shadow-clay-danger-active: inset 4px 4px 8px #a62424, inset -4px -4px 8px #ff9999;
+    --shadow-clay-danger-hover:
+        10px 10px 20px #ffcccc, -10px -10px 20px #ffffff;
+    --shadow-clay-danger-active:
+        inset 4px 4px 8px #a62424, inset -4px -4px 8px #ff9999;
 
     /* Primary button shadows */
-    --shadow-primary-active: inset 4px 4px 8px #c26629, inset -4px -4px 8px #ffb275;
+    --shadow-primary-active:
+        inset 4px 4px 8px #c26629, inset -4px -4px 8px #ffb275;
 
     /* Icon button shadows */
     --shadow-icon-button: 6px 6px 12px #e6dccf, -6px -6px 12px #ffffff;
-    --shadow-icon-button-active: inset 3px 3px 6px #c26629, inset -3px -3px 6px #ffb275;
+    --shadow-icon-button-active:
+        inset 3px 3px 6px #c26629, inset -3px -3px 6px #ffb275;
 
     /* Modal shadow */
     --shadow-clay-modal: 30px 30px 70px #d4c9bc, -30px -30px 70px #ffffff;
@@ -74,19 +84,26 @@
     /* Dark Claymorphism Shadows */
     --shadow-clay: 20px 20px 60px #0d0a07, -20px -20px 60px #2a1f18;
     --shadow-clay-md: 10px 10px 20px #0d0a07, -10px -10px 20px #2a1f18;
-    --shadow-clay-inset: inset 6px 6px 12px #0d0a07, inset -6px -6px 12px #2a1f18;
+    --shadow-clay-inset:
+        inset 6px 6px 12px #0d0a07, inset -6px -6px 12px #2a1f18;
     --shadow-clay-button: 8px 8px 16px #0d0a07, -8px -8px 16px #2a1f18;
-    --shadow-clay-button-hover: 10px 10px 20px #0d0a07, -10px -10px 20px #2a1f18;
-    --shadow-clay-button-active: inset 4px 4px 8px #0d0a07, inset -4px -4px 8px #2a1f18;
+    --shadow-clay-button-hover:
+        10px 10px 20px #0d0a07, -10px -10px 20px #2a1f18;
+    --shadow-clay-button-active:
+        inset 4px 4px 8px #0d0a07, inset -4px -4px 8px #2a1f18;
 
     --shadow-clay-danger: 8px 8px 16px #2a0000, -8px -8px 16px #2a1f18;
-    --shadow-clay-danger-hover: 10px 10px 20px #2a0000, -10px -10px 20px #2a1f18;
-    --shadow-clay-danger-active: inset 4px 4px 8px #1a0000, inset -4px -4px 8px #3a1515;
+    --shadow-clay-danger-hover:
+        10px 10px 20px #2a0000, -10px -10px 20px #2a1f18;
+    --shadow-clay-danger-active:
+        inset 4px 4px 8px #1a0000, inset -4px -4px 8px #3a1515;
 
-    --shadow-primary-active: inset 4px 4px 8px #1a0f05, inset -4px -4px 8px #3a2515;
+    --shadow-primary-active:
+        inset 4px 4px 8px #1a0f05, inset -4px -4px 8px #3a2515;
 
     --shadow-icon-button: 6px 6px 12px #0d0a07, -6px -6px 12px #2a1f18;
-    --shadow-icon-button-active: inset 3px 3px 6px #1a0f05, inset -3px -3px 6px #3a2515;
+    --shadow-icon-button-active:
+        inset 3px 3px 6px #1a0f05, inset -3px -3px 6px #3a2515;
 
     --shadow-clay-modal: 30px 30px 70px #0a0705, -30px -30px 70px #2a1f18;
 }
@@ -109,7 +126,9 @@
 body {
     background-color: var(--color-background-light);
     font-family: var(--font-family-display);
-    transition: background-color 0.3s ease, color 0.3s ease;
+    transition:
+        background-color 0.3s ease,
+        color 0.3s ease;
 }
 
 /* Shimmer animation for skeleton loading */

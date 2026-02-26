@@ -13,6 +13,9 @@ export type { AccentBorderCardProps } from "./AccentBorderCard";
 export { WorkLocationCard } from "./WorkLocationCard";
 
 export { ScheduleCalendar } from "./ScheduleCalender";
+
+export { ForecastDayCard } from "./ForecastDayCard";
+export type { ForecastDayCardProps } from "./ForecastDayCard";
 export type { ScheduleCalendarProps } from "./ScheduleCalender";
 
 export { WFHMonthlyReport } from "./WFHMonthlyReport";
