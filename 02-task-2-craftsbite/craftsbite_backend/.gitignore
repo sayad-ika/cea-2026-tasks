@@ -1,0 +1,18 @@
+# Binaries
+bin/
+*.exe
+*.exe~
+
+# Environment
+.env
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Build output
+*.out
+
+# IDE
+.idea/
+.vscode/
