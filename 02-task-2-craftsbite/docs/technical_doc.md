@@ -127,3 +127,51 @@ AWS DynamoDB  (on-demand — 3 tables)
 - **One Lambda function, one binary** — all routes and Discord command handlers live in a single Go binary behind one API Gateway route. At current scale (~100 Users) there is no operational or cost benefit to splitting into per-function Lambdas, and it would significantly increase infrastructure and deployment complexity.
 
 ---
+
+## 8. Data Model
+
+DynamoDB tables follow a sparse key design. Each table uses a generic `PK` / `SK` string key pair. Entity type is stored as an attribute on each item, not encoded in the table structure.
+
+**craftsbite-users** — stores users, teams, and memberships using an adjacency list pattern under shared `TEAM#` partitions. A separate `DISCORD#<id>` item acts as a lookup index for resolving Discord identity to an internal user record.
+
+**craftsbite-meals** — stores meal participation records per user per date, and day schedules under a shared `SCHEDULE` partition.
+
+**craftsbite-work** — stores work location records per user per date.
+
+Each table uses two GSIs (`GSI1`, `GSI2`) for secondary access patterns. All GSIs use `PAY_PER_REQUEST` billing with full item projection.
+
+---
+
+## 9. Key Access Patterns
+
+| Pattern                               | Table            | Method                          |
+| ------------------------------------- | ---------------- | ------------------------------- |
+| Resolve Discord user → internal user  | craftsbite-users | GetItem on `DISCORD#<id>`       |
+| List all active users                 | craftsbite-users | Query GSI2                      |
+| Get team members                      | craftsbite-users | Query `TEAM#<id>` partition     |
+| Get user's team                       | craftsbite-users | Query GSI1                      |
+| Get day schedule                      | craftsbite-meals | GetItem on `SCHEDULE` partition |
+| Get all meal participation for a date | craftsbite-meals | Query GSI1                      |
+| Get all work locations for a date     | craftsbite-work  | Query GSI1                      |
+
+---
+
+## 10. Deployment
+
+The Go application compiles to a single static binary named `bootstrap` (Lambda custom runtime requirement). The binary is zipped and uploaded to Lambda. No Docker image or layer is used. The same binary runs locally as a plain Gin HTTP server by detecting the absence of `AWS_LAMBDA_RUNTIME_API`.
+
+## 11. Cutoff Time Logic
+
+Meal participation and work location updates for a given date are only accepted before the cutoff time of the **previous day at 09:00 PM**. For example, to update participation for Tuesday, the cutoff is Monday at 09:00 PM.
+
+Updates submitted after the cutoff are rejected. Updates for past dates are always rejected regardless of cutoff. The cutoff time is stored in config and applied at the handler level before any write is attempted.
+
+---
+
+## 12. Error Handling
+
+- **Signature verification failure** — rejected immediately with `401` before any business logic runs
+- **Cutoff or past date violation** — rejected with a user-facing Discord message explaining why the update was blocked
+- **DynamoDB error** — returns a generic failure message to Discord; the request is not retried
+- **Unknown command** — returns a user-facing Discord message indicating the command is not recognised
+- **Missing or misconfigured env vars** — Lambda fails to start; no request is served
