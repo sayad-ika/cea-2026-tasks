@@ -75,3 +75,55 @@ AWS DynamoDB  (on-demand — 3 tables)
 - Discord is the primary external caller in this iteration — may introduce frontend application later on
 
 ---
+
+## 5. Tech Stack & Rationale
+
+|           | Choice                     | Why                                                                                                                                                                                                                                                |
+| --------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Language  | Go                         | Compiles to a single static binary with minimal dependencies. Cold starts on Lambda are near-instant, which is critical for staying within Discord's hard 3-second response deadline.                                                              |
+| Framework | Gin                        | Lightweight HTTP router that structures the service cleanly. Works identically in local development and on Lambda via the Gin adapter — no code changes between environments.                                                                      |
+| Compute   | AWS Lambda                 | Serverless compute — no servers to provision or maintain. The function runs only when a request arrives and scales automatically. At current estimate usage (~6,000 requests/month) the cost sits within AWS's permanent free tier at $0.00/month. |
+| Gateway   | AWS API Gateway (HTTP API) | Exposes a single `ANY /{proxy+}` route that forwards all traffic to Lambda. Handles HTTPS termination and request routing without additional configuration. Cost is negligible at current scale.                                                   |
+| Database  | AWS DynamoDB (on-demand)   | Serverless NoSQL database — no cluster to manage, no capacity to pre-provision. Scales with usage and costs nothing at idle. On-demand billing means we only pay for what we use.                                                                  |
+| Bot model | Discord HTTP Interactions  | Slash commands are delivered as plain HTTP POST requests to our endpoint. This is the only Discord integration model compatible with serverless compute — no persistent connection required.                                                       |
+
+---
+
+## 6. Requirements
+
+**Functional**
+
+- Employees can update meal participation and work location for a selected date via Discord slash commands.
+- The bot replies with the user's current status summary after each update.
+- Team Leads can request a team-level participation summary for a selected date.
+- Admin/Logistics can request an org-wide headcount summary for a selected date.
+
+**Role-based behavior**
+
+| Role            | Can Do                                                                      |
+| --------------- | --------------------------------------------------------------------------- |
+| Employee        | Read and update own meal participation and work location only               |
+| Team Lead       | View team-level summaries and individual statuses within their team         |
+| Admin/Logistics | View all summaries, org-wide stats, and trigger on-demand report generation |
+
+**Validation rules**
+
+- Updates are blocked after the daily cutoff time.
+- Updates are blocked for past dates.
+
+**Definition of Done**
+
+- Discord bot responds accurately to all slash commands within 3 seconds.
+- Role-based access is enforced — no role can access data outside its scope.
+- All participation and location writes are correctly validated against cutoff and date rules.
+
+---
+
+## 7. Key Decisions and Trade-offs
+
+- **DynamoDB as primary data store** — stores all meal participation, work location, headcount, and user records. Chosen for its serverless model, zero idle cost, and natural fit with Lambda's stateless invocation pattern.
+- **Fully serverless architecture** — Lambda, API Gateway, and DynamoDB together mean no persistent infrastructure to operate or scale manually. The entire system scales to zero when idle and scales up automatically under load.
+- **Discord HTTP Interactions over Gateway (WebSocket) bot** — slash commands delivered as HTTP POST requests require no persistent connection, which is the only model compatible with Lambda. Signature verification via Ed25519 is handled on every incoming request.
+- **One Lambda function, one binary** — all routes and Discord command handlers live in a single Go binary behind one API Gateway route. At current scale (~100 Users) there is no operational or cost benefit to splitting into per-function Lambdas, and it would significantly increase infrastructure and deployment complexity.
+
+---
