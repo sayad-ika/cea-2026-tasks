@@ -2,6 +2,7 @@ package dynamo
 
 import (
 	"context"
+	"log"
 	"os"
 	"sync"
 
@@ -28,6 +29,8 @@ func GetClient() *dynamodb.Client {
 
 	cfg, err := awsconfig.LoadDefaultConfig(context.Background())
 	if err != nil {
+	    log.Printf("failed to load AWS config: %v", err)
+	    // In production, we want to fail hard if AWS config is not available.
 		panic("failed to load AWS config: " + err.Error())
 	}
 
