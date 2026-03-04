@@ -138,7 +138,7 @@ DynamoDB tables follow a sparse key design. Each table uses a generic `PK` / `SK
 
 **craftsbite-work** — stores work location records per user per date.
 
-Each table uses two GSIs (`GSI1`, `GSI2`) for secondary access patterns. All GSIs use `PAY_PER_REQUEST` billing with full item projection.
+Each table uses a single GSI (GSI1) for secondary access patterns. All GSIs use PAY_PER_REQUEST billing with full item projection.
 
 ---
 
@@ -147,7 +147,7 @@ Each table uses two GSIs (`GSI1`, `GSI2`) for secondary access patterns. All GSI
 | Pattern                               | Table            | Method                          |
 | ------------------------------------- | ---------------- | ------------------------------- |
 | Resolve Discord user → internal user  | craftsbite-users | GetItem on `DISCORD#<id>`       |
-| List all active users                 | craftsbite-users | Query GSI2                      |
+| List all active users                 | craftsbite-users | Query GSI1                      |
 | Get team members                      | craftsbite-users | Query `TEAM#<id>` partition     |
 | Get user's team                       | craftsbite-users | Query GSI1                      |
 | Get day schedule                      | craftsbite-meals | GetItem on `SCHEDULE` partition |
