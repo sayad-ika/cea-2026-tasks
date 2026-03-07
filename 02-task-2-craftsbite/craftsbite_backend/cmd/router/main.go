@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
+	"sync"
 
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/sayad-ika/craftsbite/internal/config"
 	"github.com/sayad-ika/craftsbite/internal/discord"
 )
 
@@ -24,13 +25,25 @@ type interactionBody struct {
 	Type int `json:"type"`
 }
 
+var (
+	cfgOnce sync.Once
+	cfg     *config.Config
+)
+
+func getConfig() *config.Config {
+	cfgOnce.Do(func() {
+		cfg = config.MustLoad()
+	})
+	return cfg
+}
+
 func handler(ctx context.Context, event RouterEvent) (RouterResponse, error) {
-	publicKey := os.Getenv("DISCORD_PUBLIC_KEY")
+	c := getConfig()
 
 	timestamp := event.Headers["x-signature-timestamp"]
 	signature := event.Headers["x-signature-ed25519"]
 
-	if !discord.VerifySignature(publicKey, timestamp, event.Body, signature) {
+	if !discord.VerifySignature(c.DiscordPublicKey, timestamp, event.Body, signature) {
 		return RouterResponse{}, errors.New("401: invalid request signature")
 	}
 

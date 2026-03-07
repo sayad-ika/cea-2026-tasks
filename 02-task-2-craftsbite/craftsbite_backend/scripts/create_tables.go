@@ -1,11 +1,5 @@
 //go:build ignore
 
-// create_tables.go creates the craftsbite DynamoDB table.
-// Safe to re-run — it is a no-op if the table already exists.
-//
-// Usage:
-//
-//	go run ./scripts/create_tables.go
 package main
 
 import (
@@ -15,47 +9,38 @@ import (
 	"os"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/joho/godotenv"
+	"github.com/sayad-ika/craftsbite/internal/config"
 )
 
 func main() {
-	// Load .env if present — fine to ignore missing file in CI.
 	_ = godotenv.Load()
 
-	tableName := os.Getenv("DYNAMODB_TABLE")
-	if tableName == "" {
-		tableName = "craftsbite"
-	}
+	cfg := config.MustLoad()
 
-	region := os.Getenv("AWS_REGION")
-	if region == "" {
-		region = "ap-southeast-1"
-	}
-
-	cfg, err := config.LoadDefaultConfig(context.Background(),
-		config.WithRegion(region),
+	awscfg, err := awsconfig.LoadDefaultConfig(context.Background(),
+		awsconfig.WithRegion(cfg.AWSRegion),
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to load AWS config: %v\n", err)
 		os.Exit(1)
 	}
 
-	client := dynamodb.NewFromConfig(cfg, func(o *dynamodb.Options) {
-		if endpoint := os.Getenv("DYNAMODB_ENDPOINT"); endpoint != "" {
-			o.BaseEndpoint = aws.String(endpoint)
+	client := dynamodb.NewFromConfig(awscfg, func(o *dynamodb.Options) {
+		if cfg.DynamoDBEndpoint != "" {
+			o.BaseEndpoint = aws.String(cfg.DynamoDBEndpoint)
 		}
 	})
 
 	ctx := context.Background()
 
 	_, err = client.CreateTable(ctx, &dynamodb.CreateTableInput{
-		TableName: aws.String(tableName),
+		TableName:   aws.String(cfg.DynamoDBTable),
 		BillingMode: types.BillingModePayPerRequest,
 
-		// Primary key schema.
 		AttributeDefinitions: []types.AttributeDefinition{
 			{AttributeName: aws.String("PK"), AttributeType: types.ScalarAttributeTypeS},
 			{AttributeName: aws.String("SK"), AttributeType: types.ScalarAttributeTypeS},
@@ -67,7 +52,6 @@ func main() {
 			{AttributeName: aws.String("SK"), KeyType: types.KeyTypeRange},
 		},
 
-		// GSI1 — overloaded index serving date, team, entity listing, and audit patterns.
 		GlobalSecondaryIndexes: []types.GlobalSecondaryIndex{
 			{
 				IndexName: aws.String("GSI1"),
@@ -83,15 +67,14 @@ func main() {
 	})
 
 	if err != nil {
-		// ResourceInUseException means the table already exists — treat as success.
 		var inUse *types.ResourceInUseException
 		if errors.As(err, &inUse) {
-			fmt.Printf("Table %q already exists — no-op.\n", tableName)
+			fmt.Printf("Table %q already exists — no-op.\n", cfg.DynamoDBTable)
 			return
 		}
 		fmt.Fprintf(os.Stderr, "CreateTable error: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("Table %q created successfully.\n", tableName)
+	fmt.Printf("Table %q created successfully.\n", cfg.DynamoDBTable)
 }
