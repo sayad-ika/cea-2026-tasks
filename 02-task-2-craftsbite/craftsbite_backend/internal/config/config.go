@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -11,10 +12,19 @@ import (
 )
 
 type Config struct {
-	DiscordPublicKey string
-	AWSRegion        string
+	DiscordApplicationID string
+	DiscordBotToken      string
+	DiscordPublicKey     string
+
+	AWSRegion string
+
 	DynamoDBEndpoint string
-	DynamoDBTable    string
+
+	DynamoDBTable string
+
+	LambdaSelfFunctionName       string
+	LambdaManagementFunctionName string
+	LambdaOpsFunctionName        string
 }
 
 const paramPrefix = "/craftsbite/"
@@ -30,20 +40,23 @@ func Load() (*Config, error) {
 	ssmClient := ssm.NewFromConfig(awsCfg)
 
 	params, err := fetchParams(ctx, ssmClient, []string{
+		paramPrefix + "DISCORD_BOT_TOKEN",
 		paramPrefix + "DISCORD_PUBLIC_KEY",
-		paramPrefix + "AWS_REGION",
-		paramPrefix + "DYNAMODB_ENDPOINT",
-		paramPrefix + "DYNAMODB_TABLE",
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	cfg := &Config{
+		DiscordApplicationID:         os.Getenv("DISCORD_APPLICATION_ID"),
+		AWSRegion:                    os.Getenv("AWS_REGION"),
+		DynamoDBEndpoint:             os.Getenv("DYNAMODB_ENDPOINT"),
+		DynamoDBTable:                os.Getenv("DYNAMODB_TABLE"),
+		LambdaSelfFunctionName:       os.Getenv("LAMBDA_SELF_FUNCTION_NAME"),
+		LambdaManagementFunctionName: os.Getenv("LAMBDA_MANAGEMENT_FUNCTION_NAME"),
+		LambdaOpsFunctionName:        os.Getenv("LAMBDA_OPS_FUNCTION_NAME"),
+		DiscordBotToken:  params[paramPrefix+"DISCORD_BOT_TOKEN"],
 		DiscordPublicKey: params[paramPrefix+"DISCORD_PUBLIC_KEY"],
-		AWSRegion:        params[paramPrefix+"AWS_REGION"],
-		DynamoDBEndpoint: params[paramPrefix+"DYNAMODB_ENDPOINT"],
-		DynamoDBTable:    params[paramPrefix+"DYNAMODB_TABLE"],
 	}
 
 	if cfg.AWSRegion == "" {
@@ -54,6 +67,9 @@ func Load() (*Config, error) {
 	}
 
 	var missing []string
+	if cfg.DiscordBotToken == "" {
+		missing = append(missing, "DISCORD_BOT_TOKEN")
+	}
 	if cfg.DiscordPublicKey == "" {
 		missing = append(missing, "DISCORD_PUBLIC_KEY")
 	}
