@@ -3,12 +3,12 @@ package dynamo
 import (
 	"context"
 	"fmt"
-	"os"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	appconfig "github.com/sayad-ika/craftsbite/internal/config"
 )
 
 var (
@@ -16,18 +16,18 @@ var (
 	client *dynamodb.Client
 )
 
-func GetClient() *dynamodb.Client {
+func GetClient(cfg *appconfig.Config) *dynamodb.Client {
 	once.Do(func() {
-		cfg, err := config.LoadDefaultConfig(context.Background(),
-			config.WithRegion(os.Getenv("AWS_REGION")),
+		awscfg, err := awsconfig.LoadDefaultConfig(context.Background(),
+			awsconfig.WithRegion(cfg.AWSRegion),
 		)
 		if err != nil {
-			panic(fmt.Sprintf("failed to load AWS config: %v", err))
+			panic(fmt.Sprintf("dynamo: failed to load AWS config: %v", err))
 		}
 
-		client = dynamodb.NewFromConfig(cfg, func(o *dynamodb.Options) {
-			if endpoint := os.Getenv("DYNAMODB_ENDPOINT"); endpoint != "" {
-				o.BaseEndpoint = aws.String(endpoint)
+		client = dynamodb.NewFromConfig(awscfg, func(o *dynamodb.Options) {
+			if cfg.DynamoDBEndpoint != "" {
+				o.BaseEndpoint = aws.String(cfg.DynamoDBEndpoint)
 			}
 		})
 	})
