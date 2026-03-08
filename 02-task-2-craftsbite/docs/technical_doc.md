@@ -122,6 +122,16 @@ AWS DynamoDB  (on-demand -- single table)
 - Overrides bypass the cutoff but not day availability — the meal must exist in `available_meals` for that date.
 - When a day is marked `office_closed` or `govt_holiday`, available meals are forced to empty — no participation writes are accepted for that date.
 
+**Participation resolution**
+
+The effective status for any (user, date, meal) combination is determined in this order:
+
+1. Meal not in `available_meals` for that date → **unavailable**
+2. Explicit record exists in DynamoDB → **opted in** or **opted out**
+3. No record, meal is available → **opted in** (system default)
+
+When no day schedule exists for a date, the day is treated as normal and all meals resolve to opted in for users with no explicit record.
+
 **Definition of Done**
 
 - Discord bot responds to all slash commands within 3 seconds.
