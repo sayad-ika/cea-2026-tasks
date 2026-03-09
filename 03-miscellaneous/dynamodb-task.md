@@ -63,3 +63,75 @@ A team shares one partition key for all its items. The `METADATA` item holds the
 Getting all members is a `Query` on `PK = TEAM#<id>` with `SK begins_with "MEMBER#"` — it returns every member in one call. Checking if a specific user is in the team is a direct `GetItem` on `PK = TEAM#<id>`, `SK = MEMBER#<userID>` — if the item exists, they're a member.
 
 ---
+
+## Meal Participation
+
+### Access Patterns
+
+1. Get user's all meals for a date
+2. Get user's specific meal
+3. Opt in/out of a meal
+4. All participation for a date
+
+### DB Schema
+
+```
+1. `PK = USER#<id>` + `SK begins_with MEAL#<date>`
+2. `PK = USER#<id>` + `SK = MEAL#<date>#<meal_type>`
+3. `PK = USER#<id>`+`SK = MEAL#<date>#<meal_type>`
+4. `GSI1_PK = <date>`
+```
+
+Each participation record is keyed by user, date, and meal type together in the sort key. Getting all meals for a user on a date is a `Query` with `SK begins_with "MEAL#<date>#"`. Getting one specific meal is a direct `GetItem`.
+
+Writing participation is always a `PutItem` — it either creates or replaces the record, so calling it multiple times is safe.
+
+For headcount (pattern 4), participation items write to GSI1:
+
+```
+GSI1PK = <date>
+GSI1SK = MEAL#<userID>
+```
+
+Querying `GSI1PK = <date>` with `GSI1SK begins_with "MEAL#"` returns every participation record for that date across all users in one call.
+
+---
+
+## Work Location
+
+### Access Patterns
+
+1. Get user's location for a date
+2. Set user's location
+3. All WFH employees on a date
+4. Monthly WFH count for a user
+
+### DB Schema
+
+```
+1. `PK = USER#<id>` + `SK = WORKLOCATION#<date>`
+2. `PUT PK = USER#<id>` + `SK = WORKLOCATION#<date>`
+3. `GSI1_PK = <date>` + `SK begins_with WFH#`
+4. `PK = USER#<id>` + `SK begins_with WORKLOCATION#<year-month>`
+```
+
+One item per user per date. Reading is a direct `GetItem`. Writing is a `PutItem` — same upsert pattern as meal participation.
+
+For getting all WFH employees on a date (pattern 3), work location items write to GSI1:
+
+```
+GSI1PK = <date>
+GSI1SK = WFH#<userID>     or     OFFICE#<userID>
+```
+
+The location value is embedded at the start of the sort key. This lets us filter to WFH-only employees using `GSI1SK begins_with "WFH#"` as a key condition — no filter expression needed.
+
+For monthly WFH count (pattern 4), we query the user's own partition:
+
+```
+PK = USER#<id>    SK begins_with "WORKLOCATION#<YYYY-MM>"
+```
+
+This returns all location records for that user in a given month. We then count the ones where `location = "wfh"` in the application.
+
+---
