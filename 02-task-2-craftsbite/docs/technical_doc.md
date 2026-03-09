@@ -273,3 +273,18 @@ Enriched payload: `userID`, `role`, `discordId`, `commandName`, `options`, `inte
 | `admin`        | `ops`         | `LAMBDA_OPS_FUNCTION_NAME`        |
 
 ---
+
+## 15. Registered Slash Commands
+
+| Command         | Options                                                                                                                                                  | Notes                                                                                                                                               |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/meal`         | `date` (req), `status` (req: `in\|out`), `meal` (opt: `lunch\|snacks\|iftar\|event_dinner\|optional_dinner`)                                             | If `meal` is omitted, the service reads available meals for that date and writes the status for every available meal (day-wide opt-in/out fan-out). |
+| `/location`     | `date` (req), `location` (req: `office\|wfh`)                                                                                                            |                                                                                                                                                     |
+| `/status`       | `date` (req)                                                                                                                                             | Returns current meal participation and work location for the user on that date.                                                                     |
+| `/override`     | `date` (req), `user` (req), `meal` (req: `lunch\|snacks\|iftar\|event_dinner\|optional_dinner`), `status` (req: `in\|out`), `reason` (opt)               | Team Leads: own team only. Admin: any user. Bypasses cutoff; meal must be available for the date.                                                   |
+| `/team-summary` | `date` (req), `team_id` (opt)                                                                                                                            | Team Leads: own team only (ignores `team_id`). Logistics: read-only, any team. Admin: any team.                                                     |
+| `/headcount`    | `date` (req)                                                                                                                                             | Admin and Logistics only. Returns meal totals and Office vs WFH split for the date.                                                                 |
+| `/set-day`      | `date` (req), `day_status` (req: `normal\|office_closed\|govt_holiday\|celebration\|event_day`), `meals` (opt: comma-separated meal types), `note` (opt) | Admin only. Setting `office_closed` or `govt_holiday` forces `meals` to empty.                                                                      |
+| `/admin`        | `action` (req: `create-user\|update-role\|deactivate-user\|create-team\|add-member\|remove-member`), plus action-specific options                        | Admin only.                                                                                                                                         |
+
+---
