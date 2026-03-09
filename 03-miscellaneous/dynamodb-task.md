@@ -135,3 +135,95 @@ PK = USER#<id>    SK begins_with "WORKLOCATION#<YYYY-MM>"
 This returns all location records for that user in a given month. We then count the ones where `location = "wfh"` in the application.
 
 ---
+
+## Day & Meals
+
+### Access Patterns
+
+1. Get full day context
+2. Get day type only
+3. Get available meals only
+4. Set day type
+5. Set available meals
+6. Get full context for a range of dates
+
+### DB Schema
+
+```
+1. `PK = DAY`  +  `SK begins_with <date>`
+2. `PK = DAY`  +  `SK = <date>#METADATA`
+3. `PK = DAY`  +  `SK = <date>#MEALS`
+4. `PUT PK = DAY`  +  `SK = <date>#METADATA`
+5. `PUT PK = DAY`  +  `SK = <date>#MEALS`
+6. `PK = DAY`  +  `SK BETWEEN <startDate> AND <endDate>#zzzz`
+```
+
+All day items share a single static partition key `DAY`. Moving the date into the sort key means every day's data lives in the same partition, which allows native range queries across dates.
+
+A single `Query PK = DAY` with `SK begins_with <date>` returns both the `METADATA` and `MEALS` rows for that day in one round trip. Writing either row is a `PutItem` directly on its sort key.
+
+The `METADATA` item stores the day status (e.g. `normal`, `office_closed`, `govt_holiday`) and an optional note. The `MEALS` item stores the list of available meal types for that day.
+
+For pattern 6, a `BETWEEN` condition on the sort key covers the full date window in a single `Query` — no `BatchGetItem` needed.
+
+---
+
+## WFH Period
+
+### Access Patterns
+
+1. List all WFH periods
+2. Is date in any WFH period?
+
+### DB Schema
+
+```
+1. `PK = WFHPERIOD`
+2. `PK = WFHPERIOD` + `SK begins_with`
+```
+
+All WFH periods share a single static partition key `WFHPERIOD`. There are only about 4–6 per year so a single partition is completely fine here.
+
+The sort key is a composite of start and end date. Since dates are in `YYYY-MM-DD` format they sort lexicographically, so records naturally come back ordered by start date on every query.
+
+For checking if a date falls within a period (pattern 2), we query:
+
+```
+PK = WFHPERIOD    SK <= "<date>#zzzz"
+```
+
+This returns all periods that started on or before the target date. We then check in the application whether any returned period has `end_date >= date`. There are at most a handful of records to evaluate.
+
+---
+
+## Audit Log
+
+### Access Patterns
+
+1. Write an audit entry on every mutation
+2. Get all changes made by a specific user
+3. Get all changes made to a specific user's records
+4. Get changes of a specific entity type by a user
+
+### DB Schema
+
+```
+1. PK = AUDIT#<actorUserID>    SK = <timestamp>#<entityType>#<entityKey>
+```
+
+Every write action in the system appends a record here — `PutItem` only, never updated or deleted.
+
+Scoping by actor (`AUDIT#<actorUserID>`) keeps all of a user's actions co-located under one partition. The sort key starts with a timestamp so records naturally come back in chronological order when queried.
+
+For getting all changes made by a user (pattern 2), it's just a `Query` on `PK = AUDIT#<actorUserID>`.
+
+For getting all changes made _to_ a specific user's records regardless of who made them (pattern 3), audit items write to GSI1:
+
+```
+GSI1PK = AUDITEE#<targetUserID>
+GSI1SK = <timestamp>
+```
+
+For filtering by entity type (pattern 4), because the sort key starts with a timestamp we can't use `begins_with "<entityType>"` as a key condition. Instead we query the full actor partition and apply `FilterExpression: entityType = :type` in the application to narrow it down.
+
+---
