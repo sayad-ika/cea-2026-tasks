@@ -241,3 +241,35 @@ Updates submitted after the cutoff are rejected. Updates for past dates are alwa
 - **Missing or misconfigured env vars** -- the affected Lambda fails to start; no request is served
 
 ---
+
+---
+
+## 13. Router Lambda Request Flow
+
+For every `POST /interactions` call:
+
+1. Verify Ed25519 signature — reject HTTP `401` on failure.
+2. If `type=1` (PING), return `{ "type": 1 }` immediately.
+3. Resolve caller identity: `GetItem PK=DISCORD#<discordId>`, `SK=LOOKUP` — return ephemeral error if not found.
+4. Look up command name in dispatch table — return ephemeral error if unknown.
+5. Invoke target Lambda asynchronously with enriched payload (`InvocationType=Event`).
+6. Return `{ "type": 5 }` to Discord within the 3-second deadline.
+
+Enriched payload: `userID`, `role`, `discordId`, `commandName`, `options`, `interactionToken`, `applicationId`.
+
+---
+
+## 14. Router Dispatch Table
+
+| Command        | Target Lambda | Environment Variable              |
+| -------------- | ------------- | --------------------------------- |
+| `meal`         | `self`        | `LAMBDA_SELF_FUNCTION_NAME`       |
+| `location`     | `self`        | `LAMBDA_SELF_FUNCTION_NAME`       |
+| `status`       | `self`        | `LAMBDA_SELF_FUNCTION_NAME`       |
+| `override`     | `management`  | `LAMBDA_MANAGEMENT_FUNCTION_NAME` |
+| `team-summary` | `management`  | `LAMBDA_MANAGEMENT_FUNCTION_NAME` |
+| `headcount`    | `ops`         | `LAMBDA_OPS_FUNCTION_NAME`        |
+| `set-day`      | `ops`         | `LAMBDA_OPS_FUNCTION_NAME`        |
+| `admin`        | `ops`         | `LAMBDA_OPS_FUNCTION_NAME`        |
+
+---
