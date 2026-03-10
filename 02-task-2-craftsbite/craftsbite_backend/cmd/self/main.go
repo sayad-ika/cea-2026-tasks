@@ -55,7 +55,7 @@ func handler(ctx context.Context, event CommandEvent) error {
 	case "meal":
 		replyContent = handleMeal(ctx, client, c.DynamoDBTable, event)
 	case "location":
-		replyContent = "This feature is coming soon."
+		replyContent = handleLocation(ctx, client, c.DynamoDBTable, event)
 	case "status":
 		replyContent = "This feature is coming soon."
 	default:
@@ -63,6 +63,27 @@ func handler(ctx context.Context, event CommandEvent) error {
 	}
 
 	return discord.SendFollowup(event.ApplicationID, event.InteractionToken, replyContent)
+}
+
+func handleLocation(ctx context.Context, client *dynamodb.Client, table string, event CommandEvent) string {
+	date, ok := optString(event.Options, "date")
+	if !ok || date == "" {
+		return "Please provide a date. Example: `/location date:2026-03-10 location:office`"
+	}
+
+	loc, ok := optString(event.Options, "location")
+	if !ok || (loc != "office" && loc != "wfh") {
+		return "Please specify location as `office` or `wfh`."
+	}
+
+	wl, err := services.SetLocation(ctx, client, table, event.UserID, date, loc)
+	if err != nil {
+		return locationErrorReply(err, date)
+	}
+
+	mealStatuses, _ := services.GetUserMealStatus(ctx, client, table, event.UserID, date)
+
+	return formatLocationStatus(date, wl.Location, mealStatuses)
 }
 
 func handleMeal(ctx context.Context, client *dynamodb.Client, table string, event CommandEvent) string {
@@ -119,6 +140,42 @@ func mealErrorReply(err error, date string) string {
 	default:
 		return "Something went wrong. Please try again later."
 	}
+}
+
+func locationErrorReply(err error, date string) string {
+	switch err {
+	case services.ErrLocationPastDate:
+		return "Cannot set work location for a past date."
+	case services.ErrLocationCutoffPassed:
+		return fmt.Sprintf("Updates for %s are closed. Cutoff was %s at 9:00 PM.", date, prevDay(date))
+	case services.ErrLocationTooFarAhead:
+		return fmt.Sprintf("Cannot set work location for %s — that's more than 7 days away.", date)
+	default:
+		return "Something went wrong. Please try again later."
+	}
+}
+
+func formatLocationStatus(date, location string, mealStatuses []services.ResolvedStatus) string {
+	locIcon := "🏢"
+	locLabel := "Office"
+	if location == "wfh" {
+		locIcon = "🏠"
+		locLabel = "WFH"
+	}
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Updated! Status for %s:\n  %s %s", date, locIcon, locLabel)
+
+	for _, s := range mealStatuses {
+		icon := "✗"
+		if s.Status == "opted_in" {
+			icon = "✓"
+		} else if s.Status == "unavailable" {
+			icon = "—"
+		}
+		fmt.Fprintf(&sb, "  %s %s", displayMealName(s.MealType), icon)
+	}
+	return sb.String()
 }
 
 func prevDay(targetDate string) string {
