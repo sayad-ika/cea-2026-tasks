@@ -55,3 +55,28 @@ type dayMealsItem struct {
 	SK    string   `dynamodbav:"SK"`
 	Meals []string `dynamodbav:"meals"`
 }
+
+type WorkLocation struct {
+	UserID    string
+	Date      string
+	Location  string
+	SetBy     string
+	Reason    string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type workLocationItem struct {
+	PK       string `dynamodbav:"PK"`
+	SK       string `dynamodbav:"SK"`
+	GSI1PK  string `dynamodbav:"GSI1PK"`
+	GSI1SK  string `dynamodbav:"GSI1SK"`
+	UserID   string `dynamodbav:"user_id"`
+	Date     string `dynamodbav:"date"`
+	Location string `dynamodbav:"location"`
+	SetBy    string `dynamodbav:"set_by"`
+	Reason   string `dynamodbav:"reason"`
+	WFHMonth string `dynamodbav:"wfh_month,omitempty"`
+	CreatedAt string `dynamodbav:"created_at"`
+	UpdatedAt string `dynamodbav:"updated_at"`
+}
