@@ -288,3 +288,24 @@ Enriched payload: `userID`, `role`, `discordId`, `commandName`, `options`, `inte
 | `/admin`        | `action` (req: `create-user\|update-role\|deactivate-user\|create-team\|add-member\|remove-member`), plus action-specific options                        | Admin only.                                                                                                                                         |
 
 ---
+
+## 16. Command Usage
+
+### `/meal`
+
+```
+/meal date:<YYYY-MM-DD> status:<in|out> [meal:<lunch|snacks|event_dinner|optional_dinner|all>]
+```
+
+Opts in or out of meals for a given date. If `meal` is omitted or set to `all`, the status is applied to every available meal for that date.
+
+| Scenario            | Reply                                                                        |
+| ------------------- | ---------------------------------------------------------------------------- |
+| Success             | Updated status for all meals on that date (`✓` in, `✗` out, `—` unavailable) |
+| Past date           | "Cannot update participation for a past date."                               |
+| Cutoff passed       | "Updates for \<date\> are closed. Cutoff was \<date−1\> at 9:00 PM."         |
+| Office closed       | "Office is closed on \<date\> — no meals are available."                     |
+| No meals configured | "No meals are configured for \<date\>."                                      |
+| Meal not available  | "That meal is not available on \<date\>."                                    |
+
+---
