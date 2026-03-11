@@ -308,4 +308,19 @@ Opts in or out of meals for a given date. If `meal` is omitted or set to `all`, 
 | No meals configured | "No meals are configured for \<date\>."                                      |
 | Meal not available  | "That meal is not available on \<date\>."                                    |
 
+### `/location`
+
+```
+/location date:<YYYY-MM-DD> location:<office|wfh>
+```
+
+Sets work location for a given date. On success, replies with the updated location and all meal statuses for that date.
+
+| Scenario         | Reply                                                              |
+| ---------------- | ------------------------------------------------------------------ |
+| Success (office) | `🏢 Office` + meal statuses                                        |
+| Success (WFH)    | `🏠 WFH` + meal statuses                                           |
+| Past date        | "Cannot set work location for a past date."                        |
+| Cutoff passed    | "Updates for \<date\> are closed. Cutoff was \<date−1\> at 9:00 PM |
+
 ---
