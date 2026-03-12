@@ -37,3 +37,35 @@ func GetUserByDiscordID(ctx context.Context, client *dynamodb.Client, tableName,
 
 	return item.UserID, item.Role, nil
 }
+
+func ListActiveUsers(ctx context.Context, client *dynamodb.Client, tableName string) ([]User, error) {
+	out, err := client.Query(ctx, &dynamodb.QueryInput{
+		TableName:              aws.String(tableName),
+		IndexName:              aws.String("GSI1"),
+		KeyConditionExpression: aws.String("GSI1PK = :pk AND begins_with(GSI1SK, :prefix)"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":pk":     &types.AttributeValueMemberS{Value: "ENTITY#USER"},
+			":prefix": &types.AttributeValueMemberS{Value: "true#"},
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("repository: ListActiveUsers: %w", err)
+	}
+
+	results := make([]User, 0, len(out.Items))
+	for _, rawItem := range out.Items {
+		var item userProfileItem
+		if err := attributevalue.UnmarshalMap(rawItem, &item); err != nil {
+			return nil, fmt.Errorf("repository: ListActiveUsers unmarshal: %w", err)
+		}
+		results = append(results, User{
+			ID:     item.ID,
+			Email:  item.Email,
+			Name:   item.Name,
+			Role:   item.Role,
+			TeamID: item.TeamID,
+			Active: item.Active,
+		})
+	}
+	return results, nil
+}
