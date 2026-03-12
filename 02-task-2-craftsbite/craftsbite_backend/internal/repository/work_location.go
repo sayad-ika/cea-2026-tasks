@@ -87,3 +87,32 @@ func workLocationItemToRecord(item workLocationItem) *WorkLocation {
 		UpdatedAt: updatedAt,
 	}
 }
+
+func GetWorkLocationsByDate(ctx context.Context, client *dynamodb.Client, table, date string) ([]WorkLocation, error) {
+	out, err := client.Query(ctx, &dynamodb.QueryInput{
+		TableName:              aws.String(table),
+		IndexName:              aws.String("GSI1"),
+		KeyConditionExpression: aws.String("GSI1PK = :date"),
+		FilterExpression:       aws.String("attribute_exists(#loc)"),
+		ExpressionAttributeNames: map[string]string{
+			"#loc": "location",
+		},
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":date": &types.AttributeValueMemberS{Value: date},
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("repository: GetWorkLocationsByDate: %w", err)
+	}
+
+	results := make([]WorkLocation, 0, len(out.Items))
+	for _, rawItem := range out.Items {
+		var item workLocationItem
+		if err := attributevalue.UnmarshalMap(rawItem, &item); err != nil {
+			return nil, fmt.Errorf("repository: GetWorkLocationsByDate unmarshal: %w", err)
+		}
+		results = append(results, *workLocationItemToRecord(item))
+	}
+	return results, nil
+}
+
