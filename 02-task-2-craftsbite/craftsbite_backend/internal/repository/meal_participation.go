@@ -109,3 +109,29 @@ func mealItemToParticipation(item mealItem) *MealParticipation {
 		UpdatedAt:       updatedAt,
 	}
 }
+
+func GetParticipationsByDate(ctx context.Context, client *dynamodb.Client, table, date string) ([]MealParticipation, error) {
+	out, err := client.Query(ctx, &dynamodb.QueryInput{
+		TableName:              aws.String(table),
+		IndexName:              aws.String("GSI1"),
+		KeyConditionExpression: aws.String("GSI1PK = :date AND begins_with(GSI1SK, :prefix)"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":date":   &types.AttributeValueMemberS{Value: date},
+			":prefix": &types.AttributeValueMemberS{Value: "MEAL#"},
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("repository: GetParticipationsByDate: %w", err)
+	}
+
+	results := make([]MealParticipation, 0, len(out.Items))
+	for _, rawItem := range out.Items {
+		var item mealItem
+		if err := attributevalue.UnmarshalMap(rawItem, &item); err != nil {
+			return nil, fmt.Errorf("repository: GetParticipationsByDate unmarshal: %w", err)
+		}
+		results = append(results, *mealItemToParticipation(item))
+	}
+	return results, nil
+}
+
