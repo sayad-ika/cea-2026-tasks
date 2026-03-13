@@ -193,9 +193,10 @@ All entities live in a single DynamoDB table named `craftsbite` (`PAY_PER_REQUES
 | Pattern                                         | Operation        | Key Expression                                                                       |
 | ----------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------ |
 | Resolve Discord user → internal user + role     | `GetItem`        | `PK=DISCORD#<discordId>`, `SK=LOOKUP`                                                |
-| Get user profile                                | `GetItem`        | `PK=USER#<id>`, `SK=PROFILE`                                                         |
+| Get user profile by UUID                        | `GetItem`        | `PK=USER#<id>`, `SK=PROFILE`                                                         |
 | List all active users                           | `Query` GSI1     | `GSI1PK=ENTITY#USER`, `GSI1SK begins_with "true#"`                                   |
 | Get all team members                            | `Query`          | `PK=TEAM#<id>`, `SK begins_with "MEMBER#"`                                           |
+| Find teams led by a user                        | `Query` GSI1     | `GSI1PK=TEAMLEAD#<leadUserID>`                                                       |
 | Find which team a user belongs to               | `Query` GSI1     | `GSI1PK=USER_TEAMS#<userID>`                                                         |
 | Get full day context (schedule + meals)         | `Query`          | `PK=DAY#<date>` — returns METADATA + MEALS in one round trip                         |
 | Get specific meal participation                 | `GetItem`        | `PK=USER#<id>`, `SK=MEAL#<date>#<mealType>`                                          |
@@ -204,6 +205,7 @@ All entities live in a single DynamoDB table named `craftsbite` (`PAY_PER_REQUES
 | Get WFH employees for a date                    | `Query` GSI1     | `GSI1PK=<date>`, `GSI1SK begins_with "WFH#"`                                         |
 | Get Office employees for a date                 | `Query` GSI1     | `GSI1PK=<date>`, `GSI1SK begins_with "OFFICE#"`                                      |
 | Get work location for (user, date)              | `GetItem`        | `PK=USER#<id>`, `SK=WORKLOCATION#<date>`                                             |
+| Get all work locations for a date (headcount)   | `Query` GSI1     | `GSI1PK=<date>`, filter prefix `wfh#` OR `office#` — single query, filtered in DDB   |
 | Get monthly WFH count for a user                | `Query` + filter | `PK=USER#<id>`, `SK begins_with "WORKLOCATION#<YYYY-MM>"`, filter `location = "wfh"` |
 | Check if date falls in a WFH period             | `Query`          | `PK=WFHPERIOD`, `SK <= "<date>#zzzz"` → check `end_date >= date` in app              |
 | Write audit entry                               | `PutItem`        | `PK=AUDIT#<actorUserID>`, `SK=<timestamp>#<entityType>#<entityKey>`                  |
@@ -322,5 +324,36 @@ Sets work location for a given date. On success, replies with the updated locati
 | Success (WFH)    | `🏠 WFH` + meal statuses                                           |
 | Past date        | "Cannot set work location for a past date."                        |
 | Cutoff passed    | "Updates for \<date\> are closed. Cutoff was \<date−1\> at 9:00 PM |
+
+### `/headcount`
+
+```
+/headcount date:<YYYY-MM-DD>
+```
+
+Returns org-wide meal totals and Office vs WFH split for a date. Available to `admin` and `logistics` roles only.
+
+**Implementation:** 3 parallel DynamoDB queries joined in memory:
+
+1. `GSI1PK=<date>`, `GSI1SK begins_with "MEAL#"` — all meal participation records
+2. `GSI1PK=<date>`, filter `GSI1SK begins_with "wfh#" OR begins_with "office#"` — all location records
+3. `GSI1PK=ENTITY#USER`, `GSI1SK begins_with "true#"` — active user headcount
+4. `GetItem PK=DAY#<date> SK=METADATA` — day schedule (for day status note)
+
+Users with no location record are counted as `office`.
+
+| Scenario   | Reply                                             |
+| ---------- | ------------------------------------------------- |
+| Success    | Meal totals + location split (see example below)  |
+| Wrong role | "You do not have permission to use `/headcount`." |
+
+**Example reply:**
+
+```
+Headcount for 2026-03-10 (8 employees)
+🍽 Lunch:           7 opted in  │  1 opted out
+🍴 Snacks:          4 opted in  │  4 opted out
+📍 Office: 6  │  WFH: 2
+```
 
 ---
