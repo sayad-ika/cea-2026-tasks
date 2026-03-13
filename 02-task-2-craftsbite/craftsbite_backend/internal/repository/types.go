@@ -67,16 +67,16 @@ type WorkLocation struct {
 }
 
 type workLocationItem struct {
-	PK        string `dynamodbav:"PK"`
-	SK        string `dynamodbav:"SK"`
-	GSI1PK    string `dynamodbav:"GSI1PK"`
-	GSI1SK    string `dynamodbav:"GSI1SK"`
-	UserID    string `dynamodbav:"user_id"`
-	Date      string `dynamodbav:"date"`
-	Location  string `dynamodbav:"location"`
-	SetBy     string `dynamodbav:"set_by"`
-	Reason    string `dynamodbav:"reason"`
-	WFHMonth  string `dynamodbav:"wfh_month,omitempty"`
+	PK       string `dynamodbav:"PK"`
+	SK       string `dynamodbav:"SK"`
+	GSI1PK  string `dynamodbav:"GSI1PK"`
+	GSI1SK  string `dynamodbav:"GSI1SK"`
+	UserID   string `dynamodbav:"user_id"`
+	Date     string `dynamodbav:"date"`
+	Location string `dynamodbav:"location"`
+	SetBy    string `dynamodbav:"set_by"`
+	Reason   string `dynamodbav:"reason"`
+	WFHMonth string `dynamodbav:"wfh_month,omitempty"`
 	CreatedAt string `dynamodbav:"created_at"`
 	UpdatedAt string `dynamodbav:"updated_at"`
 }
@@ -100,16 +100,30 @@ type userProfileItem struct {
 }
 
 type Team struct {
-	ID          string
-	Name        string
-	Description string
-	LeadID      string
+	ID         string
+	Name       string
+	TeamLeadID string
+	Active     bool
+}
+
+type TeamMember struct {
+	TeamID   string
+	UserID   string
+	JoinedAt time.Time
 }
 
 type teamMetadataItem struct {
-	ID          string `dynamodbav:"id"`
-	Name        string `dynamodbav:"name"`
-	Description string `dynamodbav:"description"`
-	TeamLeadID  string `dynamodbav:"team_lead_id"`
+	ID         string `dynamodbav:"id"`
+	Name       string `dynamodbav:"name"`
+	TeamLeadID string `dynamodbav:"team_lead_id"`
+	Active     bool   `dynamodbav:"active"`
+	CreatedAt  string `dynamodbav:"created_at"`
+	UpdatedAt  string `dynamodbav:"updated_at"`
+}
+
+type teamMemberItem struct {
+	TeamID   string `dynamodbav:"team_id"`
+	UserID   string `dynamodbav:"user_id"`
+	JoinedAt string `dynamodbav:"joined_at"`
 }
 
