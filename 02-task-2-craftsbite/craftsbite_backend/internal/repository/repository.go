@@ -1,2 +1,5 @@
-// Package repository provides DynamoDB data-access functions
 package repository
+
+import "time"
+
+const rfc3339 = time.RFC3339
