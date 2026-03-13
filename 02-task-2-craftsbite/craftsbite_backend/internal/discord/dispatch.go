@@ -8,7 +8,7 @@ var commandACL = map[string]map[string]struct{}{
 	"location":     {"employee": {}, "team_lead": {}, "admin": {}, "logistics": {}},
 	"status":       {"employee": {}, "team_lead": {}, "admin": {}, "logistics": {}},
 	"override":     {"team_lead": {}, "admin": {}},
-	"team-summary": {"team_lead": {}, "admin": {}, "logistics": {}},
+	"team-summary": {"team_lead": {}, "admin": {}},
 	"headcount":    {"admin": {}, "logistics": {}},
 	"set-day":      {"admin": {}},
 	"admin":        {"admin": {}},
