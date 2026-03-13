@@ -69,3 +69,31 @@ func ListActiveUsers(ctx context.Context, client *dynamodb.Client, tableName str
 	}
 	return results, nil
 }
+
+func GetUserByID(ctx context.Context, client *dynamodb.Client, tableName, userID string) (*User, error) {
+	out, err := client.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: aws.String(tableName),
+		Key: map[string]types.AttributeValue{
+			"PK": &types.AttributeValueMemberS{Value: "USER#" + userID},
+			"SK": &types.AttributeValueMemberS{Value: "PROFILE"},
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("repository: GetUserByID: %w", err)
+	}
+	if out.Item == nil {
+		return nil, nil
+	}
+
+	var item userProfileItem
+	if err := attributevalue.UnmarshalMap(out.Item, &item); err != nil {
+		return nil, fmt.Errorf("repository: GetUserByID unmarshal: %w", err)
+	}
+	return &User{
+		ID:     item.ID,
+		Email:  item.Email,
+		Name:   item.Name,
+		Role:   item.Role,
+		Active: item.Active,
+	}, nil
+}
