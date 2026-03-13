@@ -325,4 +325,35 @@ Sets work location for a given date. On success, replies with the updated locati
 | Past date        | "Cannot set work location for a past date."                        |
 | Cutoff passed    | "Updates for \<date\> are closed. Cutoff was \<date−1\> at 9:00 PM |
 
+### `/headcount`
+
+```
+/headcount date:<YYYY-MM-DD>
+```
+
+Returns org-wide meal totals and Office vs WFH split for a date. Available to `admin` and `logistics` roles only.
+
+**Implementation:** 3 parallel DynamoDB queries joined in memory:
+
+1. `GSI1PK=<date>`, `GSI1SK begins_with "MEAL#"` — all meal participation records
+2. `GSI1PK=<date>`, filter `GSI1SK begins_with "wfh#" OR begins_with "office#"` — all location records
+3. `GSI1PK=ENTITY#USER`, `GSI1SK begins_with "true#"` — active user headcount
+4. `GetItem PK=DAY#<date> SK=METADATA` — day schedule (for day status note)
+
+Users with no location record are counted as `office`.
+
+| Scenario   | Reply                                             |
+| ---------- | ------------------------------------------------- |
+| Success    | Meal totals + location split (see example below)  |
+| Wrong role | "You do not have permission to use `/headcount`." |
+
+**Example reply:**
+
+```
+Headcount for 2026-03-10 (8 employees)
+🍽 Lunch:           7 opted in  │  1 opted out
+🍴 Snacks:          4 opted in  │  4 opted out
+📍 Office: 6  │  WFH: 2
+```
+
 ---
