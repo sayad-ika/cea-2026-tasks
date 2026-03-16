@@ -38,6 +38,29 @@ func GetUserByDiscordID(ctx context.Context, client *dynamodb.Client, tableName,
 	return item.UserID, item.Role, nil
 }
 
+func GetUserByGChatEmail(ctx context.Context, client *dynamodb.Client, tableName, email string) (userID, role string, err error) {
+	out, err := client.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: aws.String(tableName),
+		Key: map[string]types.AttributeValue{
+			"PK": &types.AttributeValueMemberS{Value: "GCHAT#" + email},
+			"SK": &types.AttributeValueMemberS{Value: "LOOKUP"},
+		},
+	})
+	if err != nil {
+		return "", "", fmt.Errorf("repository: GetUserByGChatEmail: %w", err)
+	}
+	if out.Item == nil {
+		return "", "", nil
+	}
+
+	var item discordLookupItem
+	if err := attributevalue.UnmarshalMap(out.Item, &item); err != nil {
+		return "", "", fmt.Errorf("repository: GetUserByGChatEmail unmarshal: %w", err)
+	}
+
+	return item.UserID, item.Role, nil
+}
+
 func ListActiveUsers(ctx context.Context, client *dynamodb.Client, tableName string) ([]User, error) {
 	out, err := client.Query(ctx, &dynamodb.QueryInput{
 		TableName:              aws.String(tableName),
