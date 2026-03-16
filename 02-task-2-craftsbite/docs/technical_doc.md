@@ -159,8 +159,10 @@ When no day schedule exists for a date, the day is treated as normal and all mea
 - **Single-table DynamoDB design** — all entities (users, teams, memberships, meal participations, work locations, day schedules, WFH periods, audit logs) live in one table (`craftsbite`). A single GSI (`GSI1`) is overloaded with clearly distinct `GSI1PK` prefixes to serve all secondary access patterns. This keeps billing, backups, and monitoring to one target, and is appropriate at the current scale of ~200 employees.
 - **DynamoDB as primary data store** — chosen for its serverless model, zero idle cost, and natural fit with Lambda's stateless invocation pattern.
 - **Fully serverless architecture** — Lambda, API Gateway, and DynamoDB together mean no persistent infrastructure to operate or scale manually. The entire system scales to zero when idle and scales up automatically under load.
-- **Discord HTTP Interactions over Gateway (WebSocket) bot** — slash commands delivered as HTTP POST requests require no persistent connection, which is the only model compatible with Lambda. Signature verification via Ed25519 is handled by the Router Lambda on every incoming request.
-- **Router Lambda as sole entry point** — signature verification and command dispatch are handled in one Lambda. Merging them eliminates an extra invocation hop, reduces cold start risk within Discord's 3-second deadline, and keeps the entry point cohesive. The function has two clear responsibilities: verify the request is legitimate, then hand it off to the correct command Lambda.
+- **Discord HTTP Interactions over Gateway (WebSocket) bot** — slash commands delivered as HTTP POST requests require no persistent connection, which is the only model compatible with Lambda. Signature verification via Ed25519 is handled by the Discord Router Lambda on every incoming request.
+- **Google Chat HTTP Interactions** — slash commands are delivered as HTTP POST requests signed with a Google-issued Bearer JWT, consistent with the same serverless-compatible model as Discord. JWT verification is handled by the GChat Router Lambda on every incoming request.
+- **Shared ACL and dispatch logic across platforms** — `discord.CheckPermission` and `discord.Dispatch` in `internal/discord/dispatch.go` are platform-agnostic. Both the Discord and GChat routers import them directly. The ACL table and Lambda dispatch map are defined once and enforced identically regardless of which platform the request originates from.
+- **Router Lambda as sole entry point per platform** — each platform has its own router Lambda that owns verification, identity resolution, and dispatch. Keeping these separate avoids mixing auth schemes in a single function while still sharing all downstream logic.
 - **Grouped command Lambdas (not per-command)** — commands are grouped by role scope into three Lambdas: `self` (employee self-service), `management` (team lead and admin oversight), and `ops` (admin and logistics operations). Each group gets an independent deployment unit and failure domain. Grouping by role scope is more natural than one Lambda per command and avoids unnecessary proliferation of functions for closely related operations.
 - **Day-wide opt-out handled by service fan-out** — when a user opts out for a full day without specifying a meal type, the `self` Lambda reads the available meals for that date and issues one `PutItem` per meal via `BatchWriteItem`. The schema stays uniform — headcount queries always see individual per-meal records regardless of whether the opt-out was issued one meal at a time or for the whole day.
 - **Native Lambda handlers over HTTP framework** — all Lambdas are written as native Go Lambda handlers. There is no HTTP server, no Gin, and no adapter layer. Each function receives a structured event and returns a structured response directly. This eliminates unnecessary dependencies and keeps cold starts minimal.
@@ -179,6 +181,7 @@ All entities live in a single DynamoDB table named `craftsbite` (`PAY_PER_REQUES
 | User profile       | `USER#<id>`           | `PROFILE`                              |
 | Email lookup       | `EMAIL#<email>`       | `LOOKUP`                               |
 | Discord lookup     | `DISCORD#<discordId>` | `LOOKUP`                               |
+| Google Chat lookup | `GCHAT#<email>`       | `LOOKUP`                               |
 | Team metadata      | `TEAM#<id>`           | `METADATA`                             |
 | Team listing       | `TEAM#<id>`           | `LISTING`                              |
 | Team member        | `TEAM#<id>`           | `MEMBER#<userID>`                      |
@@ -204,6 +207,7 @@ All entities live in a single DynamoDB table named `craftsbite` (`PAY_PER_REQUES
 **Key design notes:**
 
 - `DISCORD#<discordId>` lookup row carries `role` denormalized — a single `GetItem` resolves both `userID` and `role` on every Lambda invocation with no second read.
+- `GCHAT#<email>` lookup row follows the same denormalized pattern — `userID` and `role` are resolved in a single `GetItem`. The `email` comes from the verified JWT claims.
 - `DAY#<date>` is a shared partition for both `METADATA` and `MEALS`. A single `Query` returns the full day context in one round trip.
 - Team metadata needs two distinct GSI1 patterns (by lead and by listing). Because a DynamoDB item can only carry one GSI1PK/GSI1SK pair, the team uses two items: `METADATA` carries `TEAMLEAD#`, and a separate `LISTING` item carries `ENTITY#TEAM`.
 - User profile and Discord lookup are always kept in sync via `TransactWriteItems` — role changes update both atomically.
@@ -217,6 +221,7 @@ All entities live in a single DynamoDB table named `craftsbite` (`PAY_PER_REQUES
 | Pattern                                         | Operation        | Key Expression                                                                       |
 | ----------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------ |
 | Resolve Discord user → internal user + role     | `GetItem`        | `PK=DISCORD#<discordId>`, `SK=LOOKUP`                                                |
+| Resolve Google Chat user → internal user + role | `GetItem`        | `PK=GCHAT#<email>`, `SK=LOOKUP`                                                      |
 | Get user profile by UUID                        | `GetItem`        | `PK=USER#<id>`, `SK=PROFILE`                                                         |
 | List all active users                           | `Query` GSI1     | `GSI1PK=ENTITY#USER`, `GSI1SK begins_with "true#"`                                   |
 | Get all team members                            | `Query`          | `PK=TEAM#<id>`, `SK begins_with "MEMBER#"`                                           |
@@ -226,10 +231,10 @@ All entities live in a single DynamoDB table named `craftsbite` (`PAY_PER_REQUES
 | Get specific meal participation                 | `GetItem`        | `PK=USER#<id>`, `SK=MEAL#<date>#<mealType>`                                          |
 | Get all meal participation for a user on a date | `Query`          | `PK=USER#<id>`, `SK begins_with "MEAL#<date>#"`                                      |
 | Get all participations for a date (headcount)   | `Query` GSI1     | `GSI1PK=<date>`, `GSI1SK begins_with "MEAL#"`                                        |
-| Get WFH employees for a date                    | `Query` GSI1     | `GSI1PK=<date>`, `GSI1SK begins_with "WFH#"`                                         |
-| Get Office employees for a date                 | `Query` GSI1     | `GSI1PK=<date>`, `GSI1SK begins_with "OFFICE#"`                                      |
-| Get work location for (user, date)              | `GetItem`        | `PK=USER#<id>`, `SK=WORKLOCATION#<date>`                                             |
+| Get WFH employees for a date                    | `Query` GSI1     | `GSI1PK=<date>`, filter `GSI1SK begins_with "wfh#"`                                  |
+| Get Office employees for a date                 | `Query` GSI1     | `GSI1PK=<date>`, filter `GSI1SK begins_with "office#"`                               |
 | Get all work locations for a date (headcount)   | `Query` GSI1     | `GSI1PK=<date>`, filter prefix `wfh#` OR `office#` — single query, filtered in DDB   |
+| Get work location for (user, date)              | `GetItem`        | `PK=USER#<id>`, `SK=WORKLOCATION#<date>`                                             |
 | Get monthly WFH count for a user                | `Query` + filter | `PK=USER#<id>`, `SK begins_with "WORKLOCATION#<YYYY-MM>"`, filter `location = "wfh"` |
 | Check if date falls in a WFH period             | `Query`          | `PK=WFHPERIOD`, `SK <= "<date>#zzzz"` → check `end_date >= date` in app              |
 | Write audit entry                               | `PutItem`        | `PK=AUDIT#<actorUserID>`, `SK=<timestamp>#<entityType>#<entityKey>`                  |
