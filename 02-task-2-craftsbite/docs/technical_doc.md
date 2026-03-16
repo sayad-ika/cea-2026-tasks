@@ -296,9 +296,9 @@ For every `POST /gchat` call:
 1. Verify Bearer JWT against Google's public keys using `GCHAT_AUDIENCE` — reject HTTP `401` on failure.
 2. Parse the `ChatEvent` JSON body — reject HTTP `400` on failure.
 3. Route on event type:
-   - `ADDED_TO_SPACE` — return welcome text immediately; no command Lambda invoked.
-   - `REMOVED_FROM_SPACE` / `CARD_CLICKED` — return empty acknowledgement; no command Lambda invoked.
-   - `MESSAGE` — proceed to steps 4–7 below.
+    - `ADDED_TO_SPACE` — return welcome text immediately; no command Lambda invoked.
+    - `REMOVED_FROM_SPACE` / `CARD_CLICKED` — return empty acknowledgement; no command Lambda invoked.
+    - `MESSAGE` — proceed to steps 4–7 below.
 4. Resolve caller identity: `GetItem PK=GCHAT#<email>`, `SK=LOOKUP` — return error card if not found.
 5. Check ACL via `discord.CheckPermission(commandName, role)` — return permission-denied card if access is denied.
 6. Invoke target Lambda asynchronously with enriched payload (`InvocationType=Event`).
@@ -323,22 +323,35 @@ Enriched payload: `userID`, `role`, `email`, `commandName`, `argumentText`, `rep
 
 ---
 
-## 15. Registered Slash Commands
+## 16. Registered Slash Commands
+
+### Discord
 
 | Command         | Options                                                                                                                                                  | Notes                                                                                                                                               |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/meal`         | `date` (req), `status` (req: `in\|out`), `meal` (opt: `lunch\|snacks\|iftar\|event_dinner\|optional_dinner`)                                             | If `meal` is omitted, the service reads available meals for that date and writes the status for every available meal (day-wide opt-in/out fan-out). |
 | `/location`     | `date` (req), `location` (req: `office\|wfh`)                                                                                                            |                                                                                                                                                     |
-| `/status`       | `date` (req)                                                                                                                                             | Returns current meal participation and work location for the user on that date.                                                                     |
+| `/status`       | `date` (req)                                                                                                                                             | Returns current meal participation, work location, and day status for the caller on that date. Fetches in 3 parallel goroutines.                    |
 | `/override`     | `date` (req), `user` (req), `meal` (req: `lunch\|snacks\|iftar\|event_dinner\|optional_dinner`), `status` (req: `in\|out`), `reason` (opt)               | Team Leads: own team only. Admin: any user. Bypasses cutoff; meal must be available for the date.                                                   |
 | `/team-summary` | `date` (req), `team_id` (opt)                                                                                                                            | Team Leads: own team only (ignores `team_id`). Logistics: read-only, any team. Admin: any team.                                                     |
-| `/headcount`    | `date` (req)                                                                                                                                             | Admin and Logistics only. Returns meal totals and Office vs WFH split for the date.                                                                 |
+| `/headcount`    | `date` (req)                                                                                                                                             | Admin and Logistics only. Returns meal totals and Office vs WFH split for the date. Users with no work location record are counted as office.       |
 | `/set-day`      | `date` (req), `day_status` (req: `normal\|office_closed\|govt_holiday\|celebration\|event_day`), `meals` (opt: comma-separated meal types), `note` (opt) | Admin only. Setting `office_closed` or `govt_holiday` forces `meals` to empty.                                                                      |
 | `/admin`        | `action` (req: `create-user\|update-role\|deactivate-user\|create-team\|add-member\|remove-member`), plus action-specific options                        | Admin only.                                                                                                                                         |
 
+### Google Chat
+
+Google Chat uses free-text argument strings. Arguments are positional and parsed by the GChat Router Lambda before invoking the command Lambda. Only the four commands below are registered — `/status`, `/override`, `/set-day`, and `/admin` are not exposed until their handlers are ready for the platform.
+
+| Command         | Command ID | Argument format                | Notes                                                                                                                                                                 |
+| --------------- | ---------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/meal`         | 1          | `<in\|out> <meal_type> [date]` | `meal_type` required (no day-wide fan-out via omission on GChat). `date` defaults to today if omitted. `iftar` is not exposed — parity with what the handler accepts. |
+| `/location`     | 2          | `<office\|wfh> [date]`         | `date` defaults to today if omitted.                                                                                                                                  |
+| `/team-summary` | 3          | `[date]`                       | `date` defaults to today if omitted. `team_id` is not advertised — handler always uses the caller's first led team.                                                   |
+| `/headcount`    | 4          | `<date>`                       | `date` is required. Router returns a usage hint card before invoking Lambda if omitted.                                                                               |
+
 ---
 
-## 16. Command Usage
+## 17. Command Usage
 
 ### `/meal`
 
