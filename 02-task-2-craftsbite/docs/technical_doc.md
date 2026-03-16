@@ -97,14 +97,15 @@ Discord Router Lambda                     GChat Router Lambda
 
 ## 5. Tech Stack & Rationale
 
-|               | Choice                     | Why                                                                                                                                                                                                                                         |
-| ------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Language      | Go                         | Compiles to a single static binary with minimal dependencies. Cold starts on Lambda are near-instant, which is critical for staying within Discord's hard 3-second response deadline.                                                       |
-| Compute       | AWS Lambda                 | Serverless compute -- no servers to provision or maintain. Each function runs only when invoked and scales automatically. At current estimated usage (~6,000 requests/month) the cost sits within AWS's permanent free tier at $0.00/month. |
-| Handler model | Native Lambda handlers     | All Lambdas are written as native Go Lambda handlers using the AWS Lambda Go SDK. No HTTP framework or adapter is needed -- each function receives a structured event, processes it, and returns a structured response directly.            |
-| Gateway       | AWS API Gateway (HTTP API) | Exposes a single `POST /interactions` route that forwards all Discord traffic to the Authorizer + Router Lambda. Handles HTTPS termination. Cost is negligible at current scale.                                                            |
-| Database      | AWS DynamoDB (on-demand)   | Serverless NoSQL database -- no cluster to manage, no capacity to pre-provision. Scales with usage and costs nothing at idle. On-demand billing means we only pay for what we use.                                                          |
-| Bot model     | Discord HTTP Interactions  | Slash commands are delivered as plain HTTP POST requests to our endpoint. This is the only Discord integration model compatible with serverless compute -- no persistent connection required.                                               |
+|               | Choice                        | Why                                                                                                                                                                                                                                          |
+| ------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Language      | Go                            | Compiles to a single static binary with minimal dependencies. Cold starts on Lambda are near-instant, which is critical for staying within Discord's hard 3-second response deadline.                                                        |
+| Compute       | AWS Lambda                    | Serverless compute -- no servers to provision or maintain. Each function runs only when invoked and scales automatically. At current estimated usage (~6,000 requests/month) the cost sits within AWS's permanent free tier at $0.00/month.  |
+| Handler model | Native Lambda handlers        | All Lambdas are written as native Go Lambda handlers using the AWS Lambda Go SDK. No HTTP framework or adapter is needed -- each function receives a structured event, processes it, and returns a structured response directly.             |
+| Gateway       | AWS API Gateway (HTTP API)    | Exposes `POST /interactions` for Discord traffic and `POST /gchat` for Google Chat traffic. Handles HTTPS termination. Cost is negligible at current scale.                                                                                  |
+| Database      | AWS DynamoDB (on-demand)      | Serverless NoSQL database -- no cluster to manage, no capacity to pre-provision. Scales with usage and costs nothing at idle. On-demand billing means we only pay for what we use.                                                           |
+| Bot model     | Discord HTTP Interactions     | Slash commands are delivered as plain HTTP POST requests to our endpoint. This is the only Discord integration model compatible with serverless compute -- no persistent connection required.                                                |
+| Bot model     | Google Chat HTTP Interactions | Slash commands are delivered as HTTP POST requests signed with a Google-issued Bearer JWT. Same serverless-compatible model as Discord — no persistent connection required. JWT verification uses Google's public keys via `GCHAT_AUDIENCE`. |
 
 ---
 
@@ -112,7 +113,7 @@ Discord Router Lambda                     GChat Router Lambda
 
 **Functional**
 
-- Employees can update meal participation and work location for a selected date via Discord slash commands.
+- Employees can update meal participation and work location for a selected date via Discord or Google Chat slash commands.
 - When opting out for a day without specifying a meal type, the service fans out and writes an opt-out record for every available meal on that date — no client-side enumeration required.
 - The bot replies with the user's current status summary after each update.
 - Team Leads can view a team-level participation summary for a selected date, and override participation for members of their own team.
@@ -121,12 +122,12 @@ Discord Router Lambda                     GChat Router Lambda
 
 **Role-based behavior**
 
-| Role      | `/meal` `/location` `/status` | `/override`   | `/team-summary`       | `/headcount` | `/set-day` | `/admin` |
-| --------- | ----------------------------- | ------------- | --------------------- | ------------ | ---------- | -------- |
-| Employee  | Own records only              | ✗             | ✗                     | ✗            | ✗          | ✗        |
-| Team Lead | Own records only              | Own team only | Own team only         | ✗            | ✗          | ✗        |
-| Logistics | Own records only              | ✗             | Read-only (all teams) | ✓            | ✗          | ✗        |
-| Admin     | Own records only              | Any user      | All teams             | ✓            | ✓          | ✓        |
+| Role      | `/meal` `/location` `/status` | `/override`   | `/team-summary`       | `/headcount`  | `/set-day` | `/admin` |
+| --------- | ----------------------------- | ------------- | --------------------- | ------------- | ---------- | -------- |
+| Employee  | Own records only              | ✗             | ✗                     | ✗             | ✗          | ✗        |
+| Team Lead | Own records only              | Own team only | Own team only         | ✗             | ✗          | ✗        |
+| Logistics | Own records only              | ✗             | Read-only (all teams) | ✓ (read-only) | ✗          | ✗        |
+| Admin     | Own records only              | Any user      | All teams             | ✓             | ✓          | ✓        |
 
 **Validation rules**
 
@@ -135,9 +136,19 @@ Discord Router Lambda                     GChat Router Lambda
 - Overrides bypass the cutoff but not day availability — the meal must exist in `available_meals` for that date.
 - When a day is marked `office_closed` or `govt_holiday`, available meals are forced to empty — no participation writes are accepted for that date.
 
+**Participation resolution**
+
+The effective status for any (user, date, meal) combination is determined in this order:
+
+1. Meal not in `available_meals` for that date → **unavailable**
+2. Explicit record exists in DynamoDB → **opted in** or **opted out**
+3. No record, meal is available → **opted in** (system default)
+
+When no day schedule exists for a date, the day is treated as normal and all meals resolve to opted in for users with no explicit record.
+
 **Definition of Done**
 
-- Discord bot responds to all slash commands within 3 seconds.
+- Discord and Google Chat bots respond to all slash commands within 3 seconds.
 - Role-based access is enforced — no role can access data outside its scope.
 - All participation and location writes are correctly validated against cutoff and date rules.
 
