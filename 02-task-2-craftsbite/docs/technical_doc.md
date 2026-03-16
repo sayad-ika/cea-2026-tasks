@@ -8,9 +8,9 @@
 
 ## 1. Overview
 
-Craftsbite is a meal headcount planning system built for office teams. The system removes the manual overhead of tracking meal participation and work location through spreadsheets and chat messages. Discord is the primary user interface -- web frontend may be introduced in future.
+Craftsbite is a meal headcount planning system built for office teams. The system removes the manual overhead of tracking meal participation and work location through spreadsheets and chat messages. Discord is the primary user interface; Google Chat is the second supported platform. A web frontend may be introduced in future.
 
-Employees interact primarily through Discord slash commands to update their meal participation and work location for a given date. Team Leads can request a headcount summary scoped to their team. Admin and Logistics users have visibility across the entire organisation. The Discord bot responds with the user's current status after every update.
+Employees interact through Discord or Google Chat slash commands to update their meal participation and work location for a given date. Team Leads can request a headcount summary scoped to their team. Admin and Logistics users have visibility across the entire organisation. The bot responds with the user's current status after every update.
 
 ---
 
@@ -26,7 +26,7 @@ Employees have no direct way to update their own participation. Logistics staff 
 
 **Goals**
 
-- Employees can update meal participation and work location for a selected date via Discord.
+- Employees can update meal participation and work location for a selected date via Discord or Google Chat.
 - The bot replies with a status summary after each successful update.
 - Team Leads can view a team-level participation summary for a selected date.
 - Admin/Logistics can view an org-wide headcount summary for a selected date.
@@ -43,42 +43,55 @@ Employees have no direct way to update their own participation. Logistics staff 
 ## 4. Cloud Architecture
 
 ```
-Discord User
-    |  slash command (HTTP POST)
-    |  X-Signature-Ed25519 + X-Signature-Timestamp headers
-    v
-AWS API Gateway  (HTTP API)
-    |  single route: POST /interactions
-    v
-Router Lambda  (Go -- native Lambda handler)
-    |  verifies Ed25519 signature using DISCORD_PUBLIC_KEY
-    |  rejects invalid requests immediately -- command Lambdas never invoked
-    |  resolves caller identity via discordId -> DynamoDB (GetItem DISCORD#<id>)
-    |  reads command name from request body
-    |  invokes the correct command Lambda asynchronously (InvocationType=Event)
-    |  returns { "type": 5 } to Discord within 3 seconds
-    v
-Command Lambda  (Go -- native Lambda handler, one per command group)
-    |  self       -- /meal, /location, /status      (all roles)
-    |  management -- /override, /team-summary        (team_lead, admin, logistics read-only)
-    |  ops        -- /headcount, /set-day, /admin    (admin, logistics)
-    |  receives pre-verified, pre-routed event with caller identity attached
-    |  executes business logic for its command group
-    |  sends result back to Discord via followup REST API call
-    v
-AWS DynamoDB  (on-demand -- single table)
-    +  craftsbite  (all entities: users, teams, meals, schedules, work locations, audit logs)
+Discord User                              Google Chat User
+    |  slash command (HTTP POST)              |  slash command (HTTP POST)
+    |  X-Signature-Ed25519 headers            |  Authorization: Bearer <Google-signed JWT>
+    v                                         v
+AWS API Gateway                           AWS API Gateway
+    |  POST /interactions                     |  POST /gchat
+    v                                         v
+Discord Router Lambda                     GChat Router Lambda
+(cmd/router)                              (cmd/gchat-router, internal/gchat/)
+    |  verifies Ed25519 (DISCORD_PUBLIC_KEY)  |  verifies Bearer JWT (GCHAT_AUDIENCE)
+    |  resolves caller: DISCORD#<id>          |  resolves caller: GCHAT#<email>
+    |  checks ACL via discord.CheckPermission |  checks ACL via discord.CheckPermission
+    |  async invoke (InvocationType=Event)    |  async invoke (InvocationType=Event)
+    |  returns { "type": 5 }                  |  returns acknowledgement
+    |                                         |
+    +-------------------+---------------------+
+                        |
+                        v
+             Command Lambda  (Go -- shared across both platforms)
+                        |
+                        |  self       -- /meal, /location, /status      (all roles)
+                        |  `/status` fetches meal status + location + schedule: 3 parallel goroutines
+                        |
+                        |  management -- /override, /team-summary        (team_lead, admin, logistics)
+                        |  `/team-summary` fan-out: one goroutine per member fetches meals + location
+                        |
+                        |  ops        -- /headcount, /set-day, /admin    (admin, logistics)
+                        |  `/headcount` runs 3 parallel GSI1 queries, joins in memory
+                        |
+                        |  receives pre-verified event with caller identity + Source attached
+                        |  Source=discord  →  Discord followup REST API
+                        |  Source=gchat    →  Google Chat REST API (internal/gchat/reply.go)
+                        v
+             AWS DynamoDB  (on-demand -- single table)
+                        +  craftsbite  (users, teams, meals, schedules, work locations, audit logs)
 ```
 
-**Request flow:** Discord sends every slash command as an HTTP POST to the API Gateway URL, including two signature headers for request verification. API Gateway forwards the request to the Router Lambda. This function first verifies the Ed25519 signature using `DISCORD_PUBLIC_KEY` — any request that fails verification is rejected immediately and no command Lambda is ever invoked. On success, it resolves the caller's identity by looking up their `discordId` in DynamoDB, reads the command name from the request body, and asynchronously invokes the correct grouped command Lambda with the caller identity attached. It then immediately returns `{ "type": 5 }` to Discord within the 3-second deadline. The command Lambda receives a pre-verified, pre-routed event, executes the business logic, and sends the result back to Discord via a followup REST API call.
+**Request flow (Discord):** Discord sends every slash command as an HTTP POST to the API Gateway URL, including two signature headers for request verification. API Gateway forwards the request to the Discord Router Lambda. This function first verifies the Ed25519 signature using `DISCORD_PUBLIC_KEY` — any request that fails verification is rejected immediately and no command Lambda is ever invoked. On success, it resolves the caller's identity by looking up their `discordId` in DynamoDB (`PK=DISCORD#<id>`), reads the command name from the request body, and asynchronously invokes the correct grouped command Lambda with the caller identity attached. It then immediately returns `{ "type": 5 }` to Discord within the 3-second deadline.
+
+**Request flow (Google Chat):** Google Chat sends every slash command interaction as an HTTP POST to the `/gchat` API Gateway route, signed with a Google-issued Bearer JWT. The GChat Router Lambda verifies the JWT against Google's public keys using `GCHAT_AUDIENCE`, resolves the caller by email (`PK=GCHAT#<email>`), checks the ACL via the shared `discord.CheckPermission`, and asynchronously invokes the correct command Lambda. It then returns an immediate acknowledgement to Google Chat. The command Lambda receives a pre-verified, pre-routed event identical in structure to the Discord path (with `Source=gchat` attached), executes the business logic, and sends the result back via `internal/gchat/reply.go`.
 
 **Boundaries:**
 
 - API Gateway handles HTTPS termination — nothing else
-- Router Lambda owns signature verification, identity resolution, and command dispatch — command Lambdas only ever receive verified, enriched events
-- Command Lambdas each own the business logic for their command group — no auth, no routing
+- Discord Router Lambda owns Ed25519 verification, Discord identity resolution, and command dispatch — command Lambdas only ever receive verified, enriched events
+- GChat Router Lambda owns JWT verification, Google Workspace identity resolution, and command dispatch — uses the same ACL and dispatch logic as the Discord router via `internal/discord/dispatch.go`
+- Command Lambdas each own the business logic for their command group — no auth, no routing, no platform awareness beyond the `Source` field on the event
 - DynamoDB owns persistence — all Lambdas are stateless and hold no data between invocations
-- Discord is the primary external caller in this iteration — may introduce frontend application later on
+- Discord and Google Chat are the two supported external callers in this iteration — a frontend application may be introduced later
 
 ---
 
