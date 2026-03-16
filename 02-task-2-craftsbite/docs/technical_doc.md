@@ -357,3 +357,46 @@ Headcount for 2026-03-10 (8 employees)
 ```
 
 ---
+
+### `/team-summary`
+
+```
+/team-summary date:<YYYY-MM-DD> [team_id:<uuid>]
+```
+
+Returns per-member participation and location for a team on a date. Available to `team_lead`, `admin`, and `logistics`.
+
+**Role scoping:**
+
+- Team Lead: auto-scoped to their own team (`team_id` option is ignored).
+- Admin / Logistics: `team_id` option is required.
+
+**Implementation:** per-member goroutine fan-out:
+
+1. `Query PK=TEAM#<id>`, `SK begins_with "MEMBER#"` — all member edges.
+2. For each member, one goroutine runs 3 calls in parallel:
+    - `GetItem PK=USER#<id>`, `SK=PROFILE` — member name
+    - `Query PK=USER#<id>`, `SK begins_with "MEAL#<date>#"` — meal statuses
+    - `GetItem PK=USER#<id>`, `SK=WORKLOCATION#<date>` — location (absent = office)
+3. Results sorted by member name.
+4. Reply split into multiple messages if > 2000 chars.
+
+| Scenario                        | Reply                                                |
+| ------------------------------- | ---------------------------------------------------- |
+| Success                         | Per-member table + totals footer                     |
+| Wrong role                      | "You do not have permission to use `/team-summary`." |
+| Team Lead with no team          | "You are not assigned to a team."                    |
+| Admin/Logistics missing team_id | "Please provide a team_id."                          |
+
+**Example reply:**
+
+```
+Team SAGA — 2026-03-10 (3 members)
+Alice Johnson  │ Lunch ✓  │ Snacks ✗  │ Office
+Bob Smith      │ Lunch ✓  │ Snacks ✓  │ WFH
+Carol Lee      │ Lunch ✗  │ Snacks ✗  │ Office
+──────────────────────────────────────
+Totals: Lunch 2/3  │  Snacks 1/3  │  WFH 1/3
+```
+
+---
