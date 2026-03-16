@@ -246,7 +246,8 @@ All entities live in a single DynamoDB table named `craftsbite` (`PAY_PER_REQUES
 
 Each Lambda is compiled to a separate static binary named `bootstrap` (Lambda custom runtime requirement). The binaries are zipped and uploaded independently. No Docker image or layer is used. All functions use the `provided.al2` runtime.
 
-- **Router Lambda** — compiled from `cmd/router/main.go`, deployed as its own function, invoked directly by API Gateway on every request
+- **Discord Router Lambda** — compiled from `cmd/router/main.go`, deployed as its own function, invoked directly by API Gateway (`POST /interactions`) on every Discord request
+- **GChat Router Lambda** — compiled from `cmd/gchat-router/main.go`, deployed as its own function, invoked by API Gateway (`POST /gchat`) on every Google Chat interaction. Uses `internal/gchat/` (`event.go` — event types; `card.go` — Card v2 builder; `reply.go` — Chat REST API reply). Reuses `internal/discord/dispatch.go` for ACL checks and Lambda dispatch. Resolves callers by Google Workspace email (`PK=GCHAT#<email>`, `SK=LOOKUP`).
 - **`self` Lambda** — compiled from `cmd/self/main.go`, handles `/meal`, `/location`, `/status` — available to all roles
 - **`management` Lambda** — compiled from `cmd/management/main.go`, handles `/override`, `/team-summary` — available to `team_lead`, `admin`, and `logistics` (read-only)
 - **`ops` Lambda** — compiled from `cmd/ops/main.go`, handles `/headcount`, `/set-day`, `/admin` — available to `admin` and `logistics` (headcount only)
@@ -273,9 +274,7 @@ Updates submitted after the cutoff are rejected. Updates for past dates are alwa
 
 ---
 
----
-
-## 13. Router Lambda Request Flow
+## 13. Discord Router Lambda — Request Flow
 
 For every `POST /interactions` call:
 
@@ -286,11 +285,30 @@ For every `POST /interactions` call:
 5. Invoke target Lambda asynchronously with enriched payload (`InvocationType=Event`).
 6. Return `{ "type": 5 }` to Discord within the 3-second deadline.
 
-Enriched payload: `userID`, `role`, `discordId`, `commandName`, `options`, `interactionToken`, `applicationId`.
+Enriched payload: `userID`, `role`, `discordId`, `commandName`, `options`, `interactionToken`, `applicationId`, `Source=discord`.
 
 ---
 
-## 14. Router Dispatch Table
+## 14. GChat Router Lambda — Request Flow
+
+For every `POST /gchat` call:
+
+1. Verify Bearer JWT against Google's public keys using `GCHAT_AUDIENCE` — reject HTTP `401` on failure.
+2. Parse the `ChatEvent` JSON body — reject HTTP `400` on failure.
+3. Route on event type:
+   - `ADDED_TO_SPACE` — return welcome text immediately; no command Lambda invoked.
+   - `REMOVED_FROM_SPACE` / `CARD_CLICKED` — return empty acknowledgement; no command Lambda invoked.
+   - `MESSAGE` — proceed to steps 4–7 below.
+4. Resolve caller identity: `GetItem PK=GCHAT#<email>`, `SK=LOOKUP` — return error card if not found.
+5. Check ACL via `discord.CheckPermission(commandName, role)` — return permission-denied card if access is denied.
+6. Invoke target Lambda asynchronously with enriched payload (`InvocationType=Event`).
+7. Return immediate acknowledgement to Google Chat.
+
+Enriched payload: `userID`, `role`, `email`, `commandName`, `argumentText`, `replyName`, `Source=gchat`.
+
+---
+
+## 15. Router Dispatch Table
 
 | Command        | Target Lambda | Environment Variable              |
 | -------------- | ------------- | --------------------------------- |
