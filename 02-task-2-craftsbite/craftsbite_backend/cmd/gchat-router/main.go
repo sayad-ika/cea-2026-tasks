@@ -73,7 +73,7 @@ func handler(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.AP
 		resp, err := handleMessage(ctx, evt)
 		if err != nil {
 			log.Printf("gchat-router: handleMessage: %v", err)
-			return gchatText("An error occurred. Please try again."), nil
+			return gchatText("An error occurred. Please try again.", evt.Chat.User.Name), nil
 		}
 		return resp, nil
 	}

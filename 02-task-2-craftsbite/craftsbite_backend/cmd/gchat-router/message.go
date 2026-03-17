@@ -17,10 +17,11 @@ import (
 
 func handleMessage(ctx context.Context, evt gchat.Event) (events.APIGatewayV2HTTPResponse, error) {
 	c := getConfig()
+	viewerName := evt.Chat.User.Name
 
 	p := evt.Chat.AppCommandPayload
 	if p == nil {
-		return gchatText("Only slash commands are supported."), nil
+		return gchatText("Only slash commands are supported.", viewerName), nil
 	}
 
 	userID, role, err := repository.GetUserByGChatEmail(ctx, dynamo.GetClient(c), c.DynamoDBTable, evt.Chat.User.Email)
@@ -28,22 +29,22 @@ func handleMessage(ctx context.Context, evt gchat.Event) (events.APIGatewayV2HTT
 		return events.APIGatewayV2HTTPResponse{StatusCode: 500}, fmt.Errorf("gchat-router: identity resolution: %w", err)
 	}
 	if userID == "" {
-		return gchatText("Your Google Chat account is not linked to CraftsBite. Contact your admin."), nil
+		return gchatText("Your Google Chat account is not linked to CraftsBite. Contact your admin.", viewerName), nil
 	}
 
 	cmdEvt, err := gchat.ToCommandEvent(evt, userID, role)
 	if err != nil {
-		return gchatText(err.Error()), nil
+		return gchatText(err.Error(), viewerName), nil
 	}
 
 	if !discord.CheckPermission(cmdEvt.CommandName, role) {
-		return gchatText(fmt.Sprintf("You do not have permission to use `/%s`.", cmdEvt.CommandName)), nil
+		return gchatText(fmt.Sprintf("You do not have permission to use `/%s`.", cmdEvt.CommandName), viewerName), nil
 	}
 
 	targetFn, ok := discord.Dispatch(c, cmdEvt.CommandName)
 	if !ok || targetFn == "" {
 		log.Printf("gchat-router: no target function configured for command=%q", cmdEvt.CommandName)
-		return gchatText(fmt.Sprintf("Command `/%s` is not configured.", cmdEvt.CommandName)), nil
+		return gchatText(fmt.Sprintf("Command `/%s` is not configured.", cmdEvt.CommandName), viewerName), nil
 	}
 
 	payloadBytes, err := json.Marshal(cmdEvt)
@@ -60,15 +61,22 @@ func handleMessage(ctx context.Context, evt gchat.Event) (events.APIGatewayV2HTT
 		return events.APIGatewayV2HTTPResponse{StatusCode: 500}, fmt.Errorf("gchat-router: invoke %s: %w", targetFn, err)
 	}
 
-	return gchatText("Working on it\u2026"), nil
+	return gchatText("Working on it\u2026", viewerName), nil
 }
 
-func gchatText(msg string) events.APIGatewayV2HTTPResponse {
+func gchatText(msg, viewerName string) events.APIGatewayV2HTTPResponse {
+	message := map[string]interface{}{
+		"text": msg,
+	}
+	if viewerName != "" {
+		message["privateMessageViewer"] = map[string]string{"name": viewerName}
+	}
+
 	body, _ := json.Marshal(map[string]interface{}{
 		"hostAppDataAction": map[string]interface{}{
 			"chatDataAction": map[string]interface{}{
 				"createMessageAction": map[string]interface{}{
-					"message": map[string]string{"text": msg},
+					"message": message,
 				},
 			},
 		},

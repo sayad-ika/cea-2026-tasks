@@ -59,6 +59,7 @@ func ToCommandEvent(evt Event, internalUserID, role string) (payload.CommandEven
 		Source:           "gchat",
 		GChatSpaceName:   p.Space.Name,
 		GChatMessageName: msgName,
+		GChatViewerName:  evt.Chat.User.Name,
 	}, nil
 }
 
