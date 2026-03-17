@@ -11,4 +11,5 @@ type CommandEvent struct {
 	Source           string                 `json:"source"`
 	GChatSpaceName   string                 `json:"gchatSpaceName,omitempty"`
 	GChatMessageName string                 `json:"gchatMessageName,omitempty"`
+	GChatViewerName  string                 `json:"gchatViewerName,omitempty"`
 }
