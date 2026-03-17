@@ -8,9 +8,9 @@
 
 ## 1. Overview
 
-Craftsbite is a meal headcount planning system built for office teams. The system removes the manual overhead of tracking meal participation and work location through spreadsheets and chat messages. Discord is the primary user interface -- web frontend may be introduced in future.
+Craftsbite is a meal headcount planning system built for office teams. The system removes the manual overhead of tracking meal participation and work location through spreadsheets and chat messages. Discord is the primary user interface; Google Chat is the second supported platform. A web frontend may be introduced in future.
 
-Employees interact primarily through Discord slash commands to update their meal participation and work location for a given date. Team Leads can request a headcount summary scoped to their team. Admin and Logistics users have visibility across the entire organisation. The Discord bot responds with the user's current status after every update.
+Employees interact through Discord or Google Chat slash commands to update their meal participation and work location for a given date. Team Leads can request a headcount summary scoped to their team. Admin and Logistics users have visibility across the entire organisation. The bot responds with the user's current status after every update.
 
 ---
 
@@ -26,7 +26,7 @@ Employees have no direct way to update their own participation. Logistics staff 
 
 **Goals**
 
-- Employees can update meal participation and work location for a selected date via Discord.
+- Employees can update meal participation and work location for a selected date via Discord or Google Chat.
 - The bot replies with a status summary after each successful update.
 - Team Leads can view a team-level participation summary for a selected date.
 - Admin/Logistics can view an org-wide headcount summary for a selected date.
@@ -43,55 +43,69 @@ Employees have no direct way to update their own participation. Logistics staff 
 ## 4. Cloud Architecture
 
 ```
-Discord User
-    |  slash command (HTTP POST)
-    |  X-Signature-Ed25519 + X-Signature-Timestamp headers
-    v
-AWS API Gateway  (HTTP API)
-    |  single route: POST /interactions
-    v
-Router Lambda  (Go -- native Lambda handler)
-    |  verifies Ed25519 signature using DISCORD_PUBLIC_KEY
-    |  rejects invalid requests immediately -- command Lambdas never invoked
-    |  resolves caller identity via discordId -> DynamoDB (GetItem DISCORD#<id>)
-    |  reads command name from request body
-    |  invokes the correct command Lambda asynchronously (InvocationType=Event)
-    |  returns { "type": 5 } to Discord within 3 seconds
-    v
-Command Lambda  (Go -- native Lambda handler, one per command group)
-    |  self       -- /meal, /location, /status      (all roles)
-    |  management -- /override, /team-summary        (team_lead, admin, logistics read-only)
-    |  ops        -- /headcount, /set-day, /admin    (admin, logistics)
-    |  receives pre-verified, pre-routed event with caller identity attached
-    |  executes business logic for its command group
-    |  sends result back to Discord via followup REST API call
-    v
-AWS DynamoDB  (on-demand -- single table)
-    +  craftsbite  (all entities: users, teams, meals, schedules, work locations, audit logs)
+Discord User                              Google Chat User
+    |  slash command (HTTP POST)              |  slash command (HTTP POST)
+    |  X-Signature-Ed25519 headers            |  Authorization: Bearer <Google-signed JWT>
+    v                                         v
+AWS API Gateway                           AWS API Gateway
+    |  POST /interactions                     |  POST /gchat
+    v                                         v
+Discord Router Lambda                     GChat Router Lambda
+(cmd/router)                              (cmd/gchat-router, internal/gchat/)
+    |  verifies Ed25519 (DISCORD_PUBLIC_KEY)  |  verifies Bearer JWT (GCHAT_AUDIENCE)
+    |  resolves caller: DISCORD#<id>          |  resolves caller: GCHAT#<email>
+    |  checks ACL via discord.CheckPermission |  checks ACL via discord.CheckPermission
+    |  async invoke (InvocationType=Event)    |  async invoke (InvocationType=Event)
+    |  returns { "type": 5 }                  |  returns acknowledgement
+    |                                         |
+    +-------------------+---------------------+
+                        |
+                        v
+             Command Lambda  (Go -- shared across both platforms)
+                        |
+                        |  self       -- /meal, /location, /status      (all roles)
+                        |  `/status` fetches meal status + location + schedule: 3 parallel goroutines
+                        |
+                        |  management -- /override, /team-summary        (team_lead, admin, logistics)
+                        |  `/team-summary` fan-out: one goroutine per member fetches meals + location
+                        |
+                        |  ops        -- /headcount, /set-day, /admin    (admin, logistics)
+                        |  `/headcount` runs 3 parallel GSI1 queries, joins in memory
+                        |
+                        |  receives pre-verified event with caller identity + Source attached
+                        |  Source=discord  →  Discord followup REST API
+                        |  Source=gchat    →  Google Chat REST API (internal/gchat/reply.go)
+                        v
+             AWS DynamoDB  (on-demand -- single table)
+                        +  craftsbite  (users, teams, meals, schedules, work locations, audit logs)
 ```
 
-**Request flow:** Discord sends every slash command as an HTTP POST to the API Gateway URL, including two signature headers for request verification. API Gateway forwards the request to the Router Lambda. This function first verifies the Ed25519 signature using `DISCORD_PUBLIC_KEY` — any request that fails verification is rejected immediately and no command Lambda is ever invoked. On success, it resolves the caller's identity by looking up their `discordId` in DynamoDB, reads the command name from the request body, and asynchronously invokes the correct grouped command Lambda with the caller identity attached. It then immediately returns `{ "type": 5 }` to Discord within the 3-second deadline. The command Lambda receives a pre-verified, pre-routed event, executes the business logic, and sends the result back to Discord via a followup REST API call.
+**Request flow (Discord):** Discord sends every slash command as an HTTP POST to the API Gateway URL, including two signature headers for request verification. API Gateway forwards the request to the Discord Router Lambda. This function first verifies the Ed25519 signature using `DISCORD_PUBLIC_KEY` — any request that fails verification is rejected immediately and no command Lambda is ever invoked. On success, it resolves the caller's identity by looking up their `discordId` in DynamoDB (`PK=DISCORD#<id>`), reads the command name from the request body, and asynchronously invokes the correct grouped command Lambda with the caller identity attached. It then immediately returns `{ "type": 5 }` to Discord within the 3-second deadline.
+
+**Request flow (Google Chat):** Google Chat sends every slash command interaction as an HTTP POST to the `/gchat` API Gateway route, signed with a Google-issued Bearer JWT. The GChat Router Lambda verifies the JWT against Google's public keys using `GCHAT_AUDIENCE`, resolves the caller by email (`PK=GCHAT#<email>`), checks the ACL via the shared `discord.CheckPermission`, and asynchronously invokes the correct command Lambda. It then returns an immediate acknowledgement to Google Chat. The command Lambda receives a pre-verified, pre-routed event identical in structure to the Discord path (with `Source=gchat` attached), executes the business logic, and sends the result back via `internal/gchat/reply.go`.
 
 **Boundaries:**
 
 - API Gateway handles HTTPS termination — nothing else
-- Router Lambda owns signature verification, identity resolution, and command dispatch — command Lambdas only ever receive verified, enriched events
-- Command Lambdas each own the business logic for their command group — no auth, no routing
+- Discord Router Lambda owns Ed25519 verification, Discord identity resolution, and command dispatch — command Lambdas only ever receive verified, enriched events
+- GChat Router Lambda owns JWT verification, Google Workspace identity resolution, and command dispatch — uses the same ACL and dispatch logic as the Discord router via `internal/discord/dispatch.go`
+- Command Lambdas each own the business logic for their command group — no auth, no routing, no platform awareness beyond the `Source` field on the event
 - DynamoDB owns persistence — all Lambdas are stateless and hold no data between invocations
-- Discord is the primary external caller in this iteration — may introduce frontend application later on
+- Discord and Google Chat are the two supported external callers in this iteration — a frontend application may be introduced later
 
 ---
 
 ## 5. Tech Stack & Rationale
 
-|               | Choice                     | Why                                                                                                                                                                                                                                         |
-| ------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Language      | Go                         | Compiles to a single static binary with minimal dependencies. Cold starts on Lambda are near-instant, which is critical for staying within Discord's hard 3-second response deadline.                                                       |
-| Compute       | AWS Lambda                 | Serverless compute -- no servers to provision or maintain. Each function runs only when invoked and scales automatically. At current estimated usage (~6,000 requests/month) the cost sits within AWS's permanent free tier at $0.00/month. |
-| Handler model | Native Lambda handlers     | All Lambdas are written as native Go Lambda handlers using the AWS Lambda Go SDK. No HTTP framework or adapter is needed -- each function receives a structured event, processes it, and returns a structured response directly.            |
-| Gateway       | AWS API Gateway (HTTP API) | Exposes a single `POST /interactions` route that forwards all Discord traffic to the Authorizer + Router Lambda. Handles HTTPS termination. Cost is negligible at current scale.                                                            |
-| Database      | AWS DynamoDB (on-demand)   | Serverless NoSQL database -- no cluster to manage, no capacity to pre-provision. Scales with usage and costs nothing at idle. On-demand billing means we only pay for what we use.                                                          |
-| Bot model     | Discord HTTP Interactions  | Slash commands are delivered as plain HTTP POST requests to our endpoint. This is the only Discord integration model compatible with serverless compute -- no persistent connection required.                                               |
+|               | Choice                        | Why                                                                                                                                                                                                                                          |
+| ------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Language      | Go                            | Compiles to a single static binary with minimal dependencies. Cold starts on Lambda are near-instant, which is critical for staying within Discord's hard 3-second response deadline.                                                        |
+| Compute       | AWS Lambda                    | Serverless compute -- no servers to provision or maintain. Each function runs only when invoked and scales automatically. At current estimated usage (~6,000 requests/month) the cost sits within AWS's permanent free tier at $0.00/month.  |
+| Handler model | Native Lambda handlers        | All Lambdas are written as native Go Lambda handlers using the AWS Lambda Go SDK. No HTTP framework or adapter is needed -- each function receives a structured event, processes it, and returns a structured response directly.             |
+| Gateway       | AWS API Gateway (HTTP API)    | Exposes `POST /interactions` for Discord traffic and `POST /gchat` for Google Chat traffic. Handles HTTPS termination. Cost is negligible at current scale.                                                                                  |
+| Database      | AWS DynamoDB (on-demand)      | Serverless NoSQL database -- no cluster to manage, no capacity to pre-provision. Scales with usage and costs nothing at idle. On-demand billing means we only pay for what we use.                                                           |
+| Bot model     | Discord HTTP Interactions     | Slash commands are delivered as plain HTTP POST requests to our endpoint. This is the only Discord integration model compatible with serverless compute -- no persistent connection required.                                                |
+| Bot model     | Google Chat HTTP Interactions | Slash commands are delivered as HTTP POST requests signed with a Google-issued Bearer JWT. Same serverless-compatible model as Discord — no persistent connection required. JWT verification uses Google's public keys via `GCHAT_AUDIENCE`. |
 
 ---
 
@@ -99,7 +113,7 @@ AWS DynamoDB  (on-demand -- single table)
 
 **Functional**
 
-- Employees can update meal participation and work location for a selected date via Discord slash commands.
+- Employees can update meal participation and work location for a selected date via Discord or Google Chat slash commands.
 - When opting out for a day without specifying a meal type, the service fans out and writes an opt-out record for every available meal on that date — no client-side enumeration required.
 - The bot replies with the user's current status summary after each update.
 - Team Leads can view a team-level participation summary for a selected date, and override participation for members of their own team.
@@ -108,12 +122,12 @@ AWS DynamoDB  (on-demand -- single table)
 
 **Role-based behavior**
 
-| Role      | `/meal` `/location` `/status` | `/override`   | `/team-summary`       | `/headcount` | `/set-day` | `/admin` |
-| --------- | ----------------------------- | ------------- | --------------------- | ------------ | ---------- | -------- |
-| Employee  | Own records only              | ✗             | ✗                     | ✗            | ✗          | ✗        |
-| Team Lead | Own records only              | Own team only | Own team only         | ✗            | ✗          | ✗        |
-| Logistics | Own records only              | ✗             | Read-only (all teams) | ✓            | ✗          | ✗        |
-| Admin     | Own records only              | Any user      | All teams             | ✓            | ✓          | ✓        |
+| Role      | `/meal` `/location` `/status` | `/override`   | `/team-summary`       | `/headcount`  | `/set-day` | `/admin` |
+| --------- | ----------------------------- | ------------- | --------------------- | ------------- | ---------- | -------- |
+| Employee  | Own records only              | ✗             | ✗                     | ✗             | ✗          | ✗        |
+| Team Lead | Own records only              | Own team only | Own team only         | ✗             | ✗          | ✗        |
+| Logistics | Own records only              | ✗             | Read-only (all teams) | ✓ (read-only) | ✗          | ✗        |
+| Admin     | Own records only              | Any user      | All teams             | ✓             | ✓          | ✓        |
 
 **Validation rules**
 
@@ -122,9 +136,19 @@ AWS DynamoDB  (on-demand -- single table)
 - Overrides bypass the cutoff but not day availability — the meal must exist in `available_meals` for that date.
 - When a day is marked `office_closed` or `govt_holiday`, available meals are forced to empty — no participation writes are accepted for that date.
 
+**Participation resolution**
+
+The effective status for any (user, date, meal) combination is determined in this order:
+
+1. Meal not in `available_meals` for that date → **unavailable**
+2. Explicit record exists in DynamoDB → **opted in** or **opted out**
+3. No record, meal is available → **opted in** (system default)
+
+When no day schedule exists for a date, the day is treated as normal and all meals resolve to opted in for users with no explicit record.
+
 **Definition of Done**
 
-- Discord bot responds to all slash commands within 3 seconds.
+- Discord and Google Chat bots respond to all slash commands within 3 seconds.
 - Role-based access is enforced — no role can access data outside its scope.
 - All participation and location writes are correctly validated against cutoff and date rules.
 
@@ -135,8 +159,10 @@ AWS DynamoDB  (on-demand -- single table)
 - **Single-table DynamoDB design** — all entities (users, teams, memberships, meal participations, work locations, day schedules, WFH periods, audit logs) live in one table (`craftsbite`). A single GSI (`GSI1`) is overloaded with clearly distinct `GSI1PK` prefixes to serve all secondary access patterns. This keeps billing, backups, and monitoring to one target, and is appropriate at the current scale of ~200 employees.
 - **DynamoDB as primary data store** — chosen for its serverless model, zero idle cost, and natural fit with Lambda's stateless invocation pattern.
 - **Fully serverless architecture** — Lambda, API Gateway, and DynamoDB together mean no persistent infrastructure to operate or scale manually. The entire system scales to zero when idle and scales up automatically under load.
-- **Discord HTTP Interactions over Gateway (WebSocket) bot** — slash commands delivered as HTTP POST requests require no persistent connection, which is the only model compatible with Lambda. Signature verification via Ed25519 is handled by the Router Lambda on every incoming request.
-- **Router Lambda as sole entry point** — signature verification and command dispatch are handled in one Lambda. Merging them eliminates an extra invocation hop, reduces cold start risk within Discord's 3-second deadline, and keeps the entry point cohesive. The function has two clear responsibilities: verify the request is legitimate, then hand it off to the correct command Lambda.
+- **Discord HTTP Interactions over Gateway (WebSocket) bot** — slash commands delivered as HTTP POST requests require no persistent connection, which is the only model compatible with Lambda. Signature verification via Ed25519 is handled by the Discord Router Lambda on every incoming request.
+- **Google Chat HTTP Interactions** — slash commands are delivered as HTTP POST requests signed with a Google-issued Bearer JWT, consistent with the same serverless-compatible model as Discord. JWT verification is handled by the GChat Router Lambda on every incoming request.
+- **Shared ACL and dispatch logic across platforms** — `discord.CheckPermission` and `discord.Dispatch` in `internal/discord/dispatch.go` are platform-agnostic. Both the Discord and GChat routers import them directly. The ACL table and Lambda dispatch map are defined once and enforced identically regardless of which platform the request originates from.
+- **Router Lambda as sole entry point per platform** — each platform has its own router Lambda that owns verification, identity resolution, and dispatch. Keeping these separate avoids mixing auth schemes in a single function while still sharing all downstream logic.
 - **Grouped command Lambdas (not per-command)** — commands are grouped by role scope into three Lambdas: `self` (employee self-service), `management` (team lead and admin oversight), and `ops` (admin and logistics operations). Each group gets an independent deployment unit and failure domain. Grouping by role scope is more natural than one Lambda per command and avoids unnecessary proliferation of functions for closely related operations.
 - **Day-wide opt-out handled by service fan-out** — when a user opts out for a full day without specifying a meal type, the `self` Lambda reads the available meals for that date and issues one `PutItem` per meal via `BatchWriteItem`. The schema stays uniform — headcount queries always see individual per-meal records regardless of whether the opt-out was issued one meal at a time or for the whole day.
 - **Native Lambda handlers over HTTP framework** — all Lambdas are written as native Go Lambda handlers. There is no HTTP server, no Gin, and no adapter layer. Each function receives a structured event and returns a structured response directly. This eliminates unnecessary dependencies and keeps cold starts minimal.
@@ -155,6 +181,7 @@ All entities live in a single DynamoDB table named `craftsbite` (`PAY_PER_REQUES
 | User profile       | `USER#<id>`           | `PROFILE`                              |
 | Email lookup       | `EMAIL#<email>`       | `LOOKUP`                               |
 | Discord lookup     | `DISCORD#<discordId>` | `LOOKUP`                               |
+| Google Chat lookup | `GCHAT#<email>`       | `LOOKUP`                               |
 | Team metadata      | `TEAM#<id>`           | `METADATA`                             |
 | Team listing       | `TEAM#<id>`           | `LISTING`                              |
 | Team member        | `TEAM#<id>`           | `MEMBER#<userID>`                      |
@@ -180,6 +207,7 @@ All entities live in a single DynamoDB table named `craftsbite` (`PAY_PER_REQUES
 **Key design notes:**
 
 - `DISCORD#<discordId>` lookup row carries `role` denormalized — a single `GetItem` resolves both `userID` and `role` on every Lambda invocation with no second read.
+- `GCHAT#<email>` lookup row follows the same denormalized pattern — `userID` and `role` are resolved in a single `GetItem`. The `email` comes from the verified JWT claims.
 - `DAY#<date>` is a shared partition for both `METADATA` and `MEALS`. A single `Query` returns the full day context in one round trip.
 - Team metadata needs two distinct GSI1 patterns (by lead and by listing). Because a DynamoDB item can only carry one GSI1PK/GSI1SK pair, the team uses two items: `METADATA` carries `TEAMLEAD#`, and a separate `LISTING` item carries `ENTITY#TEAM`.
 - User profile and Discord lookup are always kept in sync via `TransactWriteItems` — role changes update both atomically.
@@ -193,6 +221,7 @@ All entities live in a single DynamoDB table named `craftsbite` (`PAY_PER_REQUES
 | Pattern                                         | Operation        | Key Expression                                                                       |
 | ----------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------ |
 | Resolve Discord user → internal user + role     | `GetItem`        | `PK=DISCORD#<discordId>`, `SK=LOOKUP`                                                |
+| Resolve Google Chat user → internal user + role | `GetItem`        | `PK=GCHAT#<email>`, `SK=LOOKUP`                                                      |
 | Get user profile by UUID                        | `GetItem`        | `PK=USER#<id>`, `SK=PROFILE`                                                         |
 | List all active users                           | `Query` GSI1     | `GSI1PK=ENTITY#USER`, `GSI1SK begins_with "true#"`                                   |
 | Get all team members                            | `Query`          | `PK=TEAM#<id>`, `SK begins_with "MEMBER#"`                                           |
@@ -202,10 +231,10 @@ All entities live in a single DynamoDB table named `craftsbite` (`PAY_PER_REQUES
 | Get specific meal participation                 | `GetItem`        | `PK=USER#<id>`, `SK=MEAL#<date>#<mealType>`                                          |
 | Get all meal participation for a user on a date | `Query`          | `PK=USER#<id>`, `SK begins_with "MEAL#<date>#"`                                      |
 | Get all participations for a date (headcount)   | `Query` GSI1     | `GSI1PK=<date>`, `GSI1SK begins_with "MEAL#"`                                        |
-| Get WFH employees for a date                    | `Query` GSI1     | `GSI1PK=<date>`, `GSI1SK begins_with "WFH#"`                                         |
-| Get Office employees for a date                 | `Query` GSI1     | `GSI1PK=<date>`, `GSI1SK begins_with "OFFICE#"`                                      |
-| Get work location for (user, date)              | `GetItem`        | `PK=USER#<id>`, `SK=WORKLOCATION#<date>`                                             |
+| Get WFH employees for a date                    | `Query` GSI1     | `GSI1PK=<date>`, filter `GSI1SK begins_with "wfh#"`                                  |
+| Get Office employees for a date                 | `Query` GSI1     | `GSI1PK=<date>`, filter `GSI1SK begins_with "office#"`                               |
 | Get all work locations for a date (headcount)   | `Query` GSI1     | `GSI1PK=<date>`, filter prefix `wfh#` OR `office#` — single query, filtered in DDB   |
+| Get work location for (user, date)              | `GetItem`        | `PK=USER#<id>`, `SK=WORKLOCATION#<date>`                                             |
 | Get monthly WFH count for a user                | `Query` + filter | `PK=USER#<id>`, `SK begins_with "WORKLOCATION#<YYYY-MM>"`, filter `location = "wfh"` |
 | Check if date falls in a WFH period             | `Query`          | `PK=WFHPERIOD`, `SK <= "<date>#zzzz"` → check `end_date >= date` in app              |
 | Write audit entry                               | `PutItem`        | `PK=AUDIT#<actorUserID>`, `SK=<timestamp>#<entityType>#<entityKey>`                  |
@@ -217,7 +246,8 @@ All entities live in a single DynamoDB table named `craftsbite` (`PAY_PER_REQUES
 
 Each Lambda is compiled to a separate static binary named `bootstrap` (Lambda custom runtime requirement). The binaries are zipped and uploaded independently. No Docker image or layer is used. All functions use the `provided.al2` runtime.
 
-- **Router Lambda** — compiled from `cmd/router/main.go`, deployed as its own function, invoked directly by API Gateway on every request
+- **Discord Router Lambda** — compiled from `cmd/router/main.go`, deployed as its own function, invoked directly by API Gateway (`POST /interactions`) on every Discord request
+- **GChat Router Lambda** — compiled from `cmd/gchat-router/main.go`, deployed as its own function, invoked by API Gateway (`POST /gchat`) on every Google Chat interaction. Uses `internal/gchat/` (`event.go` — event types; `card.go` — Card v2 builder; `reply.go` — Chat REST API reply). Reuses `internal/discord/dispatch.go` for ACL checks and Lambda dispatch. Resolves callers by Google Workspace email (`PK=GCHAT#<email>`, `SK=LOOKUP`).
 - **`self` Lambda** — compiled from `cmd/self/main.go`, handles `/meal`, `/location`, `/status` — available to all roles
 - **`management` Lambda** — compiled from `cmd/management/main.go`, handles `/override`, `/team-summary` — available to `team_lead`, `admin`, and `logistics` (read-only)
 - **`ops` Lambda** — compiled from `cmd/ops/main.go`, handles `/headcount`, `/set-day`, `/admin` — available to `admin` and `logistics` (headcount only)
@@ -244,9 +274,7 @@ Updates submitted after the cutoff are rejected. Updates for past dates are alwa
 
 ---
 
----
-
-## 13. Router Lambda Request Flow
+## 13. Discord Router Lambda — Request Flow
 
 For every `POST /interactions` call:
 
@@ -257,11 +285,30 @@ For every `POST /interactions` call:
 5. Invoke target Lambda asynchronously with enriched payload (`InvocationType=Event`).
 6. Return `{ "type": 5 }` to Discord within the 3-second deadline.
 
-Enriched payload: `userID`, `role`, `discordId`, `commandName`, `options`, `interactionToken`, `applicationId`.
+Enriched payload: `userID`, `role`, `discordId`, `commandName`, `options`, `interactionToken`, `applicationId`, `Source=discord`.
 
 ---
 
-## 14. Router Dispatch Table
+## 14. GChat Router Lambda — Request Flow
+
+For every `POST /gchat` call:
+
+1. Verify Bearer JWT against Google's public keys using `GCHAT_AUDIENCE` — reject HTTP `401` on failure.
+2. Parse the `ChatEvent` JSON body — reject HTTP `400` on failure.
+3. Route on event type:
+    - `ADDED_TO_SPACE` — return welcome text immediately; no command Lambda invoked.
+    - `REMOVED_FROM_SPACE` / `CARD_CLICKED` — return empty acknowledgement; no command Lambda invoked.
+    - `MESSAGE` — proceed to steps 4–7 below.
+4. Resolve caller identity: `GetItem PK=GCHAT#<email>`, `SK=LOOKUP` — return error card if not found.
+5. Check ACL via `discord.CheckPermission(commandName, role)` — return permission-denied card if access is denied.
+6. Invoke target Lambda asynchronously with enriched payload (`InvocationType=Event`).
+7. Return immediate acknowledgement to Google Chat.
+
+Enriched payload: `userID`, `role`, `email`, `commandName`, `argumentText`, `replyName`, `Source=gchat`.
+
+---
+
+## 15. Router Dispatch Table
 
 | Command        | Target Lambda | Environment Variable              |
 | -------------- | ------------- | --------------------------------- |
@@ -276,22 +323,35 @@ Enriched payload: `userID`, `role`, `discordId`, `commandName`, `options`, `inte
 
 ---
 
-## 15. Registered Slash Commands
+## 16. Registered Slash Commands
+
+### Discord
 
 | Command         | Options                                                                                                                                                  | Notes                                                                                                                                               |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/meal`         | `date` (req), `status` (req: `in\|out`), `meal` (opt: `lunch\|snacks\|iftar\|event_dinner\|optional_dinner`)                                             | If `meal` is omitted, the service reads available meals for that date and writes the status for every available meal (day-wide opt-in/out fan-out). |
 | `/location`     | `date` (req), `location` (req: `office\|wfh`)                                                                                                            |                                                                                                                                                     |
-| `/status`       | `date` (req)                                                                                                                                             | Returns current meal participation and work location for the user on that date.                                                                     |
+| `/status`       | `date` (req)                                                                                                                                             | Returns current meal participation, work location, and day status for the caller on that date. Fetches in 3 parallel goroutines.                    |
 | `/override`     | `date` (req), `user` (req), `meal` (req: `lunch\|snacks\|iftar\|event_dinner\|optional_dinner`), `status` (req: `in\|out`), `reason` (opt)               | Team Leads: own team only. Admin: any user. Bypasses cutoff; meal must be available for the date.                                                   |
 | `/team-summary` | `date` (req), `team_id` (opt)                                                                                                                            | Team Leads: own team only (ignores `team_id`). Logistics: read-only, any team. Admin: any team.                                                     |
-| `/headcount`    | `date` (req)                                                                                                                                             | Admin and Logistics only. Returns meal totals and Office vs WFH split for the date.                                                                 |
+| `/headcount`    | `date` (req)                                                                                                                                             | Admin and Logistics only. Returns meal totals and Office vs WFH split for the date. Users with no work location record are counted as office.       |
 | `/set-day`      | `date` (req), `day_status` (req: `normal\|office_closed\|govt_holiday\|celebration\|event_day`), `meals` (opt: comma-separated meal types), `note` (opt) | Admin only. Setting `office_closed` or `govt_holiday` forces `meals` to empty.                                                                      |
 | `/admin`        | `action` (req: `create-user\|update-role\|deactivate-user\|create-team\|add-member\|remove-member`), plus action-specific options                        | Admin only.                                                                                                                                         |
 
+### Google Chat
+
+Google Chat uses free-text argument strings. Arguments are positional and parsed by the GChat Router Lambda before invoking the command Lambda. Only the four commands below are registered — `/status`, `/override`, `/set-day`, and `/admin` are not exposed until their handlers are ready for the platform.
+
+| Command         | Command ID | Argument format                | Notes                                                                                                                                                                 |
+| --------------- | ---------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/meal`         | 1          | `<in\|out> <meal_type> [date]` | `meal_type` required (no day-wide fan-out via omission on GChat). `date` defaults to today if omitted. `iftar` is not exposed — parity with what the handler accepts. |
+| `/location`     | 2          | `<office\|wfh> [date]`         | `date` defaults to today if omitted.                                                                                                                                  |
+| `/team-summary` | 3          | `[date]`                       | `date` defaults to today if omitted. `team_id` is not advertised — handler always uses the caller's first led team.                                                   |
+| `/headcount`    | 4          | `<date>`                       | `date` is required. Router returns a usage hint card before invoking Lambda if omitted.                                                                               |
+
 ---
 
-## 16. Command Usage
+## 17. Command Usage
 
 ### `/meal`
 
