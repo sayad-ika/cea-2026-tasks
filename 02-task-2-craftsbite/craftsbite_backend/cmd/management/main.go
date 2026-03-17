@@ -12,19 +12,10 @@ import (
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
 	"github.com/sayad-ika/craftsbite/internal/discord"
 	"github.com/sayad-ika/craftsbite/internal/dynamo"
+	"github.com/sayad-ika/craftsbite/internal/payload"
 	"github.com/sayad-ika/craftsbite/internal/repository"
 	"github.com/sayad-ika/craftsbite/internal/services"
 )
-
-type CommandEvent struct {
-	UserID           string                 `json:"userID"`
-	Role             string                 `json:"role"`
-	DiscordID        string                 `json:"discordId"`
-	CommandName      string                 `json:"commandName"`
-	Options          map[string]interface{} `json:"options"`
-	InteractionToken string                 `json:"interactionToken"`
-	ApplicationID    string                 `json:"applicationId"`
-}
 
 var (
 	cfgOnce sync.Once
@@ -38,7 +29,7 @@ func getConfig() *appconfig.Config {
 	return cfg
 }
 
-func handler(ctx context.Context, event CommandEvent) error {
+func handler(ctx context.Context, event payload.CommandEvent) error {
 	c := getConfig()
 	client := dynamo.GetClient(c)
 
@@ -56,7 +47,7 @@ func handler(ctx context.Context, event CommandEvent) error {
 	return discord.SendFollowup(event.ApplicationID, event.InteractionToken, replyContent)
 }
 
-func handleTeamSummary(ctx context.Context, client *dynamodb.Client, table string, event CommandEvent) string {
+func handleTeamSummary(ctx context.Context, client *dynamodb.Client, table string, event payload.CommandEvent) string {
 	if event.Role != "team_lead" && event.Role != "admin" {
 		return "You do not have permission to use `/team-summary`."
 	}
