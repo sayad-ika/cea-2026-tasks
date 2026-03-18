@@ -33,43 +33,81 @@ func handler(ctx context.Context, event payload.CommandEvent) error {
 	c := getConfig()
 	client := dynamo.GetClient(c)
 
-	var replyContent string
-
 	switch event.CommandName {
 	case "headcount":
-		replyContent = handleHeadcount(ctx, client, c.DynamoDBTable, event)
+		return handleHeadcountCommand(ctx, client, c, event)
 	case "set-day":
-		replyContent = "This feature is coming soon."
+		return sendOpsReply(ctx, c, event, "This feature is coming soon.")
 	case "admin":
-		replyContent = "This feature is coming soon."
+		return sendOpsReply(ctx, c, event, "This feature is coming soon.")
 	default:
-		replyContent = fmt.Sprintf("Unknown command: /%s", event.CommandName)
+		return sendOpsReply(ctx, c, event, fmt.Sprintf("Unknown command: /%s", event.CommandName))
 	}
-
-	if event.Source == "gchat" {
-		card, _ := gchat.SimpleTextCard(replyContent)
-		return gchat.CreatePrivateMessage(ctx, c.GChatServiceAccountJSON, event.GChatSpaceName, event.GChatViewerName, card)
-	}
-
-	return discord.SendFollowup(event.ApplicationID, event.InteractionToken, replyContent)
 }
 
-func handleHeadcount(ctx context.Context, client *dynamodb.Client, table string, event payload.CommandEvent) string {
+func sendOpsReply(ctx context.Context, c *appconfig.Config, event payload.CommandEvent, text string) error {
+	if event.Source == "gchat" {
+		card, _ := gchat.SimpleTextCard(text)
+		return gchat.CreatePrivateMessage(ctx, c.GChatServiceAccountJSON, event.GChatSpaceName, event.GChatViewerName, card)
+	}
+	return discord.SendFollowup(event.ApplicationID, event.InteractionToken, text)
+}
+
+func handleHeadcountCommand(ctx context.Context, client *dynamodb.Client, c *appconfig.Config, event payload.CommandEvent) error {
 	if event.Role != "admin" && event.Role != "logistics" {
-		return "You do not have permission to use `/headcount`."
+		return sendOpsReply(ctx, c, event, "You do not have permission to use `/headcount`.")
 	}
 
 	date, ok := optString(event.Options, "date")
 	if !ok || date == "" {
-		return "Please provide a date. Example: `/headcount date:2026-03-10`"
+		return sendOpsReply(ctx, c, event, "Please provide a date. Example: `/headcount date:2026-03-10`")
 	}
 
-	result, err := services.GetHeadcount(ctx, client, table, date)
+	result, err := services.GetHeadcount(ctx, client, c.DynamoDBTable, date)
 	if err != nil {
-		return "Something went wrong fetching headcount. Please try again later."
+		return sendOpsReply(ctx, c, event, "Something went wrong fetching headcount. Please try again later.")
 	}
 
-	return formatHeadcount(result)
+	if event.Source == "gchat" {
+		card, _ := buildHeadcountCard(result)
+		return gchat.CreatePrivateMessage(ctx, c.GChatServiceAccountJSON, event.GChatSpaceName, event.GChatViewerName, card)
+	}
+
+	return discord.SendFollowup(event.ApplicationID, event.InteractionToken, formatHeadcount(result))
+}
+
+func buildHeadcountCard(r *services.HeadcountResult) ([]byte, error) {
+	statusLabel := dayStatusLabel(r.DayStatus, r.DayReason)
+
+	var overallMeals []gchat.TeamRow
+	for _, mt := range sortedKeys(r.MealCounts) {
+		mc := r.MealCounts[mt]
+		overallMeals = append(overallMeals, gchat.TeamRow{
+			Label: displayMealName(mt),
+			Value: fmt.Sprintf("%d in / %d out", mc.OptedIn, mc.OptedOut),
+		})
+	}
+
+	var teams []gchat.HeadcountTeamSection
+	for _, t := range r.Teams {
+		var meals []gchat.TeamRow
+		for _, mt := range sortedKeys(t.MealCounts) {
+			mc := t.MealCounts[mt]
+			meals = append(meals, gchat.TeamRow{
+				Label: displayMealName(mt),
+				Value: fmt.Sprintf("%d in / %d out", mc.OptedIn, mc.OptedOut),
+			})
+		}
+		teams = append(teams, gchat.HeadcountTeamSection{
+			TeamName:    t.TeamName,
+			MemberCount: t.MemberCount,
+			Office:      t.LocationCounts.Office,
+			WFH:         t.LocationCounts.WFH,
+			Meals:       meals,
+		})
+	}
+
+	return gchat.HeadcountCard(r.Date, statusLabel, r.TotalUsers, r.LocationCounts.Office, r.LocationCounts.WFH, overallMeals, teams)
 }
 
 func optString(opts map[string]interface{}, key string) (string, bool) {
