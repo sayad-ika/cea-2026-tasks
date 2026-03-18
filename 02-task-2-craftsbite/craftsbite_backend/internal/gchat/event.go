@@ -26,6 +26,7 @@ type Message struct {
 	Name         string        `json:"name"`
 	Sender       Sender        `json:"sender"`
 	Text         string        `json:"text"`
+	ArgumentText string        `json:"argumentText"`
 	SlashCommand *SlashCommand `json:"slashCommand,omitempty"`
 }
 

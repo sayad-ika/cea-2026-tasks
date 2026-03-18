@@ -12,18 +12,9 @@ import (
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
 	"github.com/sayad-ika/craftsbite/internal/discord"
 	"github.com/sayad-ika/craftsbite/internal/dynamo"
+	"github.com/sayad-ika/craftsbite/internal/payload"
 	"github.com/sayad-ika/craftsbite/internal/services"
 )
-
-type CommandEvent struct {
-	UserID           string                 `json:"userID"`
-	Role             string                 `json:"role"`
-	DiscordID        string                 `json:"discordId"`
-	CommandName      string                 `json:"commandName"`
-	Options          map[string]interface{} `json:"options"`
-	InteractionToken string                 `json:"interactionToken"`
-	ApplicationID    string                 `json:"applicationId"`
-}
 
 var validMealOptions = map[string]bool{
 	"lunch":           true,
@@ -45,7 +36,7 @@ func getConfig() *appconfig.Config {
 	return cfg
 }
 
-func handler(ctx context.Context, event CommandEvent) error {
+func handler(ctx context.Context, event payload.CommandEvent) error {
 	c := getConfig()
 	client := dynamo.GetClient(c)
 
@@ -65,7 +56,7 @@ func handler(ctx context.Context, event CommandEvent) error {
 	return discord.SendFollowup(event.ApplicationID, event.InteractionToken, replyContent)
 }
 
-func handleLocation(ctx context.Context, client *dynamodb.Client, table string, event CommandEvent) string {
+func handleLocation(ctx context.Context, client *dynamodb.Client, table string, event payload.CommandEvent) string {
 	date, ok := optString(event.Options, "date")
 	if !ok || date == "" {
 		return "Please provide a date. Example: `/location date:2026-03-10 location:office`"
@@ -86,7 +77,7 @@ func handleLocation(ctx context.Context, client *dynamodb.Client, table string, 
 	return formatLocationStatus(date, wl.Location, mealStatuses)
 }
 
-func handleMeal(ctx context.Context, client *dynamodb.Client, table string, event CommandEvent) string {
+func handleMeal(ctx context.Context, client *dynamodb.Client, table string, event payload.CommandEvent) string {
 	date, ok := optString(event.Options, "date")
 	if !ok || date == "" {
 		return "Please provide a date. Example: `/meal date:2026-03-10 status:out`"

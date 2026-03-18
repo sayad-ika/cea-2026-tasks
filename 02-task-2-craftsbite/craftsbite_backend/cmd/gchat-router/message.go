@@ -15,35 +15,12 @@ import (
 	"github.com/sayad-ika/craftsbite/internal/repository"
 )
 
-type CommandPayload struct {
-	UserID           string                 `json:"userID"`
-	Role             string                 `json:"role"`
-	CommandName      string                 `json:"commandName"`
-	Options          map[string]interface{} `json:"options"`
-	Source           string                 `json:"source"`
-	GChatSpaceName   string                 `json:"gchatSpaceName,omitempty"`
-	GChatMessageName string                 `json:"gchatMessageName,omitempty"`
-}
-
-var gchatCommandNames = map[int64]string{
-	1: "meal",
-	2: "location",
-	3: "team-summary",
-	4: "headcount",
-}
-
 func handleMessage(ctx context.Context, evt gchat.Event) (events.APIGatewayV2HTTPResponse, error) {
 	c := getConfig()
 
 	p := evt.Chat.AppCommandPayload
 	if p == nil {
 		return gchatText("Only slash commands are supported."), nil
-	}
-
-	commandID := int64(p.AppCommandMetadata.AppCommandID)
-	commandName, known := gchatCommandNames[commandID]
-	if !known {
-		return gchatText(fmt.Sprintf("Unknown command ID %d.", commandID)), nil
 	}
 
 	userID, role, err := repository.GetUserByGChatEmail(ctx, dynamo.GetClient(c), c.DynamoDBTable, evt.Chat.User.Email)
@@ -54,31 +31,22 @@ func handleMessage(ctx context.Context, evt gchat.Event) (events.APIGatewayV2HTT
 		return gchatText("Your Google Chat account is not linked to CraftsBite. Contact your admin."), nil
 	}
 
-	if !discord.CheckPermission(commandName, role) {
-		return gchatText(fmt.Sprintf("You do not have permission to use `/%s`.", commandName)), nil
+	cmdEvt, err := gchat.ToCommandEvent(evt, userID, role)
+	if err != nil {
+		return gchatText(err.Error()), nil
 	}
 
-	targetFn, ok := discord.Dispatch(c, commandName)
+	if !discord.CheckPermission(cmdEvt.CommandName, role) {
+		return gchatText(fmt.Sprintf("You do not have permission to use `/%s`.", cmdEvt.CommandName)), nil
+	}
+
+	targetFn, ok := discord.Dispatch(c, cmdEvt.CommandName)
 	if !ok || targetFn == "" {
-		log.Printf("gchat-router: no target function configured for command=%q", commandName)
-		return gchatText(fmt.Sprintf("Command `/%s` is not configured.", commandName)), nil
+		log.Printf("gchat-router: no target function configured for command=%q", cmdEvt.CommandName)
+		return gchatText(fmt.Sprintf("Command `/%s` is not configured.", cmdEvt.CommandName)), nil
 	}
 
-	var msgName string
-	if p.Message != nil {
-		msgName = p.Message.Name
-	}
-
-	payload := CommandPayload{
-		UserID:           userID,
-		Role:             role,
-		CommandName:      commandName,
-		Options:          map[string]interface{}{},
-		Source:           "gchat",
-		GChatSpaceName:   p.Space.Name,
-		GChatMessageName: msgName,
-	}
-	payloadBytes, err := json.Marshal(payload)
+	payloadBytes, err := json.Marshal(cmdEvt)
 	if err != nil {
 		return events.APIGatewayV2HTTPResponse{StatusCode: 500}, fmt.Errorf("gchat-router: marshal payload: %w", err)
 	}
