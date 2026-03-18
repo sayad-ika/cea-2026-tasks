@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
+	"github.com/sayad-ika/craftsbite/internal/dateutil"
 	"github.com/sayad-ika/craftsbite/internal/discord"
 	"github.com/sayad-ika/craftsbite/internal/dynamo"
 	"github.com/sayad-ika/craftsbite/internal/gchat"
@@ -42,52 +43,94 @@ func handler(ctx context.Context, event payload.CommandEvent) error {
 	c := getConfig()
 	client := dynamo.GetClient(c)
 
-	var replyContent string
-
 	switch event.CommandName {
 	case "meal":
-		replyContent = handleMeal(ctx, client, c.DynamoDBTable, event)
+		replyContent := handleMeal(ctx, client, c.DynamoDBTable, event)
+		if event.Source == "gchat" {
+			card, _ := gchat.SimpleTextCard(replyContent)
+			return gchat.CreatePrivateMessage(ctx, c.GChatServiceAccountJSON, event.GChatSpaceName, event.GChatViewerName, card)
+		}
+		return discord.SendFollowup(event.ApplicationID, event.InteractionToken, replyContent)
+
 	case "location":
-		replyContent = handleLocation(ctx, client, c.DynamoDBTable, event)
+		return handleLocationCommand(ctx, client, c, event)
+
 	case "status":
-		replyContent = "This feature is coming soon."
+		replyContent := "This feature is coming soon."
+		if event.Source == "gchat" {
+			card, _ := gchat.SimpleTextCard(replyContent)
+			return gchat.CreatePrivateMessage(ctx, c.GChatServiceAccountJSON, event.GChatSpaceName, event.GChatViewerName, card)
+		}
+		return discord.SendFollowup(event.ApplicationID, event.InteractionToken, replyContent)
+
 	default:
-		replyContent = fmt.Sprintf("Unknown command: /%s", event.CommandName)
+		replyContent := fmt.Sprintf("Unknown command: /%s", event.CommandName)
+		if event.Source == "gchat" {
+			card, _ := gchat.SimpleTextCard(replyContent)
+			return gchat.CreatePrivateMessage(ctx, c.GChatServiceAccountJSON, event.GChatSpaceName, event.GChatViewerName, card)
+		}
+		return discord.SendFollowup(event.ApplicationID, event.InteractionToken, replyContent)
 	}
-
-	if event.Source == "gchat" {
-		card, _ := gchat.SimpleTextCard(replyContent)
-		return gchat.CreatePrivateMessage(ctx, c.GChatServiceAccountJSON, event.GChatSpaceName, event.GChatViewerName, card)
-	}
-
-	return discord.SendFollowup(event.ApplicationID, event.InteractionToken, replyContent)
 }
 
-func handleLocation(ctx context.Context, client *dynamodb.Client, table string, event payload.CommandEvent) string {
-	date, ok := optString(event.Options, "date")
-	if !ok || date == "" {
-		return "Please provide a date. Example: `/location date:2026-03-10 location:office`"
+func handleLocationCommand(ctx context.Context, client *dynamodb.Client, c *appconfig.Config, event payload.CommandEvent) error {
+	dateStr, _ := optString(event.Options, "date")
+	date, err := dateutil.ParseDateWithDefaults(dateStr)
+	if err != nil {
+		return sendSelfReply(ctx, c, event, fmt.Sprintf("Invalid date: %v\nUse: tomorrow (default), today, +N, or YYYY-MM-DD", err))
 	}
 
 	loc, ok := optString(event.Options, "location")
 	if !ok || (loc != "office" && loc != "wfh") {
-		return "Please specify location as `office` or `wfh`."
+		return sendSelfReply(ctx, c, event, "Please specify location as `office` or `wfh`.")
 	}
 
-	wl, err := services.SetLocation(ctx, client, table, event.UserID, date, loc)
+	wl, err := services.SetLocation(ctx, client, c.DynamoDBTable, event.UserID, date, loc)
 	if err != nil {
-		return locationErrorReply(err, date)
+		return sendSelfReply(ctx, c, event, locationErrorReply(err, date))
 	}
 
-	mealStatuses, _ := services.GetUserMealStatus(ctx, client, table, event.UserID, date)
+	mealStatuses, _ := services.GetUserMealStatus(ctx, client, c.DynamoDBTable, event.UserID, date)
 
-	return formatLocationStatus(date, wl.Location, mealStatuses)
+	if event.Source == "gchat" {
+		mealText := formatMealStatusLine(mealStatuses)
+		card, _ := gchat.LocationCard(wl.Location, date, mealText)
+		return gchat.CreatePrivateMessage(ctx, c.GChatServiceAccountJSON, event.GChatSpaceName, event.GChatViewerName, card)
+	}
+
+	return discord.SendFollowup(event.ApplicationID, event.InteractionToken, formatLocationStatus(date, wl.Location, mealStatuses))
+}
+
+func sendSelfReply(ctx context.Context, c *appconfig.Config, event payload.CommandEvent, text string) error {
+	if event.Source == "gchat" {
+		card, _ := gchat.SimpleTextCard(text)
+		return gchat.CreatePrivateMessage(ctx, c.GChatServiceAccountJSON, event.GChatSpaceName, event.GChatViewerName, card)
+	}
+	return discord.SendFollowup(event.ApplicationID, event.InteractionToken, text)
+}
+
+func formatMealStatusLine(statuses []services.ResolvedStatus) string {
+	if len(statuses) == 0 {
+		return "No meals configured"
+	}
+	var parts []string
+	for _, s := range statuses {
+		icon := "✗"
+		if s.Status == "opted_in" {
+			icon = "✓"
+		} else if s.Status == "unavailable" {
+			icon = "—"
+		}
+		parts = append(parts, fmt.Sprintf("%s %s", displayMealName(s.MealType), icon))
+	}
+	return strings.Join(parts, "  ")
 }
 
 func handleMeal(ctx context.Context, client *dynamodb.Client, table string, event payload.CommandEvent) string {
-	date, ok := optString(event.Options, "date")
-	if !ok || date == "" {
-		return "Please provide a date. Example: `/meal date:2026-03-10 status:out`"
+	dateStr, _ := optString(event.Options, "date")
+	date, err := dateutil.ParseDateWithDefaults(dateStr)
+	if err != nil {
+		return fmt.Sprintf("Invalid date: %v\nUse: tomorrow (default), today, +N, or YYYY-MM-DD", err)
 	}
 
 	statusStr, ok := optString(event.Options, "status")
