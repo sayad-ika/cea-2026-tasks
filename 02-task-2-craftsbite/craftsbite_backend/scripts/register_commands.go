@@ -47,12 +47,6 @@ func commands() []slashCommand {
 			Options: []commandOption{
 				{
 					Type:        optTypeString,
-					Name:        "date",
-					Description: "Date in YYYY-MM-DD format",
-					Required:    true,
-				},
-				{
-					Type:        optTypeString,
 					Name:        "status",
 					Description: "Participation status",
 					Required:    true,
@@ -64,7 +58,7 @@ func commands() []slashCommand {
 				{
 					Type:        optTypeString,
 					Name:        "meal",
-					Description: "Meal type (defaults to both if omitted)",
+					Description: "Meal type (defaults to all if omitted)",
 					Required:    false,
 					Choices: []commandChoice{
 						{Name: "Lunch", Value: "lunch"},
@@ -75,6 +69,12 @@ func commands() []slashCommand {
 						{Name: "All", Value: "all"},
 					},
 				},
+				{
+					Type:        optTypeString,
+					Name:        "date",
+					Description: "Date: tomorrow (default), +N, or YYYY-MM-DD",
+					Required:    false,
+				},
 			},
 		},
 		{
@@ -84,8 +84,8 @@ func commands() []slashCommand {
 				{
 					Type:        optTypeString,
 					Name:        "date",
-					Description: "Date in YYYY-MM-DD format",
-					Required:    true,
+					Description: "Date: tomorrow (default), today, +N, or YYYY-MM-DD",
+					Required:    false,
 				},
 			},
 		},
@@ -93,12 +93,6 @@ func commands() []slashCommand {
 			Name:        "location",
 			Description: "Set your work location for a date",
 			Options: []commandOption{
-				{
-					Type:        optTypeString,
-					Name:        "date",
-					Description: "Date in YYYY-MM-DD format",
-					Required:    true,
-				},
 				{
 					Type:        optTypeString,
 					Name:        "location",
@@ -109,6 +103,12 @@ func commands() []slashCommand {
 						{Name: "WFH", Value: "wfh"},
 					},
 				},
+				{
+					Type:        optTypeString,
+					Name:        "date",
+					Description: "Date: tomorrow (default), today, +N, or YYYY-MM-DD",
+					Required:    false,
+				},
 			},
 		},
 		{
@@ -118,8 +118,8 @@ func commands() []slashCommand {
 				{
 					Type:        optTypeString,
 					Name:        "date",
-					Description: "Date in YYYY-MM-DD format",
-					Required:    true,
+					Description: "Date: tomorrow (default), today, +N, or YYYY-MM-DD",
+					Required:    false,
 				},
 				{
 					Type:        optTypeString,
@@ -136,7 +136,7 @@ func commands() []slashCommand {
 				{
 					Type:        optTypeString,
 					Name:        "date",
-					Description: "Date in YYYY-MM-DD format",
+					Description: "Date: tomorrow (default), today, +N, or YYYY-MM-DD",
 					Required:    false,
 				},
 			},
@@ -246,4 +246,3 @@ func main() {
 		fmt.Printf("  %-16s  id=%s\n", "/"+c.Name, c.ID)
 	}
 }
-

@@ -55,12 +55,13 @@ func TestParseMealArgs_InvalidMealType(t *testing.T) {
 }
 
 func TestParseMealArgs_InvalidDateFormat(t *testing.T) {
-	_, err := parseMealArgs("in lunch 20-03-2026")
-	if err == nil {
-		t.Fatal("expected error for invalid date format, got nil")
+	opts, err := parseMealArgs("in lunch 20-03-2026")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(err.Error(), "Invalid date format") {
-		t.Errorf("error = %q, want invalid date format message", err.Error())
+	// Adapter now passes raw date string - Lambda will validate
+	if opts["date"] != "20-03-2026" {
+		t.Errorf("date = %q, want %q", opts["date"], "20-03-2026")
 	}
 }
 
@@ -72,22 +73,24 @@ func TestParseMealArgs_Empty(t *testing.T) {
 }
 
 func TestParseHeadcountArgs_MissingDate(t *testing.T) {
-	_, err := parseHeadcountArgs("")
-	if err == nil {
-		t.Fatal("expected error for missing date, got nil")
+	opts, err := parseHeadcountArgs("")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if err.Error() != "Usage: /headcount YYYY-MM-DD" {
-		t.Errorf("error = %q, want %q", err.Error(), "Usage: /headcount YYYY-MM-DD")
+	// Adapter passes empty string - Lambda will default to tomorrow
+	if opts["date"] != "" {
+		t.Errorf("date = %q, want empty string", opts["date"])
 	}
 }
 
 func TestParseHeadcountArgs_InvalidDateFormat(t *testing.T) {
-	_, err := parseHeadcountArgs("20-03-2026")
-	if err == nil {
-		t.Fatal("expected error for invalid date, got nil")
+	opts, err := parseHeadcountArgs("20-03-2026")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(err.Error(), "Invalid date format") {
-		t.Errorf("error = %q, want invalid date format message", err.Error())
+	// Adapter now passes raw date string - Lambda will validate
+	if opts["date"] != "20-03-2026" {
+		t.Errorf("date = %q, want %q", opts["date"], "20-03-2026")
 	}
 }
 
@@ -169,8 +172,12 @@ func TestToCommandEvent_HeadcountParseError(t *testing.T) {
 			},
 		},
 	}
-	_, err := ToCommandEvent(evt, "user1", "admin")
-	if err == nil {
-		t.Fatal("expected error for missing headcount date, got nil")
+	ce, err := ToCommandEvent(evt, "user1", "admin")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Adapter passes empty string - Lambda will handle default
+	if ce.Options["date"] != "" {
+		t.Errorf("date = %q, want empty string", ce.Options["date"])
 	}
 }
