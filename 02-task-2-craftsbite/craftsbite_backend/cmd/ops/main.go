@@ -12,6 +12,7 @@ import (
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
 	"github.com/sayad-ika/craftsbite/internal/discord"
 	"github.com/sayad-ika/craftsbite/internal/dynamo"
+	"github.com/sayad-ika/craftsbite/internal/gchat"
 	"github.com/sayad-ika/craftsbite/internal/payload"
 	"github.com/sayad-ika/craftsbite/internal/services"
 )
@@ -43,6 +44,11 @@ func handler(ctx context.Context, event payload.CommandEvent) error {
 		replyContent = "This feature is coming soon."
 	default:
 		replyContent = fmt.Sprintf("Unknown command: /%s", event.CommandName)
+	}
+
+	if event.Source == "gchat" {
+		card, _ := gchat.SimpleTextCard(replyContent)
+		return gchat.CreatePrivateMessage(ctx, c.GChatServiceAccountJSON, event.GChatSpaceName, event.GChatViewerName, card)
 	}
 
 	return discord.SendFollowup(event.ApplicationID, event.InteractionToken, replyContent)
