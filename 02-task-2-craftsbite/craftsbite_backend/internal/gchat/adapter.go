@@ -3,8 +3,8 @@ package gchat
 import (
 	"fmt"
 	"strings"
-	"time"
 
+	"github.com/sayad-ika/craftsbite/internal/dateutil"
 	"github.com/sayad-ika/craftsbite/internal/payload"
 )
 
@@ -48,7 +48,10 @@ func ToCommandEvent(evt Event, internalUserID, role string) (payload.CommandEven
 	case 3:
 		opts = parseDateArg(argText)
 	case 4:
-		opts = parseDateArg(argText)
+		opts, err = parseHeadcountArgs(argText)
+		if err != nil {
+			return payload.CommandEvent{}, err
+		}
 	}
 
 	return payload.CommandEvent{
@@ -63,25 +66,42 @@ func ToCommandEvent(evt Event, internalUserID, role string) (payload.CommandEven
 	}, nil
 }
 
+var validMealTypes = map[string]bool{
+	"lunch":           true,
+	"snacks":          true,
+	"event_dinner":    true,
+	"optional_dinner": true,
+	"iftar":           true,
+	"all":             true,
+}
+
 func parseMealArgs(raw string) (map[string]interface{}, error) {
 	tokens := strings.Fields(raw)
 	if len(tokens) == 0 {
-		return nil, fmt.Errorf("usage: /meal <in|out> [meal_type] [YYYY-MM-DD]")
+		return nil, fmt.Errorf("Usage: /meal <in|out> [meal_type] [date]\nDate can be: tomorrow (default), today, +N, or YYYY-MM-DD")
 	}
 
 	status := strings.ToLower(tokens[0])
 	if status != "in" && status != "out" {
-		return nil, fmt.Errorf("usage: /meal <in|out> [meal_type] [YYYY-MM-DD]")
+		return nil, fmt.Errorf("Usage: /meal <in|out> [meal_type] [date]\nDate can be: tomorrow (default), today, +N, or YYYY-MM-DD")
 	}
 
 	mealType := "all"
 	if len(tokens) > 1 {
 		mealType = strings.ToLower(tokens[1])
 	}
+	if !validMealTypes[mealType] {
+		return nil, fmt.Errorf("Invalid meal_type. Allowed: lunch, snacks, event_dinner, optional_dinner, all")
+	}
 
-	date := todayDhaka()
+	dateStr := ""
 	if len(tokens) > 2 {
-		date = tokens[2]
+		dateStr = tokens[2]
+	}
+
+	date, err := dateutil.ParseDateWithDefaults(dateStr)
+	if err != nil {
+		return nil, err
 	}
 
 	return map[string]interface{}{
@@ -99,9 +119,15 @@ func parseLocationArgs(raw string) map[string]interface{} {
 		loc = strings.ToLower(tokens[0])
 	}
 
-	date := todayDhaka()
+	dateStr := ""
 	if len(tokens) > 1 {
-		date = tokens[1]
+		dateStr = tokens[1]
+	}
+
+	date, err := dateutil.ParseDateWithDefaults(dateStr)
+	if err != nil {
+		// Fallback to tomorrow if parsing fails (shouldn't happen with valid input)
+		date = dateutil.TomorrowInTimezone()
 	}
 
 	return map[string]interface{}{
@@ -113,9 +139,15 @@ func parseLocationArgs(raw string) map[string]interface{} {
 func parseDateArg(raw string) map[string]interface{} {
 	tokens := strings.Fields(raw)
 
-	date := todayDhaka()
+	dateStr := ""
 	if len(tokens) > 0 {
-		date = tokens[0]
+		dateStr = tokens[0]
+	}
+
+	date, err := dateutil.ParseDateWithDefaults(dateStr)
+	if err != nil {
+		// Fallback to tomorrow if parsing fails
+		date = dateutil.TomorrowInTimezone()
 	}
 
 	return map[string]interface{}{
@@ -123,10 +155,21 @@ func parseDateArg(raw string) map[string]interface{} {
 	}
 }
 
-func todayDhaka() string {
-	loc, err := time.LoadLocation("Asia/Dhaka")
-	if err != nil {
-		loc = time.UTC
+func parseHeadcountArgs(raw string) (map[string]interface{}, error) {
+	tokens := strings.Fields(raw)
+
+	dateStr := ""
+	if len(tokens) > 0 {
+		dateStr = tokens[0]
 	}
-	return time.Now().In(loc).Format("2006-01-02")
+
+	date, err := dateutil.ParseDateWithDefaults(dateStr)
+	if err != nil {
+		return nil, fmt.Errorf("Usage: /headcount [date]\nDate can be: tomorrow (default), today, +N, or YYYY-MM-DD\nError: %v", err)
+	}
+
+	return map[string]interface{}{
+		"date": date,
+	}, nil
 }
+
