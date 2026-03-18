@@ -48,7 +48,10 @@ func ToCommandEvent(evt Event, internalUserID, role string) (payload.CommandEven
 	case 3:
 		opts = parseDateArg(argText)
 	case 4:
-		opts = parseDateArg(argText)
+		opts, err = parseHeadcountArgs(argText)
+		if err != nil {
+			return payload.CommandEvent{}, err
+		}
 	}
 
 	return payload.CommandEvent{
@@ -63,25 +66,40 @@ func ToCommandEvent(evt Event, internalUserID, role string) (payload.CommandEven
 	}, nil
 }
 
+var validMealTypes = map[string]bool{
+	"lunch":           true,
+	"snacks":          true,
+	"event_dinner":    true,
+	"optional_dinner": true,
+	"iftar":           true,
+	"all":             true,
+}
+
 func parseMealArgs(raw string) (map[string]interface{}, error) {
 	tokens := strings.Fields(raw)
 	if len(tokens) == 0 {
-		return nil, fmt.Errorf("usage: /meal <in|out> [meal_type] [YYYY-MM-DD]")
+		return nil, fmt.Errorf("Usage: /meal <in|out> [meal_type] [YYYY-MM-DD]")
 	}
 
 	status := strings.ToLower(tokens[0])
 	if status != "in" && status != "out" {
-		return nil, fmt.Errorf("usage: /meal <in|out> [meal_type] [YYYY-MM-DD]")
+		return nil, fmt.Errorf("Usage: /meal <in|out> [meal_type] [YYYY-MM-DD]")
 	}
 
 	mealType := "all"
 	if len(tokens) > 1 {
 		mealType = strings.ToLower(tokens[1])
 	}
+	if !validMealTypes[mealType] {
+		return nil, fmt.Errorf("Invalid meal_type. Allowed: lunch, snacks, event_dinner, optional_dinner, all")
+	}
 
 	date := todayDhaka()
 	if len(tokens) > 2 {
 		date = tokens[2]
+		if _, err := time.Parse("2006-01-02", date); err != nil {
+			return nil, fmt.Errorf("Invalid date format. Use YYYY-MM-DD")
+		}
 	}
 
 	return map[string]interface{}{
@@ -121,6 +139,22 @@ func parseDateArg(raw string) map[string]interface{} {
 	return map[string]interface{}{
 		"date": date,
 	}
+}
+
+func parseHeadcountArgs(raw string) (map[string]interface{}, error) {
+	tokens := strings.Fields(raw)
+	if len(tokens) == 0 {
+		return nil, fmt.Errorf("Usage: /headcount YYYY-MM-DD")
+	}
+
+	date := tokens[0]
+	if _, err := time.Parse("2006-01-02", date); err != nil {
+		return nil, fmt.Errorf("Invalid date format. Use YYYY-MM-DD")
+	}
+
+	return map[string]interface{}{
+		"date": date,
+	}, nil
 }
 
 func todayDhaka() string {
