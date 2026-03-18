@@ -1,0 +1,60 @@
+services:
+  # ─── Lambda: Router (Discord) ───────────────────────────────
+  router:
+    build:
+      context: .
+      dockerfile: cmd/router/Dockerfile
+    container_name: craftsbite-router
+    ports:
+      - "9001:8080"
+    env_file: .env
+    environment:
+      AWS_LAMBDA_FUNCTION_NAME: craftsbite-router
+
+  # ─── Lambda: GChat Router ───────────────────────────────────
+  gchat-router:
+    build:
+      context: .
+      dockerfile: cmd/gchat-router/Dockerfile
+    container_name: craftsbite-gchat-router
+    ports:
+      - "9002:8080"
+    env_file: .env
+    environment:
+      AWS_LAMBDA_FUNCTION_NAME: craftsbite-gchat-router
+
+  # ─── Lambda: Self (/meal, /location) ────────────────────────
+  self:
+    build:
+      context: .
+      dockerfile: cmd/self/Dockerfile
+    container_name: craftsbite-self
+    ports:
+      - "9003:8080"
+    env_file: .env
+    environment:
+      AWS_LAMBDA_FUNCTION_NAME: craftsbite-self
+
+  # ─── Lambda: Management (/team-summary) ─────────────────────
+  management:
+    build:
+      context: .
+      dockerfile: cmd/management/Dockerfile
+    container_name: craftsbite-management
+    ports:
+      - "9004:8080"
+    env_file: .env
+    environment:
+      AWS_LAMBDA_FUNCTION_NAME: craftsbite-management
+
+  # ─── Lambda: Ops (/headcount) ───────────────────────────────
+  ops:
+    build:
+      context: .
+      dockerfile: cmd/ops/Dockerfile
+    container_name: craftsbite-ops
+    ports:
+      - "9005:8080"
+    env_file: .env
+    environment:
+      AWS_LAMBDA_FUNCTION_NAME: craftsbite-ops

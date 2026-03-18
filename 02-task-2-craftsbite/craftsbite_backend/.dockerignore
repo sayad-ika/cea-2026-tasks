@@ -1,0 +1,26 @@
+# ── .dockerignore ──
+# Git
+.git
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+.claude/
+
+# Environment (secrets stay out of images)
+.env
+
+# Build artifacts
+bin/
+*.exe
+*.exe~
+*.out
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Documentation
+README.md
+scripts/
