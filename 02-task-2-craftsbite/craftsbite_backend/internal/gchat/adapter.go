@@ -12,6 +12,7 @@ var gchatCommandNames = map[int64]string{
 	2: "location",
 	3: "team-summary",
 	4: "headcount",
+	5: "status",
 }
 
 func ToCommandEvent(evt Event, internalUserID, role string) (payload.CommandEvent, error) {
@@ -51,6 +52,8 @@ func ToCommandEvent(evt Event, internalUserID, role string) (payload.CommandEven
 		if err != nil {
 			return payload.CommandEvent{}, err
 		}
+	case 5:
+		opts = parseDateArg(argText)
 	}
 
 	return payload.CommandEvent{
