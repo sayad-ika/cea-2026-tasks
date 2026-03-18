@@ -84,7 +84,7 @@ func commands() []slashCommand {
 				{
 					Type:        optTypeString,
 					Name:        "date",
-					Description: "Date: tomorrow (default), today, +N, or YYYY-MM-DD",
+					Description: "Date: tomorrow (default), today, +N, YYYY-MM-DD, YYYY-MM-DD..YYYY-MM-DD, or week",
 					Required:    false,
 				},
 			},
@@ -106,7 +106,7 @@ func commands() []slashCommand {
 				{
 					Type:        optTypeString,
 					Name:        "date",
-					Description: "Date: tomorrow (default), today, +N, or YYYY-MM-DD",
+					Description: "Date: tomorrow (default), today, +N, YYYY-MM-DD, YYYY-MM-DD..YYYY-MM-DD, or week",
 					Required:    false,
 				},
 			},
@@ -118,7 +118,7 @@ func commands() []slashCommand {
 				{
 					Type:        optTypeString,
 					Name:        "date",
-					Description: "Date: tomorrow (default), today, +N, or YYYY-MM-DD",
+					Description: "Date: tomorrow (default), today, +N, YYYY-MM-DD, YYYY-MM-DD..YYYY-MM-DD, or week",
 					Required:    false,
 				},
 				{
@@ -136,7 +136,7 @@ func commands() []slashCommand {
 				{
 					Type:        optTypeString,
 					Name:        "date",
-					Description: "Date: tomorrow (default), today, +N, or YYYY-MM-DD",
+					Description: "Date: tomorrow (default), today, +N, YYYY-MM-DD, YYYY-MM-DD..YYYY-MM-DD, or week",
 					Required:    false,
 				},
 			},
