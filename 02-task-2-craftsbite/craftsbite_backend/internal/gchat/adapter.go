@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sayad-ika/craftsbite/internal/dateutil"
 	"github.com/sayad-ika/craftsbite/internal/payload"
 )
 
@@ -99,15 +98,11 @@ func parseMealArgs(raw string) (map[string]interface{}, error) {
 		dateStr = tokens[2]
 	}
 
-	date, err := dateutil.ParseDateWithDefaults(dateStr)
-	if err != nil {
-		return nil, err
-	}
-
+	// Pass raw date string to Lambda - let it handle parsing with proper timezone
 	return map[string]interface{}{
 		"status": status,
 		"meal":   mealType,
-		"date":   date,
+		"date":   dateStr,
 	}, nil
 }
 
@@ -124,15 +119,10 @@ func parseLocationArgs(raw string) map[string]interface{} {
 		dateStr = tokens[1]
 	}
 
-	date, err := dateutil.ParseDateWithDefaults(dateStr)
-	if err != nil {
-		// Fallback to tomorrow if parsing fails (shouldn't happen with valid input)
-		date = dateutil.TomorrowInTimezone()
-	}
-
+	// Pass raw date string to Lambda - let it handle parsing with proper timezone
 	return map[string]interface{}{
 		"location": loc,
-		"date":     date,
+		"date":     dateStr,
 	}
 }
 
@@ -144,14 +134,9 @@ func parseDateArg(raw string) map[string]interface{} {
 		dateStr = tokens[0]
 	}
 
-	date, err := dateutil.ParseDateWithDefaults(dateStr)
-	if err != nil {
-		// Fallback to tomorrow if parsing fails
-		date = dateutil.TomorrowInTimezone()
-	}
-
+	// Pass raw date string to Lambda - let it handle parsing with proper timezone
 	return map[string]interface{}{
-		"date": date,
+		"date": dateStr,
 	}
 }
 
@@ -163,13 +148,9 @@ func parseHeadcountArgs(raw string) (map[string]interface{}, error) {
 		dateStr = tokens[0]
 	}
 
-	date, err := dateutil.ParseDateWithDefaults(dateStr)
-	if err != nil {
-		return nil, fmt.Errorf("Usage: /headcount [date]\nDate can be: tomorrow (default), today, +N, or YYYY-MM-DD\nError: %v", err)
-	}
-
+	// Pass raw date string to Lambda - let it handle parsing with proper timezone
 	return map[string]interface{}{
-		"date": date,
+		"date": dateStr,
 	}, nil
 }
 
