@@ -127,6 +127,12 @@ func commands() []slashCommand {
 					Description: "Team ID to query (Admin only; defaults to your own team)",
 					Required:    false,
 				},
+				{
+					Type:        optTypeBoolean,
+					Name:        "detail",
+					Description: "Show per-member meal and location status",
+					Required:    false,
+				},
 			},
 		},
 		{

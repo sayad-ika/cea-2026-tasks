@@ -64,34 +64,45 @@ func handleTeamSummaryCommand(ctx context.Context, client *dynamodb.Client, c *a
 		return sendMgmtReply(ctx, c, event, fmt.Sprintf("Invalid date: %v\nUse: tomorrow (default), today, +N, or YYYY-MM-DD", err))
 	}
 
-	teams, err := repository.FindTeamsByLeadID(ctx, client, c.DynamoDBTable, event.UserID)
-	if err != nil {
-		return sendMgmtReply(ctx, c, event, "Something went wrong fetching your team. Please try again later.")
-	}
-	if len(teams) == 0 {
-		return sendMgmtReply(ctx, c, event, "You are not assigned as a team lead to any team.")
+	teamIDParam, _ := optString(event.Options, "team_id")
+
+	var teamID string
+	if teamIDParam != "" && event.Role == "admin" {
+		teamID = teamIDParam
+	} else {
+		teams, err := repository.FindTeamsByLeadID(ctx, client, c.DynamoDBTable, event.UserID)
+		if err != nil {
+			return sendMgmtReply(ctx, c, event, "Something went wrong fetching your team. Please try again later.")
+		}
+		if len(teams) == 0 {
+			return sendMgmtReply(ctx, c, event, "You are not assigned as a team lead to any team.")
+		}
+		teamID = teams[0].ID
 	}
 
-	team, err := repository.GetTeamByID(ctx, client, c.DynamoDBTable, teams[0].ID)
+	detailStr, _ := optString(event.Options, "detail")
+	detail := detailStr == "true"
+
+	team, err := repository.GetTeamByID(ctx, client, c.DynamoDBTable, teamID)
 	if err != nil || team == nil {
-		return sendMgmtReply(ctx, c, event, "Team not found. Please try again later.")
+		return sendMgmtReply(ctx, c, event, "Team not found.")
 	}
 
-	summary, err := services.GetTeamSummary(ctx, client, c.DynamoDBTable, teams[0].ID, date)
+	summary, err := services.GetTeamSummary(ctx, client, c.DynamoDBTable, teamID, date, detail)
 	if err != nil {
 		return sendMgmtReply(ctx, c, event, "Something went wrong fetching the team summary. Please try again later.")
 	}
 
 	if event.Source == "gchat" {
-		rows := buildTeamSummaryRows(team, summary)
+		rows := buildTeamSummaryRows(team, summary, detail)
 		card, _ := gchat.TeamSummaryCard(date, rows)
 		return gchat.CreatePrivateMessage(ctx, c.GChatServiceAccountJSON, event.GChatSpaceName, event.GChatViewerName, card)
 	}
 
-	return discord.SendFollowup(event.ApplicationID, event.InteractionToken, formatTeamSummary(team, date, summary))
+	return discord.SendFollowup(event.ApplicationID, event.InteractionToken, formatTeamSummary(team, date, summary, detail))
 }
 
-func buildTeamSummaryRows(team *repository.Team, summary *services.TeamSummary) []gchat.TeamRow {
+func buildTeamSummaryRows(team *repository.Team, summary *services.TeamSummary, showDetail bool) []gchat.TeamRow {
 	rows := []gchat.TeamRow{
 		{Label: "Team", Value: team.Name},
 		{Label: "Members", Value: fmt.Sprintf("%d", summary.MemberCount)},
@@ -116,6 +127,31 @@ func buildTeamSummaryRows(team *repository.Team, summary *services.TeamSummary) 
 		Value: fmt.Sprintf("Office %d / WFH %d", officeCount, summary.WFHCount),
 	})
 
+	if showDetail && len(summary.Members) > 0 {
+		for _, m := range summary.Members {
+			var mealParts []string
+			for _, mt := range mealTypes {
+				icon := "✓"
+				if m.Meals[mt] == "opted_out" {
+					icon = "✗"
+				}
+				mealParts = append(mealParts, fmt.Sprintf("%s %s", displayMealName(mt), icon))
+			}
+
+			locLabel := "Office"
+			if m.Location == "wfh" {
+				locLabel = "WFH"
+			} else if m.Location == "not_set" {
+				locLabel = "Not Set"
+			}
+
+			rows = append(rows, gchat.TeamRow{
+				Label: m.Name,
+				Value: fmt.Sprintf("%s  %s", strings.Join(mealParts, "  "), locLabel),
+			})
+		}
+	}
+
 	return rows
 }
 
@@ -128,7 +164,7 @@ func optString(opts map[string]interface{}, key string) (string, bool) {
 	return s, ok
 }
 
-func formatTeamSummary(team *repository.Team, date string, summary *services.TeamSummary) string {
+func formatTeamSummary(team *repository.Team, date string, summary *services.TeamSummary, showDetail bool) string {
 	if summary.MemberCount == 0 {
 		return fmt.Sprintf("Team %s — %s has no members.", team.Name, date)
 	}
@@ -152,6 +188,29 @@ func formatTeamSummary(team *repository.Team, date string, summary *services.Tea
 
 	officeCount := summary.MemberCount - summary.WFHCount
 	fmt.Fprintf(&sb, "Location: Office %d/%d  │  WFH %d/%d", officeCount, summary.MemberCount, summary.WFHCount, summary.MemberCount)
+
+	if showDetail && len(summary.Members) > 0 {
+		sb.WriteString("\n\nMembers:")
+		for _, m := range summary.Members {
+			var mealParts []string
+			for _, mt := range mealTypes {
+				icon := "✓"
+				if m.Meals[mt] == "opted_out" {
+					icon = "✗"
+				}
+				mealParts = append(mealParts, fmt.Sprintf("%s %s", displayMealName(mt), icon))
+			}
+
+			locLabel := "Office"
+			if m.Location == "wfh" {
+				locLabel = "WFH"
+			} else if m.Location == "not_set" {
+				locLabel = "Not Set"
+			}
+
+			fmt.Fprintf(&sb, "\n  %-15s %s  %s", m.Name, strings.Join(mealParts, "  "), locLabel)
+		}
+	}
 
 	return sb.String()
 }

@@ -133,14 +133,30 @@ func parseDateArg(raw string) map[string]interface{} {
 	tokens := strings.Fields(raw)
 
 	dateStr := ""
-	if len(tokens) > 0 {
-		dateStr = tokens[0]
+	detailStr := ""
+	teamIDStr := ""
+
+	for _, t := range tokens {
+		lower := strings.ToLower(t)
+		if strings.HasPrefix(lower, "detail:") {
+			detailStr = strings.TrimPrefix(lower, "detail:")
+		} else if strings.HasPrefix(lower, "team:") {
+			teamIDStr = strings.TrimPrefix(lower, "team:")
+		} else if dateStr == "" {
+			dateStr = t
+		}
 	}
 
-	// Pass raw date string to Lambda - let it handle parsing with proper timezone
-	return map[string]interface{}{
+	opts := map[string]interface{}{
 		"date": dateStr,
 	}
+	if detailStr != "" {
+		opts["detail"] = detailStr
+	}
+	if teamIDStr != "" {
+		opts["team_id"] = teamIDStr
+	}
+	return opts
 }
 
 func parseHeadcountArgs(raw string) (map[string]interface{}, error) {
@@ -156,4 +172,3 @@ func parseHeadcountArgs(raw string) (map[string]interface{}, error) {
 		"date": dateStr,
 	}, nil
 }
-

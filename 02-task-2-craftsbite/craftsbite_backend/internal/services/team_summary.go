@@ -3,28 +3,13 @@ package services
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/sayad-ika/craftsbite/internal/repository"
 )
 
-type TeamSummary struct {
-	MemberCount int
-	MealCounts  map[string]int // meal_type -> opted-in count
-	WFHCount    int
-}
-
-type memberStatus struct {
-	meals    []repository.MealParticipation
-	location string
-}
-
-type memberData struct {
-	user     *repository.User
-	meals    []repository.MealParticipation
-	location *repository.WorkLocation
-}
 
 func fetchMemberData(ctx context.Context, client *dynamodb.Client, table, userID, date string) (memberData, error) {
 	var (
@@ -78,7 +63,7 @@ func buildMemberStatus(d memberData) memberStatus {
 	}
 }
 
-func GetTeamSummary(ctx context.Context, client *dynamodb.Client, table, teamID, date string) (*TeamSummary, error) {
+func GetTeamSummary(ctx context.Context, client *dynamodb.Client, table, teamID, date string, detail bool) (*TeamSummary, error) {
 	members, err := repository.GetTeamMembers(ctx, client, table, teamID)
 	if err != nil {
 		return nil, fmt.Errorf("team_summary: members: %w", err)
@@ -90,6 +75,7 @@ func GetTeamSummary(ctx context.Context, client *dynamodb.Client, table, teamID,
 	var (
 		availableMeals []string
 		mealsErr       error
+		memberDataList = make([]memberData, len(members))
 		statuses       = make([]memberStatus, len(members))
 		errs           = make([]error, len(members))
 		wg             sync.WaitGroup
@@ -111,6 +97,7 @@ func GetTeamSummary(ctx context.Context, client *dynamodb.Client, table, teamID,
 				errs[i] = fmt.Errorf("team_summary: member %s: %w", m.UserID, err)
 				return
 			}
+			memberDataList[i] = data
 			statuses[i] = buildMemberStatus(data)
 		}()
 	}
@@ -158,9 +145,61 @@ func GetTeamSummary(ctx context.Context, client *dynamodb.Client, table, teamID,
 		}
 	}
 
-	return &TeamSummary{
+	summary := &TeamSummary{
 		MemberCount: len(members),
 		MealCounts:  mealCounts,
 		WFHCount:    wfhCount,
-	}, nil
+	}
+
+	if detail {
+		summary.Members = buildMemberDetails(memberDataList, seen)
+	}
+
+	return summary, nil
+}
+
+func buildMemberDetails(dataList []memberData, availableMeals map[string]bool) []MemberDetail {
+	details := make([]MemberDetail, 0, len(dataList))
+	for _, d := range dataList {
+		if d.user == nil {
+			continue
+		}
+
+		loc := "office"
+		if d.location != nil && d.location.Location != "" {
+			loc = d.location.Location
+		}
+
+		mealByType := make(map[string]bool, len(d.meals))
+		for _, p := range d.meals {
+			mealByType[p.MealType] = p.IsParticipating
+		}
+
+		meals := make(map[string]string, len(availableMeals))
+		for mt := range availableMeals {
+			if participating, ok := mealByType[mt]; !ok || participating {
+				meals[mt] = "opted_in"
+			} else {
+				meals[mt] = "opted_out"
+			}
+		}
+
+		name := d.user.Name
+		if name == "" {
+			name = d.user.ID
+		}
+
+		details = append(details, MemberDetail{
+			UserID:   d.user.ID,
+			Name:     name,
+			Meals:    meals,
+			Location: loc,
+		})
+	}
+
+	sort.Slice(details, func(i, j int) bool {
+		return details[i].Name < details[j].Name
+	})
+
+	return details
 }
