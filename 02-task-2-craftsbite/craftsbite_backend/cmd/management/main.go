@@ -61,7 +61,7 @@ func handleTeamSummaryCommand(ctx context.Context, client *dynamodb.Client, c *a
 	dateStr, _ := optString(event.Options, "date")
 	date, err := dateutil.ParseDateWithDefaults(dateStr)
 	if err != nil {
-		return sendMgmtReply(ctx, c, event, fmt.Sprintf("Invalid date: %v\nUse: tomorrow (default), today, +N, or YYYY-MM-DD", err))
+		return sendMgmtReply(ctx, c, event, fmt.Sprintf("Invalid date: %v\nUse: tomorrow (default), +N, or YYYY-MM-DD", err))
 	}
 
 	teams, err := repository.FindTeamsByLeadID(ctx, client, c.DynamoDBTable, event.UserID)
