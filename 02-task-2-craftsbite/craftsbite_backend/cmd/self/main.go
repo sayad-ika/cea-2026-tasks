@@ -241,7 +241,7 @@ func handleMeal(ctx context.Context, client *dynamodb.Client, table string, even
 	// Parse date range (supports single date, range, or "week")
 	dates, err := dateutil.ParseDateRange(dateStr)
 	if err != nil {
-		return fmt.Sprintf("Invalid date: %v\nUse: tomorrow (default), today, +N, YYYY-MM-DD, YYYY-MM-DD..YYYY-MM-DD, or week", err)
+		return fmt.Sprintf("Invalid date: %v\nUse: tomorrow (default), +N, YYYY-MM-DD, YYYY-MM-DD..YYYY-MM-DD, or week", err)
 	}
 
 	statusStr, ok := optString(event.Options, "status")

@@ -80,12 +80,12 @@ var validMealTypes = map[string]bool{
 func parseMealArgs(raw string) (map[string]interface{}, error) {
 	tokens := strings.Fields(raw)
 	if len(tokens) == 0 {
-		return nil, fmt.Errorf("Usage: /meal <in|out> [meal_type] [date]\nDate can be: tomorrow (default), today, +N, or YYYY-MM-DD")
+		return nil, fmt.Errorf("Usage: /meal <in|out> [meal_type] [date]\nDate can be: tomorrow (default), +N, or YYYY-MM-DD")
 	}
 
 	status := strings.ToLower(tokens[0])
 	if status != "in" && status != "out" {
-		return nil, fmt.Errorf("Usage: /meal <in|out> [meal_type] [date]\nDate can be: tomorrow (default), today, +N, or YYYY-MM-DD")
+		return nil, fmt.Errorf("Usage: /meal <in|out> [meal_type] [date]\nDate can be: tomorrow (default), +N, or YYYY-MM-DD")
 	}
 
 	mealType := "all"
@@ -156,4 +156,3 @@ func parseHeadcountArgs(raw string) (map[string]interface{}, error) {
 		"date": dateStr,
 	}, nil
 }
-

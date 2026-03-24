@@ -8,7 +8,7 @@ import (
 
 // ParseDateRange parses a date parameter and returns a slice of dates.
 // Supports:
-// - Single date: "2026-03-20" or shortcuts (today, tomorrow, +N)
+// - Single date: "2026-03-20" or shortcuts (tomorrow, +N)
 // - Date range: "2026-03-20..2026-03-22"
 // - Week keyword: "week" (next 5 business days from tomorrow)
 func ParseDateRange(dateParam string) ([]string, error) {
