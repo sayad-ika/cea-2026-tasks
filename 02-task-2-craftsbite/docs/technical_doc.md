@@ -357,34 +357,62 @@ Google Chat uses free-text argument strings. Arguments are positional and parsed
 ### `/meal`
 
 ```
-/meal date:<YYYY-MM-DD> status:<in|out> [meal:<lunch|snacks|event_dinner|optional_dinner|all>]
+/meal date:<YYYY-MM-DD|range> status:<in|out> [meal:<lunch|snacks|event_dinner|optional_dinner|all>]
 ```
 
-Opts in or out of meals for a given date. If `meal` is omitted or set to `all`, the status is applied to every available meal for that date.
+Opts in or out of meals for a given date or date range. If `meal` is omitted or set to `all`, the status is applied to every available meal for that date. Date ranges use the format `YYYY-MM-DD..YYYY-MM-DD`; the `week` keyword targets the next 5 business days; shortcuts like `today..+4` are also supported. Maximum range: 14 days. For range operations, per-date successes and failures are reported separately.
 
-| Scenario            | Reply                                                                        |
-| ------------------- | ---------------------------------------------------------------------------- |
-| Success             | Updated status for all meals on that date (`✓` in, `✗` out, `—` unavailable) |
-| Past date           | "Cannot update participation for a past date."                               |
-| Cutoff passed       | "Updates for \<date\> are closed. Cutoff was \<date−1\> at 9:00 PM."         |
-| Office closed       | "Office is closed on \<date\> — no meals are available."                     |
-| No meals configured | "No meals are configured for \<date\>."                                      |
-| Meal not available  | "That meal is not available on \<date\>."                                    |
+| Scenario            | Reply                                                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Success             | Updated status for all meals on that date (`✓` in, `✗` out, `—` unavailable). Changed meals highlighted with `→` prefix. |
+| Range success       | Per-date summary with individual success/failure breakdown                                                               |
+| Past date           | "Cannot update participation for a past date."                                                                           |
+| Cutoff passed       | "Updates for \<date\> are closed. Cutoff was \<date−1\> at 9:00 PM."                                                     |
+| Office closed       | "Office is closed on \<date\> — no meals are available."                                                                 |
+| No meals configured | "No meals are configured for \<date\>."                                                                                  |
+| Meal not available  | "That meal is not available on \<date\>."                                                                                |
+| Range exceeds limit | "Date range cannot exceed 14 days."                                                                                      |
 
 ### `/location`
 
 ```
-/location date:<YYYY-MM-DD> location:<office|wfh>
+/location date:<YYYY-MM-DD|range> location:<office|wfh>
 ```
 
-Sets work location for a given date. On success, replies with the updated location and all meal statuses for that date.
+Sets work location for a given date or date range. On success, replies with the updated location and all meal statuses for that date. For single-date updates, the location change is highlighted with a `→` prefix; meal statuses are shown without prefix. Date range format follows the same rules as `/meal`.
 
-| Scenario         | Reply                                                              |
-| ---------------- | ------------------------------------------------------------------ |
-| Success (office) | `🏢 Office` + meal statuses                                        |
-| Success (WFH)    | `🏠 WFH` + meal statuses                                           |
-| Past date        | "Cannot set work location for a past date."                        |
-| Cutoff passed    | "Updates for \<date\> are closed. Cutoff was \<date−1\> at 9:00 PM |
+| Scenario            | Reply                                                                |
+| ------------------- | -------------------------------------------------------------------- |
+| Success (office)    | `→ 🏢 Office` + meal statuses                                        |
+| Success (WFH)       | `→ 🏠 WFH` + meal statuses                                           |
+| Range success       | Per-date summary with individual success/failure breakdown           |
+| Past date           | "Cannot set work location for a past date."                          |
+| Cutoff passed       | "Updates for \<date\> are closed. Cutoff was \<date−1\> at 9:00 PM." |
+| Range exceeds limit | "Date range cannot exceed 14 days."                                  |
+
+### `/status`
+
+```
+/status [date:<YYYY-MM-DD>]
+```
+
+Returns the caller's current meal participation, work location, and day status for the given date. Read-only — no database writes occur. If `date` is omitted, defaults to tomorrow. Changed fields (relative to defaults) are highlighted with a `→` prefix.
+
+| Scenario   | Reply                                                                                                          |
+| ---------- | -------------------------------------------------------------------------------------------------------------- |
+| Success    | Meal statuses (`✓` in, `✗` out, `—` unavailable) + location + day status. Changed fields highlighted with `→`. |
+| Wrong role | Not applicable — available to all roles.                                                                       |
+
+**Example reply:**
+
+```
+Status for 2026-03-26
+📅 Normal Day
+→ 🏠 WFH
+Lunch      ✓
+→ Snacks   ✗
+Event Dinner  —
+```
 
 ### `/headcount`
 
