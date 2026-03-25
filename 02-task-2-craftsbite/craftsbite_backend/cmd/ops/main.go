@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -245,17 +246,18 @@ func handleScheduleDayCommand(ctx context.Context, client *dynamodb.Client, c *a
 }
 
 func formatScheduleDayError(err error) string {
+	errMsg := err.Error()
 	switch {
-	case strings.Contains(err.Error(), "invalid date format"):
+	case errors.Is(err, services.ErrInvalidDate):
 		return "Invalid date format. Use YYYY-MM-DD (e.g., 2026-03-25)"
-	case strings.Contains(err.Error(), "invalid day status"):
-		return err.Error()
-	case strings.Contains(err.Error(), "invalid meal type"):
-		return err.Error()
-	case strings.Contains(err.Error(), "cannot have meals"):
+	case errors.Is(err, services.ErrInvalidDayStatus):
+		return errMsg
+	case errors.Is(err, services.ErrInvalidMealType):
+		return errMsg
+	case strings.Contains(errMsg, "cannot have meals"):
 		return "Office closed and government holiday days cannot have meals."
 	default:
-		return "Failed to set day schedule. Please try again."
+		return fmt.Sprintf("Failed to set day schedule: %s", errMsg)
 	}
 }
 
