@@ -142,7 +142,7 @@ func commands() []slashCommand {
 			},
 		},
 		{
-			Name:        "set-day",
+			Name:        "schedule-day",
 			Description: "Configure a day's schedule and available meals (Admin only)",
 			Options: []commandOption{
 				{
@@ -157,23 +157,24 @@ func commands() []slashCommand {
 					Description: "Day status",
 					Required:    true,
 					Choices: []commandChoice{
-						{Name: "Normal", Value: "normal"},
+						{Name: "Normal Day", Value: "normal"},
 						{Name: "Office Closed", Value: "office_closed"},
 						{Name: "Government Holiday", Value: "govt_holiday"},
 						{Name: "Celebration", Value: "celebration"},
+						{Name: "Weekend", Value: "weekend"},
 						{Name: "Event Day", Value: "event_day"},
 					},
 				},
 				{
 					Type:        optTypeString,
 					Name:        "meals",
-					Description: "Comma-separated meal types available (e.g. lunch,snacks)",
+					Description: "Comma-separated meal types (lunch,snacks,iftar,event_dinner,optional_dinner)",
 					Required:    false,
 				},
 				{
 					Type:        optTypeString,
 					Name:        "reason",
-					Description: "Optional note shown in bot replies for this day",
+					Description: "Optional reason or note",
 					Required:    false,
 				},
 			},
