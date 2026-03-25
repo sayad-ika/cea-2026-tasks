@@ -318,7 +318,7 @@ Enriched payload: `userID`, `role`, `email`, `commandName`, `argumentText`, `rep
 | `override`     | `management`  | `LAMBDA_MANAGEMENT_FUNCTION_NAME` |
 | `team-summary` | `management`  | `LAMBDA_MANAGEMENT_FUNCTION_NAME` |
 | `headcount`    | `ops`         | `LAMBDA_OPS_FUNCTION_NAME`        |
-| `set-day`      | `ops`         | `LAMBDA_OPS_FUNCTION_NAME`        |
+| `schedule-day` | `ops`         | `LAMBDA_OPS_FUNCTION_NAME`        |
 | `admin`        | `ops`         | `LAMBDA_OPS_FUNCTION_NAME`        |
 
 ---
@@ -335,20 +335,21 @@ Enriched payload: `userID`, `role`, `email`, `commandName`, `argumentText`, `rep
 | `/override`     | `date` (req), `user` (req), `meal` (req: `lunch\|snacks\|iftar\|event_dinner\|optional_dinner`), `status` (req: `in\|out`), `reason` (opt)                                  | Team Leads: own team only. Admin: any user. Bypasses cutoff; meal must be available for the date.                                                                                                                                                                                                         |
 | `/team-summary` | `date` (req), `team_id` (opt)                                                                                                                                               | Team Leads: own team only (ignores `team_id`). Logistics: read-only, any team. Admin: any team.                                                                                                                                                                                                           |
 | `/headcount`    | `date` (req)                                                                                                                                                                | Admin and Logistics only. Returns meal totals and Office vs WFH split for the date. Users with no work location record are counted as office.                                                                                                                                                             |
-| `/set-day`      | `date` (req), `day_status` (req: `normal\|office_closed\|govt_holiday\|celebration\|event_day`), `meals` (opt: comma-separated meal types), `note` (opt)                    | Admin only. Setting `office_closed` or `govt_holiday` forces `meals` to empty.                                                                                                                                                                                                                            |
+| `/schedule-day` | `date` (req), `status` (req: `normal\|office_closed\|govt_holiday\|celebration\|weekend\|event_day`), `meals` (opt: comma-separated meal types), `reason` (opt)             | Admin only. Setting `office_closed` or `govt_holiday` forces `meals` to empty.                                                                                                                                                                                                                            |
 | `/admin`        | `action` (req: `create-user\|update-role\|deactivate-user\|create-team\|add-member\|remove-member`), plus action-specific options                                           | Admin only.                                                                                                                                                                                                                                                                                               |
 
 ### Google Chat
 
-Google Chat uses free-text argument strings. Arguments are positional and parsed by the GChat Router Lambda before invoking the command Lambda. Only the five commands below are registered — `/override`, `/set-day`, and `/admin` are not exposed until their handlers are ready for the platform.
+Google Chat uses free-text argument strings. Arguments are positional and parsed by the GChat Router Lambda before invoking the command Lambda. The six commands below are registered — `/override` and `/admin` are not exposed until their handlers are ready for the platform.
 
-| Command         | Command ID | Argument format                | Notes                                                                                                                                                                 |
-| --------------- | ---------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/meal`         | 1          | `<in\|out> <meal_type> [date]` | `meal_type` required (no day-wide fan-out via omission on GChat). `date` defaults to today if omitted. `iftar` is not exposed — parity with what the handler accepts. |
-| `/location`     | 2          | `<office\|wfh> [date]`         | `date` defaults to today if omitted.                                                                                                                                  |
-| `/team-summary` | 3          | `[date]`                       | `date` defaults to today if omitted. `team_id` is not advertised — handler always uses the caller's first led team.                                                   |
-| `/headcount`    | 4          | `<date>`                       | `date` is required. Router returns a usage hint card before invoking Lambda if omitted.                                                                               |
-| `/status`       | 5          | `[date]`                       | `date` defaults to tomorrow if omitted. Read-only — no database writes.                                                                                               |
+| Command         | Command ID | Argument format                    | Notes                                                                                                                                                                 |
+| --------------- | ---------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/meal`         | 1          | `<in\|out> <meal_type> [date]`     | `meal_type` required (no day-wide fan-out via omission on GChat). `date` defaults to today if omitted. `iftar` is not exposed — parity with what the handler accepts. |
+| `/location`     | 2          | `<office\|wfh> [date]`             | `date` defaults to today if omitted.                                                                                                                                  |
+| `/team-summary` | 3          | `[date]`                           | `date` defaults to today if omitted. `team_id` is not advertised — handler always uses the caller's first led team.                                                   |
+| `/headcount`    | 4          | `<date>`                           | `date` is required. Router returns a usage hint card before invoking Lambda if omitted.                                                                               |
+| `/status`       | 5          | `[date]`                           | `date` defaults to tomorrow if omitted. Read-only — no database writes.                                                                                               |
+| `/schedule-day` | 6          | `<date> <status> [meals] [reason]` | Admin only. `date` in YYYY-MM-DD format. `meals` comma-separated. `reason` is free text (all remaining words).                                                        |
 
 ---
 
@@ -486,6 +487,37 @@ Bob Smith      │ Lunch ✓  │ Snacks ✓  │ WFH
 Carol Lee      │ Lunch ✗  │ Snacks ✗  │ Office
 ──────────────────────────────────────
 Totals: Lunch 2/3  │  Snacks 1/3  │  WFH 1/3
+```
+
+---
+
+### `/schedule-day`
+
+```
+/schedule-day date:<YYYY-MM-DD|range> status:<normal|office_closed|govt_holiday|celebration|weekend|event_day> [meals:<comma-separated>] [reason:<text>]
+```
+
+Sets the day schedule and available meals for one or more dates. Available to `admin` role only.
+
+#### Single-date usage
+
+Passes a single `YYYY-MM-DD` date. The schedule is created or updated for that date immediately.
+
+| Scenario                             | Reply                                                                  |
+| ------------------------------------ | ---------------------------------------------------------------------- |
+| Success                              | `✓ Day schedule set for <date>` with status, meals, and reason summary |
+| Invalid date format                  | `Invalid date format. Use YYYY-MM-DD (e.g., 2026-03-25)`               |
+| Invalid status value                 | `invalid day status: <value> (valid: [...])`                           |
+| office_closed / govt_holiday + meals | `office_closed and govt_holiday days cannot have meals.`               |
+| Wrong role                           | `You do not have permission to use /schedule-day.`                     |
+
+**Example reply:**
+
+```
+✓ Day schedule set for 2026-03-27
+
+**Status**: 📅 Normal Day
+**Meals**: Lunch, Snacks, Iftar
 ```
 
 ---
