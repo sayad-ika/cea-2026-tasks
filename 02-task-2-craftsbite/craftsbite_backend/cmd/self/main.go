@@ -56,12 +56,7 @@ func handler(ctx context.Context, event payload.CommandEvent) error {
 		return handleLocationCommand(ctx, client, c, event)
 
 	case "status":
-		replyContent := "This feature is coming soon."
-		if event.Source == "gchat" {
-			card, _ := gchat.SimpleTextCard(replyContent)
-			return gchat.CreatePrivateMessage(ctx, c.GChatServiceAccountJSON, event.GChatSpaceName, event.GChatViewerName, card)
-		}
-		return discord.SendFollowup(event.ApplicationID, event.InteractionToken, replyContent)
+		return handleStatusCommand(ctx, client, c, event)
 
 	default:
 		replyContent := fmt.Sprintf("Unknown command: /%s", event.CommandName)
@@ -73,11 +68,75 @@ func handler(ctx context.Context, event payload.CommandEvent) error {
 	}
 }
 
-func handleLocationCommand(ctx context.Context, client *dynamodb.Client, c *appconfig.Config, event payload.CommandEvent) error {
+func handleStatusCommand(ctx context.Context, client *dynamodb.Client, c *appconfig.Config, event payload.CommandEvent) error {
 	dateStr, _ := optString(event.Options, "date")
 	date, err := dateutil.ParseDateWithDefaults(dateStr)
 	if err != nil {
 		return sendSelfReply(ctx, c, event, fmt.Sprintf("Invalid date: %v\nUse: tomorrow (default), today, +N, or YYYY-MM-DD", err))
+	}
+
+	mealStatuses, err := services.GetUserMealStatus(ctx, client, c.DynamoDBTable, event.UserID, date)
+	if err != nil {
+		return sendSelfReply(ctx, c, event, "Unable to fetch meal status. Please try again later.")
+	}
+
+	location, err := services.GetLocation(ctx, client, c.DynamoDBTable, event.UserID, date)
+	if err != nil {
+		return sendSelfReply(ctx, c, event, "Unable to fetch location status. Please try again later.")
+	}
+
+	return sendSelfReply(ctx, c, event, formatStatusView(date, location.Location, mealStatuses))
+}
+
+func handleBulkLocationUpdate(ctx context.Context, client *dynamodb.Client, c *appconfig.Config, event payload.CommandEvent, dates []string, location string) error {
+	var successDates []string
+	var failedDates []string
+	var errors []string
+
+	for _, date := range dates {
+		_, err := services.SetLocation(ctx, client, c.DynamoDBTable, event.UserID, date, location)
+		if err != nil {
+			failedDates = append(failedDates, date)
+			errors = append(errors, fmt.Sprintf("%s: %s", date, locationErrorReply(err, date)))
+		} else {
+			successDates = append(successDates, date)
+		}
+	}
+
+	// Format response
+	var sb strings.Builder
+	if len(successDates) > 0 {
+		locLabel := "Office"
+		if location == "wfh" {
+			locLabel = "WFH"
+		}
+
+		fmt.Fprintf(&sb, "✓ Successfully set location to %s for %d date(s):\n", locLabel, len(successDates))
+		for _, date := range successDates {
+			fmt.Fprintf(&sb, "  • %s\n", date)
+		}
+	}
+
+	if len(failedDates) > 0 {
+		if len(successDates) > 0 {
+			fmt.Fprintf(&sb, "\n")
+		}
+		fmt.Fprintf(&sb, "✗ Failed to update %d date(s):\n", len(failedDates))
+		for _, errMsg := range errors {
+			fmt.Fprintf(&sb, "  • %s\n", errMsg)
+		}
+	}
+
+	return sendSelfReply(ctx, c, event, sb.String())
+}
+
+func handleLocationCommand(ctx context.Context, client *dynamodb.Client, c *appconfig.Config, event payload.CommandEvent) error {
+	dateStr, _ := optString(event.Options, "date")
+
+	// Parse date range (supports single date, range, or "week")
+	dates, err := dateutil.ParseDateRange(dateStr)
+	if err != nil {
+		return sendSelfReply(ctx, c, event, fmt.Sprintf("Invalid date: %v\nUse: tomorrow (default), today, +N, YYYY-MM-DD, YYYY-MM-DD..YYYY-MM-DD, or week", err))
 	}
 
 	loc, ok := optString(event.Options, "location")
@@ -85,6 +144,13 @@ func handleLocationCommand(ctx context.Context, client *dynamodb.Client, c *appc
 		return sendSelfReply(ctx, c, event, "Please specify location as `office` or `wfh`.")
 	}
 
+	// Handle bulk operations for multiple dates
+	if len(dates) > 1 {
+		return handleBulkLocationUpdate(ctx, client, c, event, dates, loc)
+	}
+
+	// Single date operation
+	date := dates[0]
 	wl, err := services.SetLocation(ctx, client, c.DynamoDBTable, event.UserID, date, loc)
 	if err != nil {
 		return sendSelfReply(ctx, c, event, locationErrorReply(err, date))
@@ -126,11 +192,56 @@ func formatMealStatusLine(statuses []services.ResolvedStatus) string {
 	return strings.Join(parts, "  ")
 }
 
+func handleBulkMealUpdate(ctx context.Context, client *dynamodb.Client, table, userID string, dates []string, mealType string, isParticipating bool) string {
+	var successDates []string
+	var failedDates []string
+	var errors []string
+
+	for _, date := range dates {
+		_, err := services.UpdateParticipation(ctx, client, table, userID, date, mealType, isParticipating)
+		if err != nil {
+			failedDates = append(failedDates, date)
+			errors = append(errors, fmt.Sprintf("%s: %s", date, mealErrorReply(err, date)))
+		} else {
+			successDates = append(successDates, date)
+		}
+	}
+
+	// Format response
+	var sb strings.Builder
+	if len(successDates) > 0 {
+		action := "opted out"
+		if isParticipating {
+			action = "opted in"
+		}
+		mealLabel := displayMealName(mealType)
+
+		fmt.Fprintf(&sb, "✓ Successfully %s %s for %d date(s):\n", action, mealLabel, len(successDates))
+		for _, date := range successDates {
+			fmt.Fprintf(&sb, "  • %s\n", date)
+		}
+	}
+
+	if len(failedDates) > 0 {
+		if len(successDates) > 0 {
+			fmt.Fprintf(&sb, "\n")
+		}
+		fmt.Fprintf(&sb, "✗ Failed to update %d date(s):\n", len(failedDates))
+		for _, errMsg := range errors {
+			fmt.Fprintf(&sb, "  • %s\n", errMsg)
+		}
+	}
+
+	return sb.String()
+}
+
 func handleMeal(ctx context.Context, client *dynamodb.Client, table string, event payload.CommandEvent) string {
 	dateStr, _ := optString(event.Options, "date")
-	date, err := dateutil.ParseDateWithDefaults(dateStr)
+
+	// Parse date range (supports single date, range, or "week")
+	dates, err := dateutil.ParseDateRange(dateStr)
 	if err != nil {
-		return fmt.Sprintf("Invalid date: %v\nUse: tomorrow (default), today, +N, or YYYY-MM-DD", err)
+		return fmt.Sprintf("Invalid date: %v\nUse: tomorrow (default), +N, YYYY-MM-DD, YYYY-MM-DD..YYYY-MM-DD, or week", err)
 	}
 
 	statusStr, ok := optString(event.Options, "status")
@@ -147,12 +258,31 @@ func handleMeal(ctx context.Context, client *dynamodb.Client, table string, even
 		return fmt.Sprintf("`%s` is not a valid meal type. Choose from: lunch, snacks, event_dinner, optional_dinner, all.", mealType)
 	}
 
+	// Handle bulk operations for multiple dates
+	if len(dates) > 1 {
+		return handleBulkMealUpdate(ctx, client, table, event.UserID, dates, mealType, isParticipating)
+	}
+
+	// Single date operation
+	date := dates[0]
 	statuses, err := services.UpdateParticipation(ctx, client, table, event.UserID, date, mealType, isParticipating)
 	if err != nil {
 		return mealErrorReply(err, date)
 	}
 
-	return formatMealStatus(date, statuses)
+	var changedMeals []string
+	if mealType == "all" {
+		// All available meals were changed
+		for _, s := range statuses {
+			if s.Status != "unavailable" {
+				changedMeals = append(changedMeals, s.MealType)
+			}
+		}
+	} else {
+		changedMeals = []string{mealType}
+	}
+
+	return formatMealStatusWithChanges(date, statuses, changedMeals)
 }
 
 func optString(opts map[string]interface{}, key string) (string, bool) {
@@ -205,7 +335,8 @@ func formatLocationStatus(date, location string, mealStatuses []services.Resolve
 	}
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "Updated! Status for %s:\n  %s %s", date, locIcon, locLabel)
+	// Highlight the location change with arrow prefix
+	fmt.Fprintf(&sb, "Updated! Status for %s:\n → %s %s", date, locIcon, locLabel)
 
 	for _, s := range mealStatuses {
 		icon := "✗"
@@ -246,6 +377,41 @@ func formatMealStatus(date string, statuses []services.ResolvedStatus) string {
 	return sb.String()
 }
 
+func formatMealStatusWithChanges(date string, statuses []services.ResolvedStatus, changedMeals []string) string {
+	if len(statuses) == 0 {
+		return fmt.Sprintf("No meals are available on %s.", date)
+	}
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Updated! Meal status for %s:", date)
+	for _, s := range statuses {
+		icon := "✗"
+		if s.Status == "opted_in" {
+			icon = "✓"
+		} else if s.Status == "unavailable" {
+			icon = "—"
+		}
+
+		// Highlight changed meals with arrow prefix
+		prefix := "  "
+		if containsString(changedMeals, s.MealType) {
+			prefix = " →"
+		}
+
+		fmt.Fprintf(&sb, "%s %s %s", prefix, displayMealName(s.MealType), icon)
+	}
+	return sb.String()
+}
+
+func containsString(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
 func displayMealName(s string) string {
 	words := strings.Split(strings.ReplaceAll(s, "_", " "), " ")
 	for i, w := range words {
@@ -254,6 +420,40 @@ func displayMealName(s string) string {
 		}
 	}
 	return strings.Join(words, " ")
+}
+
+func formatStatusView(date, location string, mealStatuses []services.ResolvedStatus) string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Status for %s:\n", date)
+
+	// Location status
+	locIcon := "🏢"
+	locLabel := "Office"
+	if location == "wfh" {
+		locIcon = "🏠"
+		locLabel = "WFH"
+	} else if location == "not_set" {
+		locIcon = "❓"
+		locLabel = "Not Set"
+	}
+	fmt.Fprintf(&sb, "  %s %s", locIcon, locLabel)
+
+	// Meal status
+	if len(mealStatuses) == 0 {
+		fmt.Fprintf(&sb, "\n  No meals configured")
+	} else {
+		for _, s := range mealStatuses {
+			icon := "✗"
+			if s.Status == "opted_in" {
+				icon = "✓"
+			} else if s.Status == "unavailable" {
+				icon = "—"
+			}
+			fmt.Fprintf(&sb, "  %s %s", displayMealName(s.MealType), icon)
+		}
+	}
+
+	return sb.String()
 }
 
 func main() {

@@ -15,7 +15,6 @@ const (
 
 // ParseDateWithDefaults parses a date string with support for shortcuts and defaults.
 // If dateStr is empty, returns tomorrow's date.
-// Supports: "today", "tomorrow", "+N" (days from today), or "YYYY-MM-DD"
 func ParseDateWithDefaults(dateStr string) (string, error) {
 	loc, err := loadLocation()
 	if err != nil {

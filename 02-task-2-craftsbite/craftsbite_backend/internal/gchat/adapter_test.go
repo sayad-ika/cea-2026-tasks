@@ -110,6 +110,7 @@ func TestCommandMapping(t *testing.T) {
 		2: "location",
 		3: "team-summary",
 		4: "headcount",
+		5: "status",
 	}
 	for id, want := range expected {
 		got, ok := gchatCommandNames[id]
@@ -168,7 +169,7 @@ func TestToCommandEvent_HeadcountParseError(t *testing.T) {
 		Chat: ChatEvent{
 			AppCommandPayload: &AppCommandPayload{
 				AppCommandMetadata: AppCommandMetadata{AppCommandID: 4},
-				Message:            &Message{ArgumentText: ""},
+				Message:            &Message{ArgumentText: "invalid-date-format"},
 			},
 		},
 	}

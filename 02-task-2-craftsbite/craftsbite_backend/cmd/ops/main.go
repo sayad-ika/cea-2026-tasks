@@ -62,7 +62,7 @@ func handleHeadcountCommand(ctx context.Context, client *dynamodb.Client, c *app
 	dateStr, _ := optString(event.Options, "date")
 	date, err := dateutil.ParseDateWithDefaults(dateStr)
 	if err != nil {
-		return sendOpsReply(ctx, c, event, fmt.Sprintf("Invalid date: %v\nUse: tomorrow (default), today, +N, or YYYY-MM-DD", err))
+		return sendOpsReply(ctx, c, event, fmt.Sprintf("Invalid date: %v\nUse: tomorrow (default), +N, or YYYY-MM-DD", err))
 	}
 
 	result, err := services.GetHeadcount(ctx, client, c.DynamoDBTable, date)
