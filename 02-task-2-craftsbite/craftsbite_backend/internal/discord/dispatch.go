@@ -10,7 +10,7 @@ var commandACL = map[string]map[string]struct{}{
 	"override":     {"team_lead": {}, "admin": {}},
 	"team-summary": {"team_lead": {}, "admin": {}},
 	"headcount":    {"admin": {}, "logistics": {}},
-	"set-day":      {"admin": {}},
+	"schedule-day": {"admin": {}},
 	"admin":        {"admin": {}},
 }
 
@@ -31,7 +31,7 @@ func Dispatch(cfg *config.Config, commandName string) (string, bool) {
 		return cfg.LambdaSelfFunctionName, true
 	case "override", "team-summary":
 		return cfg.LambdaManagementFunctionName, true
-	case "headcount", "set-day", "admin":
+	case "headcount", "schedule-day", "admin":
 		return cfg.LambdaOpsFunctionName, true
 	default:
 		return "", false

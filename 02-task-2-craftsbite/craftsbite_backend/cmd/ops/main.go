@@ -15,6 +15,7 @@ import (
 	"github.com/sayad-ika/craftsbite/internal/dynamo"
 	"github.com/sayad-ika/craftsbite/internal/gchat"
 	"github.com/sayad-ika/craftsbite/internal/payload"
+	"github.com/sayad-ika/craftsbite/internal/repository"
 	"github.com/sayad-ika/craftsbite/internal/services"
 )
 
@@ -37,8 +38,8 @@ func handler(ctx context.Context, event payload.CommandEvent) error {
 	switch event.CommandName {
 	case "headcount":
 		return handleHeadcountCommand(ctx, client, c, event)
-	case "set-day":
-		return sendOpsReply(ctx, c, event, "This feature is coming soon.")
+	case "schedule-day":
+		return handleScheduleDayCommand(ctx, client, c, event)
 	case "admin":
 		return sendOpsReply(ctx, c, event, "This feature is coming soon.")
 	default:
@@ -202,6 +203,106 @@ func displayMealName(s string) string {
 		}
 	}
 	return strings.Join(words, " ")
+}
+
+func handleScheduleDayCommand(ctx context.Context, client *dynamodb.Client, c *appconfig.Config, event payload.CommandEvent) error {
+	if event.Role != "admin" {
+		return sendOpsReply(ctx, c, event, "You do not have permission to use `/schedule-day`.")
+	}
+
+	dateStr, ok := optString(event.Options, "date")
+	if !ok || dateStr == "" {
+		return sendOpsReply(ctx, c, event, "Usage: /schedule-day <date> <status> [meals] [reason]\nExample: /schedule-day 2026-03-25 normal lunch,snacks")
+	}
+
+	statusStr, ok := optString(event.Options, "status")
+	if !ok || statusStr == "" {
+		return sendOpsReply(ctx, c, event, fmt.Sprintf("Day status is required. Valid values: %v", repository.ValidDayStatuses()))
+	}
+
+	mealsStr, _ := optString(event.Options, "meals")
+	var meals []string
+	if mealsStr != "" {
+		meals = strings.Split(strings.ReplaceAll(mealsStr, " ", ""), ",")
+	}
+
+	reason, _ := optString(event.Options, "reason")
+
+	input := services.SetDayScheduleInput{
+		Date:           dateStr,
+		DayStatus:      statusStr,
+		AvailableMeals: meals,
+		Reason:         reason,
+		SetBy:          event.UserID,
+	}
+
+	schedule, err := services.SetDaySchedule(ctx, client, c.DynamoDBTable, input)
+	if err != nil {
+		return sendOpsReply(ctx, c, event, formatScheduleDayError(err))
+	}
+
+	return sendOpsReply(ctx, c, event, formatScheduleDaySuccess(schedule))
+}
+
+func formatScheduleDayError(err error) string {
+	switch {
+	case strings.Contains(err.Error(), "invalid date format"):
+		return "Invalid date format. Use YYYY-MM-DD (e.g., 2026-03-25)"
+	case strings.Contains(err.Error(), "invalid day status"):
+		return err.Error()
+	case strings.Contains(err.Error(), "invalid meal type"):
+		return err.Error()
+	case strings.Contains(err.Error(), "cannot have meals"):
+		return "Office closed and government holiday days cannot have meals."
+	default:
+		return "Failed to set day schedule. Please try again."
+	}
+}
+
+func formatScheduleDaySuccess(schedule *repository.DaySchedule) string {
+	var sb strings.Builder
+
+	fmt.Fprintf(&sb, "✓ Day schedule set for %s\n\n", schedule.Date)
+	fmt.Fprintf(&sb, "**Status**: %s\n", displayDayStatus(schedule.DayStatus))
+
+	if len(schedule.AvailableMeals) > 0 {
+		fmt.Fprintf(&sb, "**Meals**: %s\n", formatMealList(schedule.AvailableMeals))
+	} else {
+		fmt.Fprintf(&sb, "**Meals**: None\n")
+	}
+
+	if schedule.Reason != "" {
+		fmt.Fprintf(&sb, "**Reason**: %s\n", schedule.Reason)
+	}
+
+	return sb.String()
+}
+
+func displayDayStatus(status string) string {
+	switch status {
+	case "normal":
+		return "📅 Normal Day"
+	case "office_closed":
+		return "🔒 Office Closed"
+	case "govt_holiday":
+		return "🎉 Government Holiday"
+	case "celebration":
+		return "🎊 Celebration"
+	case "weekend":
+		return "🏖 Weekend"
+	case "event_day":
+		return "🎪 Event Day"
+	default:
+		return status
+	}
+}
+
+func formatMealList(meals []string) string {
+	var formatted []string
+	for _, m := range meals {
+		formatted = append(formatted, displayMealName(m))
+	}
+	return strings.Join(formatted, ", ")
 }
 
 func main() {
