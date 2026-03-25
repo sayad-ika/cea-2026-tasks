@@ -13,6 +13,7 @@ var gchatCommandNames = map[int64]string{
 	3: "team-summary",
 	4: "headcount",
 	5: "status",
+	6: "schedule-day",
 }
 
 func ToCommandEvent(evt Event, internalUserID, role string) (payload.CommandEvent, error) {
@@ -54,6 +55,8 @@ func ToCommandEvent(evt Event, internalUserID, role string) (payload.CommandEven
 		}
 	case 5:
 		opts = parseDateArg(argText)
+	case 6:
+		opts = parseScheduleDayArgs(argText)
 	}
 
 	return payload.CommandEvent{
@@ -155,4 +158,26 @@ func parseHeadcountArgs(raw string) (map[string]interface{}, error) {
 	return map[string]interface{}{
 		"date": dateStr,
 	}, nil
+}
+
+// parseScheduleDayArgs parses "/schedule-day <date> <status> [meals] [reason]"
+// Format: /schedule-day 2026-03-25 normal lunch,snacks Optional reason text
+func parseScheduleDayArgs(raw string) map[string]interface{} {
+	parts := strings.Fields(raw)
+	opts := make(map[string]interface{})
+
+	if len(parts) >= 1 {
+		opts["date"] = parts[0]
+	}
+	if len(parts) >= 2 {
+		opts["status"] = parts[1]
+	}
+	if len(parts) >= 3 {
+		opts["meals"] = parts[2]
+	}
+	if len(parts) >= 4 {
+		opts["reason"] = strings.Join(parts[3:], " ")
+	}
+
+	return opts
 }
