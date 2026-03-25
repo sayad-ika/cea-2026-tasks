@@ -69,7 +69,7 @@ Discord Router Lambda                     GChat Router Lambda
                         |  management -- /override, /team-summary        (team_lead, admin, logistics)
                         |  `/team-summary` fan-out: one goroutine per member fetches meals + location
                         |
-                        |  ops        -- /headcount, /set-day, /admin    (admin, logistics)
+                        |  ops        -- /headcount, /schedule-day, /admin    (admin, logistics)
                         |  `/headcount` runs 3 parallel GSI1 queries, joins in memory
                         |
                         |  receives pre-verified event with caller identity + Source attached
@@ -122,12 +122,12 @@ Discord Router Lambda                     GChat Router Lambda
 
 **Role-based behavior**
 
-| Role      | `/meal` `/location` `/status` | `/override`   | `/team-summary`       | `/headcount`  | `/set-day` | `/admin` |
-| --------- | ----------------------------- | ------------- | --------------------- | ------------- | ---------- | -------- |
-| Employee  | Own records only              | ✗             | ✗                     | ✗             | ✗          | ✗        |
-| Team Lead | Own records only              | Own team only | Own team only         | ✗             | ✗          | ✗        |
-| Logistics | Own records only              | ✗             | Read-only (all teams) | ✓ (read-only) | ✗          | ✗        |
-| Admin     | Own records only              | Any user      | All teams             | ✓             | ✓          | ✓        |
+| Role      | `/meal` `/location` `/status` | `/override`   | `/team-summary`       | `/headcount`  | `/schedule-day` | `/admin` |
+| --------- | ----------------------------- | ------------- | --------------------- | ------------- | --------------- | -------- |
+| Employee  | Own records only              | ✗             | ✗                     | ✗             | ✗               | ✗        |
+| Team Lead | Own records only              | Own team only | Own team only         | ✗             | ✗               | ✗        |
+| Logistics | Own records only              | ✗             | Read-only (all teams) | ✓ (read-only) | ✗               | ✗        |
+| Admin     | Own records only              | Any user      | All teams             | ✓             | ✓               | ✓        |
 
 **Validation rules**
 
@@ -250,7 +250,7 @@ Each Lambda is compiled to a separate static binary named `bootstrap` (Lambda cu
 - **GChat Router Lambda** — compiled from `cmd/gchat-router/main.go`, deployed as its own function, invoked by API Gateway (`POST /gchat`) on every Google Chat interaction. Uses `internal/gchat/` (`event.go` — event types; `card.go` — Card v2 builder; `reply.go` — Chat REST API reply). Reuses `internal/discord/dispatch.go` for ACL checks and Lambda dispatch. Resolves callers by Google Workspace email (`PK=GCHAT#<email>`, `SK=LOOKUP`).
 - **`self` Lambda** — compiled from `cmd/self/main.go`, handles `/meal`, `/location`, `/status` — available to all roles
 - **`management` Lambda** — compiled from `cmd/management/main.go`, handles `/override`, `/team-summary` — available to `team_lead`, `admin`, and `logistics` (read-only)
-- **`ops` Lambda** — compiled from `cmd/ops/main.go`, handles `/headcount`, `/set-day`, `/admin` — available to `admin` and `logistics` (headcount only)
+- **`ops` Lambda** — compiled from `cmd/ops/main.go`, handles `/headcount`, `/schedule-day`, `/admin` — available to `admin` and `logistics` (headcount only)
 
 Local development runs each binary directly as a standalone executable — no adapter or environment detection required.
 
