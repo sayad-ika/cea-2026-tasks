@@ -1,7 +1,7 @@
 # Craftsbite -- Technical Spec
 
 - **Author:** Sayad Ibn Khairul Alam
-- **Updated:** 2026-03-08
+- **Updated:** 2026-03-25
 - **Status:** Draft
 
 ---
@@ -327,20 +327,20 @@ Enriched payload: `userID`, `role`, `email`, `commandName`, `argumentText`, `rep
 
 ### Discord
 
-| Command         | Options                                                                                                                                                  | Notes                                                                                                                                               |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/meal`         | `date` (req), `status` (req: `in\|out`), `meal` (opt: `lunch\|snacks\|iftar\|event_dinner\|optional_dinner`)                                             | If `meal` is omitted, the service reads available meals for that date and writes the status for every available meal (day-wide opt-in/out fan-out). |
-| `/location`     | `date` (req), `location` (req: `office\|wfh`)                                                                                                            |                                                                                                                                                     |
-| `/status`       | `date` (req)                                                                                                                                             | Returns current meal participation, work location, and day status for the caller on that date. Fetches in 3 parallel goroutines.                    |
-| `/override`     | `date` (req), `user` (req), `meal` (req: `lunch\|snacks\|iftar\|event_dinner\|optional_dinner`), `status` (req: `in\|out`), `reason` (opt)               | Team Leads: own team only. Admin: any user. Bypasses cutoff; meal must be available for the date.                                                   |
-| `/team-summary` | `date` (req), `team_id` (opt)                                                                                                                            | Team Leads: own team only (ignores `team_id`). Logistics: read-only, any team. Admin: any team.                                                     |
-| `/headcount`    | `date` (req)                                                                                                                                             | Admin and Logistics only. Returns meal totals and Office vs WFH split for the date. Users with no work location record are counted as office.       |
-| `/set-day`      | `date` (req), `day_status` (req: `normal\|office_closed\|govt_holiday\|celebration\|event_day`), `meals` (opt: comma-separated meal types), `note` (opt) | Admin only. Setting `office_closed` or `govt_holiday` forces `meals` to empty.                                                                      |
-| `/admin`        | `action` (req: `create-user\|update-role\|deactivate-user\|create-team\|add-member\|remove-member`), plus action-specific options                        | Admin only.                                                                                                                                         |
+| Command         | Options                                                                                                                                                                     | Notes                                                                                                                                                                                                                                                                                                     |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/meal`         | `date` (req, supports range: `YYYY-MM-DD..YYYY-MM-DD`, `week`, `today..+N`), `status` (req: `in\|out`), `meal` (opt: `lunch\|snacks\|iftar\|event_dinner\|optional_dinner`) | If `meal` is omitted, the service reads available meals for that date and writes the status for every available meal (day-wide opt-in/out fan-out). Range operations apply the same status across all dates in the range; per-date successes and failures are tracked separately. Maximum range: 14 days. |
+| `/location`     | `date` (req, supports range: `YYYY-MM-DD..YYYY-MM-DD`, `week`, `today..+N`), `location` (req: `office\|wfh`)                                                                | Range operations apply the same location across all dates in the range. Maximum range: 14 days.                                                                                                                                                                                                           |
+| `/status`       | `date` (opt, default: tomorrow)                                                                                                                                             | Returns current meal participation, work location, and day status for the caller on that date. Read-only — no database writes. Fetches in 3 parallel goroutines. Changed fields are highlighted with an arrow prefix (→).                                                                                 |
+| `/override`     | `date` (req), `user` (req), `meal` (req: `lunch\|snacks\|iftar\|event_dinner\|optional_dinner`), `status` (req: `in\|out`), `reason` (opt)                                  | Team Leads: own team only. Admin: any user. Bypasses cutoff; meal must be available for the date.                                                                                                                                                                                                         |
+| `/team-summary` | `date` (req), `team_id` (opt)                                                                                                                                               | Team Leads: own team only (ignores `team_id`). Logistics: read-only, any team. Admin: any team.                                                                                                                                                                                                           |
+| `/headcount`    | `date` (req)                                                                                                                                                                | Admin and Logistics only. Returns meal totals and Office vs WFH split for the date. Users with no work location record are counted as office.                                                                                                                                                             |
+| `/set-day`      | `date` (req), `day_status` (req: `normal\|office_closed\|govt_holiday\|celebration\|event_day`), `meals` (opt: comma-separated meal types), `note` (opt)                    | Admin only. Setting `office_closed` or `govt_holiday` forces `meals` to empty.                                                                                                                                                                                                                            |
+| `/admin`        | `action` (req: `create-user\|update-role\|deactivate-user\|create-team\|add-member\|remove-member`), plus action-specific options                                           | Admin only.                                                                                                                                                                                                                                                                                               |
 
 ### Google Chat
 
-Google Chat uses free-text argument strings. Arguments are positional and parsed by the GChat Router Lambda before invoking the command Lambda. Only the four commands below are registered — `/status`, `/override`, `/set-day`, and `/admin` are not exposed until their handlers are ready for the platform.
+Google Chat uses free-text argument strings. Arguments are positional and parsed by the GChat Router Lambda before invoking the command Lambda. Only the five commands below are registered — `/override`, `/set-day`, and `/admin` are not exposed until their handlers are ready for the platform.
 
 | Command         | Command ID | Argument format                | Notes                                                                                                                                                                 |
 | --------------- | ---------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -348,6 +348,7 @@ Google Chat uses free-text argument strings. Arguments are positional and parsed
 | `/location`     | 2          | `<office\|wfh> [date]`         | `date` defaults to today if omitted.                                                                                                                                  |
 | `/team-summary` | 3          | `[date]`                       | `date` defaults to today if omitted. `team_id` is not advertised — handler always uses the caller's first led team.                                                   |
 | `/headcount`    | 4          | `<date>`                       | `date` is required. Router returns a usage hint card before invoking Lambda if omitted.                                                                               |
+| `/status`       | 5          | `[date]`                       | `date` defaults to tomorrow if omitted. Read-only — no database writes.                                                                                               |
 
 ---
 
@@ -356,34 +357,62 @@ Google Chat uses free-text argument strings. Arguments are positional and parsed
 ### `/meal`
 
 ```
-/meal date:<YYYY-MM-DD> status:<in|out> [meal:<lunch|snacks|event_dinner|optional_dinner|all>]
+/meal date:<YYYY-MM-DD|range> status:<in|out> [meal:<lunch|snacks|event_dinner|optional_dinner|all>]
 ```
 
-Opts in or out of meals for a given date. If `meal` is omitted or set to `all`, the status is applied to every available meal for that date.
+Opts in or out of meals for a given date or date range. If `meal` is omitted or set to `all`, the status is applied to every available meal for that date. Date ranges use the format `YYYY-MM-DD..YYYY-MM-DD`; the `week` keyword targets the next 5 business days; shortcuts like `today..+4` are also supported. Maximum range: 14 days. For range operations, per-date successes and failures are reported separately.
 
-| Scenario            | Reply                                                                        |
-| ------------------- | ---------------------------------------------------------------------------- |
-| Success             | Updated status for all meals on that date (`✓` in, `✗` out, `—` unavailable) |
-| Past date           | "Cannot update participation for a past date."                               |
-| Cutoff passed       | "Updates for \<date\> are closed. Cutoff was \<date−1\> at 9:00 PM."         |
-| Office closed       | "Office is closed on \<date\> — no meals are available."                     |
-| No meals configured | "No meals are configured for \<date\>."                                      |
-| Meal not available  | "That meal is not available on \<date\>."                                    |
+| Scenario            | Reply                                                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Success             | Updated status for all meals on that date (`✓` in, `✗` out, `—` unavailable). Changed meals highlighted with `→` prefix. |
+| Range success       | Per-date summary with individual success/failure breakdown                                                               |
+| Past date           | "Cannot update participation for a past date."                                                                           |
+| Cutoff passed       | "Updates for \<date\> are closed. Cutoff was \<date−1\> at 9:00 PM."                                                     |
+| Office closed       | "Office is closed on \<date\> — no meals are available."                                                                 |
+| No meals configured | "No meals are configured for \<date\>."                                                                                  |
+| Meal not available  | "That meal is not available on \<date\>."                                                                                |
+| Range exceeds limit | "Date range cannot exceed 14 days."                                                                                      |
 
 ### `/location`
 
 ```
-/location date:<YYYY-MM-DD> location:<office|wfh>
+/location date:<YYYY-MM-DD|range> location:<office|wfh>
 ```
 
-Sets work location for a given date. On success, replies with the updated location and all meal statuses for that date.
+Sets work location for a given date or date range. On success, replies with the updated location and all meal statuses for that date. For single-date updates, the location change is highlighted with a `→` prefix; meal statuses are shown without prefix. Date range format follows the same rules as `/meal`.
 
-| Scenario         | Reply                                                              |
-| ---------------- | ------------------------------------------------------------------ |
-| Success (office) | `🏢 Office` + meal statuses                                        |
-| Success (WFH)    | `🏠 WFH` + meal statuses                                           |
-| Past date        | "Cannot set work location for a past date."                        |
-| Cutoff passed    | "Updates for \<date\> are closed. Cutoff was \<date−1\> at 9:00 PM |
+| Scenario            | Reply                                                                |
+| ------------------- | -------------------------------------------------------------------- |
+| Success (office)    | `→ 🏢 Office` + meal statuses                                        |
+| Success (WFH)       | `→ 🏠 WFH` + meal statuses                                           |
+| Range success       | Per-date summary with individual success/failure breakdown           |
+| Past date           | "Cannot set work location for a past date."                          |
+| Cutoff passed       | "Updates for \<date\> are closed. Cutoff was \<date−1\> at 9:00 PM." |
+| Range exceeds limit | "Date range cannot exceed 14 days."                                  |
+
+### `/status`
+
+```
+/status [date:<YYYY-MM-DD>]
+```
+
+Returns the caller's current meal participation, work location, and day status for the given date. Read-only — no database writes occur. If `date` is omitted, defaults to tomorrow. Changed fields (relative to defaults) are highlighted with a `→` prefix.
+
+| Scenario   | Reply                                                                                                          |
+| ---------- | -------------------------------------------------------------------------------------------------------------- |
+| Success    | Meal statuses (`✓` in, `✗` out, `—` unavailable) + location + day status. Changed fields highlighted with `→`. |
+| Wrong role | Not applicable — available to all roles.                                                                       |
+
+**Example reply:**
+
+```
+Status for 2026-03-26
+📅 Normal Day
+→ 🏠 WFH
+Lunch      ✓
+→ Snacks   ✗
+Event Dinner  —
+```
 
 ### `/headcount`
 
