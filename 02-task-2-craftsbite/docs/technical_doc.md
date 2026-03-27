@@ -520,4 +520,32 @@ Passes a single `YYYY-MM-DD` date. The schedule is created or updated for that d
 **Meals**: Lunch, Snacks, Iftar
 ```
 
+#### Bulk scheduling
+
+Passes a date range (`YYYY-MM-DD..YYYY-MM-DD`) or the `week` keyword (next 5 business days from tomorrow).
+
+**Weekend skipping:** Saturdays and Sundays within the range are silently skipped — no record is created, no error is raised for those specific days. The reply note states that weekend dates were skipped.
+
+**Atomicity:** All weekday writes in the batch succeed together or none do. If any single-date write fails (e.g. invalid meal type, DynamoDB error), every record already written in that batch is deleted before the error is returned to the user.
+
+**Max range:** 14 days (shared with `/meal` and `/location`).
+
+| Scenario                   | Reply                                                                                   |
+| -------------------------- | --------------------------------------------------------------------------------------- |
+| Success                    | `✓ Day schedule set to <status> for N weekday(s):` + bullet list + weekend-skipped note |
+| All dates are weekends     | `All dates in the specified range fall on weekends. No schedule was set.`               |
+| Start date after end date  | `Invalid date: end date X is before start date Y`                                       |
+| Range exceeds 14 days      | `Invalid date: date range too large: N days (max 14 days)`                              |
+| Any write fails (rollback) | `Bulk schedule failed (no changes saved): failed on <date>: <reason>`                   |
+
+**Example reply (bulk success):**
+
+```
+✓ Day schedule set to 📅 Normal Day for 3 weekday(s):
+  • 2026-04-07
+  • 2026-04-08
+  • 2026-04-09
+_(Weekend dates in the range were automatically skipped.)_
+```
+
 ---
