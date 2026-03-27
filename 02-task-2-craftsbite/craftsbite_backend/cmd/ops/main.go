@@ -211,9 +211,11 @@ func handleScheduleDayCommand(ctx context.Context, client *dynamodb.Client, c *a
 		return sendOpsReply(ctx, c, event, "You do not have permission to use `/schedule-day`.")
 	}
 
-	dateStr, ok := optString(event.Options, "date")
-	if !ok || dateStr == "" {
-		return sendOpsReply(ctx, c, event, "Usage: /schedule-day <date> <status> [meals] [reason]\nExample: /schedule-day 2026-03-25 normal lunch,snacks")
+	dateStr, _ := optString(event.Options, "date")
+
+	dates, err := dateutil.ParseDateRange(dateStr)
+	if err != nil {
+		return sendOpsReply(ctx, c, event, fmt.Sprintf("Invalid date: %v\nUse: YYYY-MM-DD, YYYY-MM-DD..YYYY-MM-DD, or week", err))
 	}
 
 	statusStr, ok := optString(event.Options, "status")
@@ -229,8 +231,12 @@ func handleScheduleDayCommand(ctx context.Context, client *dynamodb.Client, c *a
 
 	reason, _ := optString(event.Options, "reason")
 
+	if len(dates) > 1 {
+		return handleBulkScheduleDayCommand(ctx, client, c, event, dates, statusStr, meals, reason)
+	}
+
 	input := services.SetDayScheduleInput{
-		Date:           dateStr,
+		Date:           dates[0],
 		DayStatus:      statusStr,
 		AvailableMeals: meals,
 		Reason:         reason,
@@ -243,6 +249,43 @@ func handleScheduleDayCommand(ctx context.Context, client *dynamodb.Client, c *a
 	}
 
 	return sendOpsReply(ctx, c, event, formatScheduleDaySuccess(schedule))
+}
+
+func handleBulkScheduleDayCommand(ctx context.Context, client *dynamodb.Client, c *appconfig.Config, event payload.CommandEvent, dates []string, statusStr string, meals []string, reason string) error {
+	input := services.SetDayScheduleInput{
+		DayStatus:      statusStr,
+		AvailableMeals: meals,
+		Reason:         reason,
+		SetBy:          event.UserID,
+	}
+
+	result, err := services.BulkSetDaySchedule(ctx, client, c.DynamoDBTable, dates, input)
+	if err != nil {
+		return sendOpsReply(ctx, c, event, formatBulkScheduleDayError(err))
+	}
+
+	return sendOpsReply(ctx, c, event, formatBulkScheduleDaySuccess(result, statusStr))
+}
+
+func formatBulkScheduleDaySuccess(result *services.BulkSetDayScheduleResult, statusStr string) string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "✓ Day schedule set to **%s** for %d weekday(s):\n", displayDayStatus(statusStr), len(result.SuccessDates))
+	for _, d := range result.SuccessDates {
+		fmt.Fprintf(&sb, "  • %s\n", d)
+	}
+	sb.WriteString("_(Weekend dates in the range were automatically skipped.)_")
+	return sb.String()
+}
+
+func formatBulkScheduleDayError(err error) string {
+	switch {
+	case errors.Is(err, services.ErrAllWeekend):
+		return "All dates in the specified range fall on weekends. No schedule was set."
+	case errors.Is(err, services.ErrInvalidDate):
+		return "Invalid date format. Use YYYY-MM-DD (e.g., 2026-03-25)"
+	default:
+		return fmt.Sprintf("Bulk schedule failed (no changes saved): %s", err.Error())
+	}
 }
 
 func formatScheduleDayError(err error) string {
