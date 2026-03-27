@@ -148,7 +148,7 @@ func commands() []slashCommand {
 				{
 					Type:        optTypeString,
 					Name:        "date",
-					Description: "Date in YYYY-MM-DD format",
+					Description: "Date: YYYY-MM-DD, YYYY-MM-DD..YYYY-MM-DD",
 					Required:    true,
 				},
 				{
