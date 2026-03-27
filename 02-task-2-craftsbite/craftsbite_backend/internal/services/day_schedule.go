@@ -15,7 +15,12 @@ var (
 	ErrInvalidDayStatus = errors.New("invalid day status")
 	ErrInvalidMealType  = errors.New("invalid meal type")
 	ErrPastDateSchedule = errors.New("cannot set schedule for past dates")
+	ErrAllWeekend       = errors.New("all dates in the range fall on weekends — no schedule was set")
 )
+
+type BulkSetDayScheduleResult struct {
+	SuccessDates []string
+}
 
 // SetDayScheduleInput represents input for setting a day schedule
 type SetDayScheduleInput struct {
@@ -82,4 +87,38 @@ func GetDaySchedule(ctx context.Context, client *dynamodb.Client, table, date st
 // DeleteDaySchedule removes a day schedule (resets to default)
 func DeleteDaySchedule(ctx context.Context, client *dynamodb.Client, table, date string) error {
 	return repository.DeleteDaySchedule(ctx, client, table, date)
+}
+
+func BulkSetDaySchedule(ctx context.Context, client *dynamodb.Client, table string, dates []string, input SetDayScheduleInput) (*BulkSetDayScheduleResult, error) {
+	var weekdays []string
+	for _, d := range dates {
+		t, err := time.Parse("2006-01-02", d)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidDate, d)
+		}
+		if t.Weekday() == time.Saturday || t.Weekday() == time.Sunday {
+			continue
+		}
+		weekdays = append(weekdays, d)
+	}
+
+	if len(weekdays) == 0 {
+		return nil, ErrAllWeekend
+	}
+
+	var written []string
+	for _, date := range weekdays {
+		singleInput := input
+		singleInput.Date = date
+		_, err := SetDaySchedule(ctx, client, table, singleInput)
+		if err != nil {
+			for _, prev := range written {
+				_ = repository.DeleteDaySchedule(ctx, client, table, prev)
+			}
+			return nil, fmt.Errorf("failed on %s: %w", date, err)
+		}
+		written = append(written, date)
+	}
+
+	return &BulkSetDayScheduleResult{SuccessDates: written}, nil
 }
