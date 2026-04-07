@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────
-# 1. BUILD + ZIP  (runs local PowerShell commands)
+# 1. BUILD + ZIP
 # ──────────────────────────────────────────────
 resource "null_resource" "build_and_zip" {
   for_each = local.lambdas
@@ -13,36 +13,23 @@ resource "null_resource" "build_and_zip" {
 
   provisioner "local-exec" {
     working_dir = "${path.root}/.."
-    interpreter = ["PowerShell", "-ExecutionPolicy", "Bypass", "-Command"]
+    interpreter = ["bash", "-c"]
     command     = <<-EOT
-      Write-Host "Building lambda: ${each.key}"
+      set -e
+      echo "Building lambda: ${each.key}"
 
-      # Each lambda gets its own isolated output directory
-      $outDir  = "./dist/${each.key}"
-      $zipPath = "$outDir/${each.key}.zip"
+      outDir="./dist/${each.key}"
+      zipPath="$outDir/${each.key}.zip"
 
-      New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+      mkdir -p "$outDir"
+      rm -f "$outDir/bootstrap" "$zipPath"
 
-      # Remove old artifacts so nothing is stale
-      if (Test-Path "$outDir/bootstrap") { Remove-Item "$outDir/bootstrap" -Force }
-      if (Test-Path $zipPath)            { Remove-Item $zipPath -Force }
+      GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o "$outDir/bootstrap" ${each.value.cmd_path}
 
-      $env:GOOS        = "linux"
-      $env:GOARCH      = "amd64"
-      $env:CGO_ENABLED = "0"
+      zip -j "$zipPath" "$outDir/bootstrap"
+      echo "Zipped to $zipPath"
 
-      go build -o "$outDir/bootstrap" ${each.value.cmd_path}
-      if ($LASTEXITCODE -ne 0) {
-        Write-Error "Build failed for ${each.key}"
-        exit 1
-      }
-
-      # Zip only the bootstrap binary (Lambda expects it named 'bootstrap')
-      Compress-Archive -Path "$outDir/bootstrap" -DestinationPath $zipPath -Force
-      Write-Host "Zipped to $zipPath"
-
-      # Clean up binary, keep only the zip
-      Remove-Item "$outDir/bootstrap" -Force
+      rm -f "$outDir/bootstrap"
     EOT
   }
 }
@@ -55,14 +42,14 @@ resource "aws_s3_object" "lambda_zip" {
 
   bucket      = local.s3_bucket
   key         = "${local.s3_prefix}/${each.key}.zip"
-  source      = "${path.root}/../dist/${each.key}/${each.key}.zip"  # <-- updated path
+  source      = "${path.root}/../dist/${each.key}/${each.key}.zip"
   source_hash = null_resource.build_and_zip[each.key].triggers.source_hash
 
   depends_on = [null_resource.build_and_zip]
 }
 
 # ──────────────────────────────────────────────
-# 3. TELL LAMBDA TO PULL THE NEW ZIP FROM S3
+# 3. TELL LAMBDA TO PULL THE NEW ZIP
 # ──────────────────────────────────────────────
 resource "null_resource" "update_lambda" {
   for_each = local.lambdas
@@ -73,33 +60,29 @@ resource "null_resource" "update_lambda" {
 
   provisioner "local-exec" {
     working_dir = "${path.root}/.."
-    interpreter = ["PowerShell", "-ExecutionPolicy", "Bypass", "-Command"]
+    interpreter = ["bash", "-c"]
     command     = <<-EOT
-      Write-Host "Updating Lambda function: ${each.value.lambda_function}"
+      set -e
+      echo "Updating Lambda function: ${each.value.lambda_function}"
 
-      $zipPath = "./dist/${each.key}/${each.key}.zip"
+      zipPath="./dist/${each.key}/${each.key}.zip"
 
-      if (-not (Test-Path $zipPath)) {
-        Write-Error "Zip not found at $zipPath"
+      if [ ! -f "$zipPath" ]; then
+        echo "Zip not found at $zipPath"
         exit 1
-      }
+      fi
 
-      aws lambda update-function-code `
-        --function-name ${each.value.lambda_function} `
-        --zip-file      fileb://$zipPath `
-        --region        ${var.aws_region} | Out-Null
+      aws lambda update-function-code \
+        --function-name ${each.value.lambda_function} \
+        --zip-file      fileb://$zipPath \
+        --region        ${var.aws_region} > /dev/null
 
-      if ($LASTEXITCODE -ne 0) {
-        Write-Error "Lambda update failed for ${each.value.lambda_function}"
-        exit 1
-      }
-
-      Write-Host "Waiting for update to complete..."
-      aws lambda wait function-updated `
-        --function-name ${each.value.lambda_function} `
+      echo "Waiting for update to complete..."
+      aws lambda wait function-updated \
+        --function-name ${each.value.lambda_function} \
         --region        ${var.aws_region}
 
-      Write-Host "Done: ${each.value.lambda_function}"
+      echo "Done: ${each.value.lambda_function}"
     EOT
   }
 
