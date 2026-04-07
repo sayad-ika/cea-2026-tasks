@@ -16,3 +16,12 @@ go.work.sum
 # IDE
 .idea/
 .vscode/
+
+# Local .terraform files
+.terraform/
+.terraform.tfstate.lock.info
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
