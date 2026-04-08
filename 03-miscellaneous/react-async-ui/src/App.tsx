@@ -11,6 +11,8 @@ import {
     TableRow,
 } from "./components/ui/table";
 import { Skeleton } from "./components/ui/skeleton";
+import { FileText } from "lucide-react";
+import { Button } from "./components/ui/button";
 
 interface HackerNewsResponse {
     data: number[];
@@ -59,7 +61,7 @@ function App() {
                 top20Ids.map(async (id) => {
                     try {
                         const res = await fetch(
-                            `https://hacker-news.firebaseio.com/v0/item/${id}.json?print=pretty`,
+                            `https://hacker-news.firebaseio.com/v0/tem/${id}.json?print=pretty`,
                         );
                         return res.json();
                     } catch (error) {
@@ -71,24 +73,8 @@ function App() {
                     }
                 }),
             );
-            // setHackerItemData([]);
-            setHackerItemData(result.filter((item) => item !== null));
-            // for (const id of top20Ids) {
-            //     try {
-            //         const itemResponse = await fetch(
-            //             `https://hacker-news.firebaseio.com/v0/item/${id}.json?print=pretty`,
-            //         );
-            //         const hackerNewsItem = await itemResponse.json();
-
-            //         setHackerItemData((prevData) => [
-            //             ...prevData,
-            //             hackerNewsItem,
-            //         ]);
-            //     } catch (error) {
-            //         console.error(`Error fetching item with id ${id}:`, error);
-            //     }
-            // }
-            // console.log("Hacker Item Data:", hackerItemData);
+            setHackerItemData([]);
+            // setHackerItemData(result.filter((item) => item !== null));
             setLoading(false);
         };
 
@@ -99,6 +85,17 @@ function App() {
         console.log("Hacker Item Data Updated:", hackerItemData);
     }, [hackerItemData]);
 
+    const getRelativeTime = (timestamp: number) => {
+        const diff = Date.now() - timestamp * 1000;
+        const minutes = Math.floor(diff / 60000);
+
+        if (minutes < 60) return `${minutes} min ago`;
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `${hours} hr ago`;
+        const days = Math.floor(hours / 24);
+        return `${days} days ago`;
+    };
+
     return (
         <>
             <div className="w-full m-auto p-4">
@@ -106,6 +103,7 @@ function App() {
                     React Async UI
                 </h1>
             </div>
+
             {loading && (
                 <div className="md:w-full xl:w-2/3 m-auto p-10">
                     <div>
@@ -157,11 +155,26 @@ function App() {
                     </Table>
                 </div>
             )}
+
             {!loading && hackerItemData.length === 0 && (
-                <div className="w-full m-auto p-4">
-                    <h2 className="flex justify-center items-center h-full text-2xl font-semibold">
-                        No Hacker News posts available.
-                    </h2>
+                <div className="w-full flex justify-center items-center py-20">
+                    <div className="flex flex-col items-center text-center gap-4 max-w-sm">
+                        <div className="bg-muted p-4 rounded-full">
+                            <FileText className="w-6 h-6 text-muted-foreground" />
+                        </div>
+
+                        <h2 className="text-xl font-semibold">
+                            No stories found
+                        </h2>
+
+                        <p className="text-sm text-muted-foreground">
+                            Nothing to show right now. Try refreshing the page.
+                        </p>
+
+                        <Button onClick={() => window.location.reload()}>
+                            Refresh
+                        </Button>
+                    </div>
                 </div>
             )}
 
@@ -172,35 +185,72 @@ function App() {
                             List of Hacker News Post
                         </h1>
                     </div>
-                    <Table>
-                        <TableCaption>
-                            A list of recent hacker news post.
+                    <Table className="table-fixed w-full">
+                        <TableCaption className="text-muted-foreground">
+                            Top Hacker News stories
                         </TableCaption>
+
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="">Title</TableHead>
-                                <TableHead>Score</TableHead>
-                                <TableHead>By</TableHead>
-                                <TableHead className="text-right">
+                                <TableHead className="w-[60%]">Story</TableHead>
+                                <TableHead className="w-20">Score</TableHead>
+                                <TableHead className="w-32">Author</TableHead>
+                                <TableHead className="w-28 text-right">
                                     Time
                                 </TableHead>
                             </TableRow>
                         </TableHeader>
+
                         <TableBody>
                             {hackerItemData.map((item) => (
-                                <TableRow key={item.id}>
-                                    <TableCell className="font-medium max-w-28 md:max-w-52 lg:max-w-80 xl:max-w-lg truncate">
-                                        {item.title}
+                                <TableRow
+                                    key={item.id}
+                                    className="hover:bg-muted/50 transition-colors cursor-pointer"
+                                    onClick={() =>
+                                        window.open(
+                                            item.url ||
+                                                `https://news.ycombinator.com/item?id=${item.id}`,
+                                            "_blank",
+                                        )
+                                    }
+                                >
+                                    <TableCell className="w-[60%]">
+                                        <div className="flex flex-col gap-1">
+                                            <span className="font-medium truncate">
+                                                {item.title}
+                                            </span>
+
+                                            <span className="text-xs text-muted-foreground">
+                                                {item.url
+                                                    ? new URL(
+                                                          item.url,
+                                                      ).hostname.replace(
+                                                          "www.",
+                                                          "",
+                                                      )
+                                                    : "news.ycombinator.com"}
+                                            </span>
+                                        </div>
                                     </TableCell>
-                                    <TableCell>{item.score}</TableCell>
-                                    <TableCell>{item.by}</TableCell>
-                                    <TableCell className="text-right">
-                                        {new Date(item.time).toLocaleString()}
+
+                                    <TableCell>
+                                        <span className="font-medium">
+                                            {item.score}
+                                        </span>
+                                    </TableCell>
+
+                                    <TableCell>
+                                        <span className="text-muted-foreground">
+                                            {item.by}
+                                        </span>
+                                    </TableCell>
+
+                                    <TableCell className="text-right text-muted-foreground">
+                                        {getRelativeTime(item.time)}
                                     </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
-                        <TableFooter></TableFooter>
                     </Table>
                 </div>
             )}
