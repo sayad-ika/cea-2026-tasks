@@ -11,8 +11,9 @@ import {
     TableRow,
 } from "./components/ui/table";
 import { Skeleton } from "./components/ui/skeleton";
-import { FileText } from "lucide-react";
+import { AlertCircle, FileText } from "lucide-react";
 import { Button } from "./components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "./components/ui/alert";
 
 interface HackerNewsResponse {
     data: number[];
@@ -30,6 +31,7 @@ function App() {
     const [data, setData] = useState<HackerNewsResponse>({ data: [] });
     const [hackerItemData, setHackerItemData] = useState<HackerNewsItem[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
+    const [error, setError] = useState(false);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -38,11 +40,16 @@ function App() {
                 const response = await fetch(
                     "https://hacker-news.firebaseio.com/v0/newstories.json?print=pretty",
                 );
+                if (!response.ok && response.status !== 200) {
+                    setError(true);
+                    throw new Error("Invalid response");
+                }
                 const data = await response.json();
                 console.log("Response:", data);
                 setData({ data });
             } catch (error) {
                 console.error("Error fetching data:", error);
+                setError(true);
             } finally {
                 setLoading(false);
             }
@@ -61,20 +68,24 @@ function App() {
                 top20Ids.map(async (id) => {
                     try {
                         const res = await fetch(
-                            `https://hacker-news.firebaseio.com/v0/tem/${id}.json?print=pretty`,
+                            `https://hacker-news.firebaseio.com/v0/item/${id}.json?print=pretty`,
                         );
+                        if (!res.ok && res.status !== 200) {
+                            throw new Error("Invalid response");
+                        }
                         return res.json();
                     } catch (error) {
                         console.error(
                             `Error fetching item with id ${id}:`,
                             error,
                         );
+                        setError(true);
                         return null;
                     }
                 }),
             );
-            setHackerItemData([]);
-            // setHackerItemData(result.filter((item) => item !== null));
+            // setHackerItemData([]);
+            setHackerItemData(result.filter((item) => item !== null));
             setLoading(false);
         };
 
@@ -156,7 +167,28 @@ function App() {
                 </div>
             )}
 
-            {!loading && hackerItemData.length === 0 && (
+            {!loading && error && (
+                <div className="w-full flex justify-center items-center py-20">
+                    <div className="max-w-md w-full">
+                        <Alert variant="destructive">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertTitle>Something went wrong</AlertTitle>
+                            <AlertDescription>
+                                Failed to load Hacker News stories. Please try
+                                again.
+                            </AlertDescription>
+                        </Alert>
+
+                        <div className="flex justify-center mt-4">
+                            <Button onClick={() => window.location.reload()}>
+                                Retry
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {!loading && hackerItemData.length === 0 && !error && (
                 <div className="w-full flex justify-center items-center py-20">
                     <div className="flex flex-col items-center text-center gap-4 max-w-sm">
                         <div className="bg-muted p-4 rounded-full">
