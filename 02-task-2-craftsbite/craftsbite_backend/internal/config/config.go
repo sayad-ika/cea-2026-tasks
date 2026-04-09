@@ -44,6 +44,7 @@ func Load() (*Config, error) {
 	params, err := fetchParams(ctx, ssmClient, []string{
 		paramPrefix + "DISCORD_BOT_TOKEN",
 		paramPrefix + "DISCORD_PUBLIC_KEY",
+		paramPrefix + "gchat_service_account_json",
 	})
 	if err != nil {
 		return nil, err
@@ -57,9 +58,9 @@ func Load() (*Config, error) {
 		LambdaSelfFunctionName:       os.Getenv("LAMBDA_SELF_FUNCTION_NAME"),
 		LambdaManagementFunctionName: os.Getenv("LAMBDA_MANAGEMENT_FUNCTION_NAME"),
 		LambdaOpsFunctionName:        os.Getenv("LAMBDA_OPS_FUNCTION_NAME"),
-		GChatServiceAccountJSON:      os.Getenv("GCHAT_SERVICE_ACCOUNT_JSON"),
-		DiscordBotToken:  params[paramPrefix+"DISCORD_BOT_TOKEN"],
-		DiscordPublicKey: params[paramPrefix+"DISCORD_PUBLIC_KEY"],
+		DiscordBotToken:              params[paramPrefix+"DISCORD_BOT_TOKEN"],
+		DiscordPublicKey:             params[paramPrefix+"DISCORD_PUBLIC_KEY"],
+		GChatServiceAccountJSON:      params[paramPrefix+"gchat_service_account_json"],
 	}
 
 	if cfg.AWSRegion == "" {
@@ -75,6 +76,9 @@ func Load() (*Config, error) {
 	}
 	if cfg.DiscordPublicKey == "" {
 		missing = append(missing, "DISCORD_PUBLIC_KEY")
+	}
+	if cfg.GChatServiceAccountJSON == "" {
+		missing = append(missing, "gchat_service_account_json")
 	}
 	if len(missing) > 0 {
 		return nil, fmt.Errorf("missing required parameters: %s", strings.Join(missing, ", "))

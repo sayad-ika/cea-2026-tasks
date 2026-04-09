@@ -1,0 +1,14 @@
+aws_region              = "ap-southeast-1"
+project_name            = "craftsbite"
+environment             = "prod"
+dynamodb_table_name     = "craftsbite"
+deployment_bucket_name  = "trainee-2026-sayad-craftsbite"
+cutoff_time             = "21:00"
+timezone                = "Asia/Dhaka"
+discord_application_id  = ""
+
+# Sensitive values - pass via environment variables:
+# TF_VAR_discord_bot_token="..."
+# TF_VAR_discord_public_key="..."
+# TF_VAR_gchat_service_account_json="..."
+gchat_audience          = ""

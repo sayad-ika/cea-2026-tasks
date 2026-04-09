@@ -16,3 +16,12 @@ go.work.sum
 # IDE
 .idea/
 .vscode/
+
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/.terraform.lock.hcl
+terraform/**/*.tfvars
+!terraform/environments/*.tfvars.example
+terraform/tfplan
