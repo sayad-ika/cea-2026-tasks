@@ -1,14 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-
-interface HackerNewsItem {
-    id: number;
-    title: string;
-    url: string;
-    score: number;
-    by: string;
-    time: number;
-}
+import { fetchItems } from "../api/hackerNewsFetchApi";
+import type { HackerNewsItem } from "@/type/types";
+import { getRelativeTime } from "@/util/utils";
 
 export default function DetailsPage() {
     const { id } = useParams<{ id: string }>();
@@ -29,22 +23,10 @@ export default function DetailsPage() {
             setLoading(true);
 
             try {
-                const response = await fetch(
-                    `https://hacker-news.firebaseio.com/v0/item/${id}.json?print=pretty`,
-                    { signal },
-                );
-
-                if (!response.ok) {
-                    throw new Error("Invalid response");
-                }
-
-                const itemData = await response.json();
-                setSelectedItem(itemData);
+                const itemData = await fetchItems([parseInt(id, 10)], signal);
+                setSelectedItem(itemData[0] || null);
             } catch (error: unknown) {
-                if (
-                    error instanceof Error &&
-                    error?.name !== "AbortError"
-                ) {
+                if (error instanceof Error && error?.name !== "AbortError") {
                     console.error("Error fetching item data:", error);
                     setError(true);
                 }
@@ -61,18 +43,6 @@ export default function DetailsPage() {
             controller.abort();
         };
     }, [id]);
-
-    const getRelativeTime = (timestamp: number | undefined) => {
-        if (!timestamp) return "Unknown";
-        const diff = Date.now() - timestamp * 1000;
-        const minutes = Math.floor(diff / 60000);
-
-        if (minutes < 60) return `${minutes} min ago`;
-        const hours = Math.floor(minutes / 60);
-        if (hours < 24) return `${hours} hr ago`;
-        const days = Math.floor(hours / 24);
-        return `${days} days ago`;
-    };
 
     if (loading) {
         return (
@@ -100,6 +70,12 @@ export default function DetailsPage() {
                 <div className="bg-red-200 text-red-white p-4 rounded">
                     Something went wrong
                 </div>
+                <button
+                    onClick={() => location.reload()}
+                    className="px-3 py-1.5 text-sm font-medium rounded-md bg-black text-white hover:cursor-pointer transition"
+                >
+                    Retry
+                </button>
             </div>
         );
     }

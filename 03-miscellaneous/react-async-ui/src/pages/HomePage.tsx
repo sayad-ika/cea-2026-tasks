@@ -1,14 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-interface HackerNewsItem {
-    id: number;
-    title: string;
-    url: string;
-    score: number;
-    by: string;
-    time: number;
-}
+import { fetchTopStoryIds, fetchItems } from "../api/hackerNewsFetchApi";
+import type { HackerNewsItem } from "@/type/types";
+import { getRelativeTime } from "@/util/utils";
 
 export default function HomePage() {
     const [hackerItemData, setHackerItemData] = useState<HackerNewsItem[]>([]);
@@ -24,44 +18,11 @@ export default function HomePage() {
             setLoading(true);
 
             try {
-                const response = await fetch(
-                    "https://hacker-news.firebaseio.com/v0/newstories.json?print=pretty",
-                    { signal },
-                );
-
-                if (!response.ok) {
-                    throw new Error("Invalid response");
-                }
-
-                const data = await response.json();
-                const top20Ids = data.slice(0, 20);
-
-                const result = await Promise.all(
-                    top20Ids.map(async (id: number) => {
-                        try {
-                            const res = await fetch(
-                                `https://hacker-news.firebaseio.com/v0/item/${id}.json?print=pretty`,
-                                { signal },
-                            );
-                            if (!res.ok) {
-                                throw new Error("Invalid response");
-                            }
-                            return res.json();
-                        } catch (error: unknown) {
-                            if (
-                                error instanceof Error &&
-                                error?.name !== "AbortError"
-                            ) {
-                                console.log(
-                                    `Error fetching for item with id: ${id}`,
-                                );
-                            }
-                        }
-                    }),
-                );
-                setHackerItemData(result.filter((item) => item !== null));
+                const ids = await fetchTopStoryIds(signal);
+                const result = await fetchItems(ids.slice(0, 20), signal);
+                setHackerItemData(result);
             } catch (error: unknown) {
-                if (error instanceof Error && error?.name !== "AbortError") {
+                if (error instanceof Error && error.name !== "AbortError") {
                     console.error("Error fetching data:", error);
                     setError(true);
                 }
@@ -78,18 +39,6 @@ export default function HomePage() {
             controller.abort();
         };
     }, []);
-
-    const getRelativeTime = (timestamp: number | undefined) => {
-        if (!timestamp) return "Unknown";
-        const diff = Date.now() - timestamp * 1000;
-        const minutes = Math.floor(diff / 60000);
-
-        if (minutes < 60) return `${minutes} min ago`;
-        const hours = Math.floor(minutes / 60);
-        if (hours < 24) return `${hours} hr ago`;
-        const days = Math.floor(hours / 24);
-        return `${days} days ago`;
-    };
 
     return (
         <>
@@ -112,9 +61,9 @@ export default function HomePage() {
                     </div>
                 </div>
 
-                {loading && (
+                {loading && !error && (
                     <div className="space-y-2">
-                        {Array.from({ length: 5 }).map((_, i) => (
+                        {Array.from({ length: 20 }).map((_, i) => (
                             <div
                                 key={i}
                                 className="h-10 w-full animate-pulse bg-gray-200 rounded"
@@ -138,7 +87,7 @@ export default function HomePage() {
                     </div>
                 )}
 
-                {!loading && hackerItemData.length === 0 && !error && (
+                {!loading && !error && hackerItemData.length === 0 && (
                     <div className="w-full flex justify-center items-center py-20">
                         <div className="flex flex-col items-center text-center gap-4 max-w-sm">
                             <div className="bg-gray-100 p-4 rounded-full">
@@ -176,7 +125,7 @@ export default function HomePage() {
                     </div>
                 )}
 
-                {!loading && hackerItemData.length > 0 && (
+                {!loading && !error && hackerItemData.length > 0 && (
                     <div>
                         <table className="w-full border-collapse">
                             <thead>
