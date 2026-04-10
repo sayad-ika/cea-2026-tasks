@@ -4,22 +4,32 @@ import { fetchTopStoryIds, fetchItems } from "../api/hackerNewsFetchApi";
 import type { HackerNewsItem } from "@/type/types";
 import { getRelativeTime } from "@/util/utils";
 
+let cachedPosts: HackerNewsItem[] | null = null;
+
 export default function HomePage() {
     const [hackerItemData, setHackerItemData] = useState<HackerNewsItem[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<boolean>(false);
+    const [fetchMethod, setFetchMethod] = useState<"api" | "react-query">(
+        "react-query",
+    );
     const navigate = useNavigate();
 
     useEffect(() => {
         const controller = new AbortController();
         const signal = controller.signal;
 
-        const fetchData = async () => {
+        const fetchDataByFetchApi = async () => {
             setLoading(true);
-
+            if (cachedPosts) {
+                setHackerItemData(cachedPosts);
+                setLoading(false);
+                return;
+            }
             try {
                 const ids = await fetchTopStoryIds(signal);
                 const result = await fetchItems(ids.slice(0, 20), signal);
+                cachedPosts = result;
                 setHackerItemData(result);
             } catch (error: unknown) {
                 if (error instanceof Error && error.name !== "AbortError") {
@@ -33,12 +43,17 @@ export default function HomePage() {
             }
         };
 
-        fetchData();
+        if (fetchMethod === "api") {
+            fetchDataByFetchApi();
+        } else {
+            // Todo: implement react query fetch
+            setLoading(false);
+        }
 
         return () => {
             controller.abort();
         };
-    }, []);
+    }, [fetchMethod]);
 
     return (
         <>
@@ -51,11 +66,17 @@ export default function HomePage() {
                     <h2 className="text-xl font-bold">Hacker News Posts</h2>
 
                     <div className="flex gap-2">
-                        <button className="px-3 py-1.5 text-sm font-medium border rounded-md bg-white hover:bg-gray-100 transition">
+                        <button
+                            onClick={() => setFetchMethod("api")}
+                            className="px-3 py-1.5 text-sm font-medium border rounded-md bg-white hover:bg-gray-100 transition"
+                        >
                             Fetch API
                         </button>
 
-                        <button className="px-3 py-1.5 text-sm font-medium border rounded-md bg-white hover:bg-gray-100 transition">
+                        <button
+                            onClick={() => setFetchMethod("react-query")}
+                            className="px-3 py-1.5 text-sm font-medium border rounded-md bg-white hover:bg-gray-100 transition"
+                        >
                             React Query
                         </button>
                     </div>
