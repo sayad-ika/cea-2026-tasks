@@ -36,7 +36,7 @@ export default function DetailsPage() {
                 <div className="xl:w-2/3 m-auto p-10 space-y-4">
                     <button
                         onClick={() => navigate("/")}
-                        className="px-3 py-1.5 text-sm font-medium border rounded-md bg-white hover:bg-gray-100 transition"
+                        className="px-3 py-1.5 text-sm font-medium border rounded-md bg-white hover:bg-gray-100 hover:cursor-pointer transition"
                     >
                         ← Back
                     </button>
@@ -56,7 +56,7 @@ export default function DetailsPage() {
                 <div className="xl:w-2/3 m-auto p-10 space-y-4">
                     <button
                         onClick={() => navigate("/")}
-                        className="px-3 py-1.5 text-sm font-medium border rounded-md bg-white hover:bg-gray-100 transition"
+                        className="px-3 py-1.5 text-sm font-medium border rounded-md bg-white hover:bg-gray-100 hover:cursor-pointer transition"
                     >
                         ← Back
                     </button>

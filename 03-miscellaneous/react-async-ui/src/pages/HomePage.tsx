@@ -96,6 +96,12 @@ export default function HomePage() {
         fetchMethod === "react-query" ? isLoading || itemsLoading : loading;
     const errorFinal =
         fetchMethod === "react-query" ? idsError || itemsError : error;
+    const getFetchMethodButtonClass = (method: "api" | "react-query") =>
+        `px-3 py-1.5 text-sm font-medium border rounded-md transition hover:cursor-pointer ${
+            fetchMethod === method
+                ? "bg-black text-white border-black"
+                : "bg-white hover:bg-gray-100"
+        }`;
 
     return (
         <>
@@ -110,14 +116,16 @@ export default function HomePage() {
                     <div className="flex gap-2">
                         <button
                             onClick={() => setFetchMethod("api")}
-                            className="px-3 py-1.5 text-sm font-medium border rounded-md bg-white hover:bg-gray-100 transition"
+                            aria-pressed={fetchMethod === "api"}
+                            className={getFetchMethodButtonClass("api")}
                         >
                             Fetch API
                         </button>
 
                         <button
                             onClick={() => setFetchMethod("react-query")}
-                            className="px-3 py-1.5 text-sm font-medium border rounded-md bg-white hover:bg-gray-100 transition"
+                            aria-pressed={fetchMethod === "react-query"}
+                            className={getFetchMethodButtonClass("react-query")}
                         >
                             React Query
                         </button>
@@ -187,7 +195,7 @@ export default function HomePage() {
 
                             <button
                                 onClick={() => window.location.reload()}
-                                className="px-3 py-1.5 text-sm font-medium border rounded-md bg-white hover:bg-gray-100 transition"
+                                className="px-3 py-1.5 text-sm font-medium border rounded-md bg-white hover:bg-gray-100 hover:cursor-pointer transition"
                             >
                                 Refresh
                             </button>
