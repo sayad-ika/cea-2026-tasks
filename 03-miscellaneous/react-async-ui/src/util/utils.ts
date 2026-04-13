@@ -9,3 +9,4 @@ export const getRelativeTime = (timestamp: number | undefined) => {
     const days = Math.floor(hours / 24);
     return `${days} days ago`;
 };
+

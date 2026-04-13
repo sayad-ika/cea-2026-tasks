@@ -1,9 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { fetchTopStoryIds, fetchItems } from "../api/hackerNewsApi";
+import {
+    fetchTopStoryIds,
+    fetchItems,
+    fetchStories,
+} from "../api/hackerNewsApi";
 import type { HackerNewsItem } from "@/type/types";
 import { getRelativeTime } from "@/util/utils";
 import { useQuery } from "@tanstack/react-query";
+import {} from "../api/hackerNewsApi";
 
 let cachedPosts: HackerNewsItem[] | null = null;
 
@@ -14,7 +19,16 @@ export default function HomePage() {
     const [fetchMethod, setFetchMethod] = useState<"api" | "react-query">(
         "react-query",
     );
+    const [query, setQuery] = useState("");
+
     const navigate = useNavigate();
+
+    const { data: searchResults = [], isLoading: searchLoading } = useQuery({
+        queryKey: ["search", query],
+        queryFn: ({ signal }) => fetchStories(query, 20, signal),
+        enabled: query.trim().length > 0,
+        staleTime: 1000 * 60 * 5,
+    });
 
     useEffect(() => {
         if (fetchMethod !== "api") {
@@ -107,10 +121,17 @@ export default function HomePage() {
                         >
                             React Query
                         </button>
+                        <input
+                            type="search"
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            placeholder="Search stories..."
+                            className="w-64 rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20"
+                        />
                     </div>
                 </div>
 
-                {isLoadingFinal && !errorFinal && (
+                {(searchLoading || (isLoadingFinal && !errorFinal)) && (
                     <div className="space-y-2">
                         {Array.from({ length: 20 }).map((_, i) => (
                             <div
@@ -171,6 +192,64 @@ export default function HomePage() {
                                 Refresh
                             </button>
                         </div>
+                    </div>
+                )}
+
+                {!searchLoading && searchResults?.length > 0 && (
+                    <div>
+                        <p className="text-lg text-gray-800 font-bold mb-2">
+                            Search results for "{query}"
+                        </p>
+                        <table className="w-full border-collapse">
+                            <thead>
+                                <tr className="border-b text-left">
+                                    <th className="p-2">Story</th>
+                                    <th className="p-2">Score</th>
+                                    <th className="p-2">Author</th>
+                                    <th className="p-2 text-right">Time</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {searchResults?.map((item) => (
+                                    <tr
+                                        key={item.id}
+                                        onClick={() =>
+                                            navigate(`/post/${item.id}`)
+                                        }
+                                        className="border-b hover:bg-gray-50 cursor-pointer transition"
+                                    >
+                                        <td className="p-2">
+                                            <div className="font-medium truncate">
+                                                {item.title}
+                                            </div>
+
+                                            <div className="text-xs text-gray-500">
+                                                {item.url
+                                                    ? new URL(
+                                                          item.url,
+                                                      ).hostname.replace(
+                                                          "www.",
+                                                          "",
+                                                      )
+                                                    : "news.ycombinator.com"}
+                                            </div>
+                                        </td>
+
+                                        <td className="p-2 font-medium">
+                                            {item.score}
+                                        </td>
+
+                                        <td className="p-2 text-gray-500">
+                                            {item.by}
+                                        </td>
+
+                                        <td className="p-2 text-right text-gray-500">
+                                            {getRelativeTime(item.time)}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 )}
 
