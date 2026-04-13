@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { fetchItems } from "../api/hackerNewsFetchApi";
+import { fetchItems } from "../api/hackerNewsApi";
 import type { HackerNewsItem } from "@/type/types";
 import { getRelativeTime } from "@/util/utils";
 

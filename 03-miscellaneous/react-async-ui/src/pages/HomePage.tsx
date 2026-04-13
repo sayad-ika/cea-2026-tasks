@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { fetchTopStoryIds, fetchItems } from "../api/hackerNewsFetchApi";
+import { fetchTopStoryIds, fetchItems } from "../api/hackerNewsApi";
 import type { HackerNewsItem } from "@/type/types";
 import { getRelativeTime } from "@/util/utils";
+import { useQuery } from "@tanstack/react-query";
 
 let cachedPosts: HackerNewsItem[] | null = null;
 
@@ -16,6 +17,10 @@ export default function HomePage() {
     const navigate = useNavigate();
 
     useEffect(() => {
+        if (fetchMethod !== "api") {
+            return;
+        }
+
         const controller = new AbortController();
         const signal = controller.signal;
 
@@ -43,17 +48,40 @@ export default function HomePage() {
             }
         };
 
-        if (fetchMethod === "api") {
-            fetchDataByFetchApi();
-        } else {
-            // Todo: implement react query fetch
-            setLoading(false);
-        }
+        fetchDataByFetchApi();
 
         return () => {
             controller.abort();
         };
     }, [fetchMethod]);
+
+    const {
+        data: ids,
+        isLoading,
+        isError: idsError,
+    } = useQuery({
+        queryKey: ["topStoryIds"],
+        queryFn: ({ signal }) => fetchTopStoryIds(signal),
+        staleTime: 1000 * 60 * 5,
+        enabled: fetchMethod === "react-query",
+    });
+
+    const {
+        data: items,
+        isLoading: itemsLoading,
+        isError: itemsError,
+    } = useQuery({
+        queryKey: [ids],
+        queryFn: ({ signal }) => fetchItems(ids?.slice(0, 20) || [], signal),
+        staleTime: 1000 * 60 * 5,
+        enabled: !!ids && fetchMethod === "react-query",
+    });
+
+    const data = fetchMethod === "react-query" ? items : hackerItemData;
+    const isLoadingFinal =
+        fetchMethod === "react-query" ? isLoading || itemsLoading : loading;
+    const errorFinal =
+        fetchMethod === "react-query" ? idsError || itemsError : error;
 
     return (
         <>
@@ -82,7 +110,7 @@ export default function HomePage() {
                     </div>
                 </div>
 
-                {loading && !error && (
+                {isLoadingFinal && !errorFinal && (
                     <div className="space-y-2">
                         {Array.from({ length: 20 }).map((_, i) => (
                             <div
@@ -93,7 +121,7 @@ export default function HomePage() {
                     </div>
                 )}
 
-                {!loading && error && (
+                {!isLoadingFinal && errorFinal && (
                     <div className="text-center space-y-3">
                         <div className="bg-red-200 text-red-white p-4 rounded">
                             Something went wrong
@@ -108,7 +136,7 @@ export default function HomePage() {
                     </div>
                 )}
 
-                {!loading && !error && hackerItemData.length === 0 && (
+                {!isLoadingFinal && !errorFinal && data?.length === 0 && (
                     <div className="w-full flex justify-center items-center py-20">
                         <div className="flex flex-col items-center text-center gap-4 max-w-sm">
                             <div className="bg-gray-100 p-4 rounded-full">
@@ -146,7 +174,7 @@ export default function HomePage() {
                     </div>
                 )}
 
-                {!loading && !error && hackerItemData.length > 0 && (
+                {!isLoadingFinal && !errorFinal && data && data?.length > 0 && (
                     <div>
                         <table className="w-full border-collapse">
                             <thead>
@@ -159,7 +187,7 @@ export default function HomePage() {
                             </thead>
 
                             <tbody>
-                                {hackerItemData.map((item) => (
+                                {data?.map((item) => (
                                     <tr
                                         key={item.id}
                                         onClick={() =>
