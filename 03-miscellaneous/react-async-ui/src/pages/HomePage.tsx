@@ -1,4 +1,4 @@
-import { use, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchTopStoryIds, fetchItems } from "../api/hackerNewsApi";
 import type { HackerNewsItem } from "@/type/types";
