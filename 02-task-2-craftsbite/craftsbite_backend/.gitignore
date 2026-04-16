@@ -16,3 +16,8 @@ go.work.sum
 # IDE
 .idea/
 .vscode/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
