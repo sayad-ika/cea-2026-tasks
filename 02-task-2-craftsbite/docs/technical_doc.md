@@ -132,7 +132,7 @@ Discord Router Lambda                     GChat Router Lambda
 **Validation rules**
 
 - Updates for past dates are always rejected.
-- Updates for a future date are rejected if the cutoff has passed (see Section 11).
+- Updates for a future date are rejected if the cutoff has passed (see Section 12).
 - Overrides bypass the cutoff but not day availability — the meal must exist in `available_meals` for that date.
 - When a day is marked `office_closed` or `govt_holiday`, available meals are forced to empty — no participation writes are accepted for that date.
 
@@ -256,7 +256,29 @@ Local development runs each binary directly as a standalone executable — no ad
 
 ---
 
-## 11. Cutoff Time Logic
+## 11. Infrastructure as Code
+
+All AWS infrastructure is managed with Terraform (`>= 1.5`), using the AWS (`~> 5.0`) and Null (`~> 3.0`) providers, targeting `ap-southeast-1`. The configuration lives in `./terraform/` and is designed to run in a Linux environment, making it compatible with GitHub Actions and Jenkins.
+
+Terraform manages only the **build and deployment lifecycle** of the five Lambda functions — it does not provision the Lambda functions, API Gateway, DynamoDB table, or IAM roles.
+
+### Deployment Pipeline
+
+The pipeline runs automatically on `terraform apply` and re-executes only when source files have changed.
+
+| Stage           | Resource                      | What it does                                                                                                                                                                                                 |
+| --------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1 — Build & Zip | `null_resource.build_and_zip` | Compiles each Lambda into a static `bootstrap` binary (`GOOS=linux`, `GOARCH=amd64`, `CGO_ENABLED=0`) and zips it into `dist/<lambda-name>/<lambda-name>.zip`. Triggered by SHA1 hash of `.go` source files. |
+| 2 — Upload      | `aws_s3_object.lambda_zip`    | Uploads each zip to `s3://trainee-2026-sayad-craftsbite/lambdas/<lambda-name>.zip`. Re-uploads only when the source hash changes.                                                                            |
+| 3 — Deploy      | `null_resource.update_lambda` | Runs `aws lambda update-function-code` and waits for completion. Triggered by the S3 object ETag.                                                                                                            |
+
+### Requirements
+
+The execution environment must have `terraform`, `go`, `zip`, and the AWS CLI available. No Windows-specific tooling is used.
+
+---
+
+## 12. Cutoff Time Logic
 
 Meal participation and work location updates for a given date are only accepted before the cutoff time of the **previous day at 09:00 PM**. For example, to update participation for Tuesday, the cutoff is Monday at 09:00 PM.
 
@@ -264,7 +286,7 @@ Updates submitted after the cutoff are rejected. Updates for past dates are alwa
 
 ---
 
-## 12. Error Handling
+## 13. Error Handling
 
 - **Signature verification failure** -- Authorizer + Router Lambda rejects the request immediately; no command Lambda is invoked
 - **Unknown command** -- Router Lambda returns a user-facing Discord message indicating the command is not recognised; no command Lambda is invoked
@@ -274,7 +296,7 @@ Updates submitted after the cutoff are rejected. Updates for past dates are alwa
 
 ---
 
-## 13. Discord Router Lambda — Request Flow
+## 14. Discord Router Lambda — Request Flow
 
 For every `POST /interactions` call:
 
@@ -289,7 +311,7 @@ Enriched payload: `userID`, `role`, `discordId`, `commandName`, `options`, `inte
 
 ---
 
-## 14. GChat Router Lambda — Request Flow
+## 15. GChat Router Lambda — Request Flow
 
 For every `POST /gchat` call:
 
@@ -308,7 +330,7 @@ Enriched payload: `userID`, `role`, `email`, `commandName`, `argumentText`, `rep
 
 ---
 
-## 15. Router Dispatch Table
+## 16. Router Dispatch Table
 
 | Command        | Target Lambda | Environment Variable              |
 | -------------- | ------------- | --------------------------------- |
@@ -323,7 +345,7 @@ Enriched payload: `userID`, `role`, `email`, `commandName`, `argumentText`, `rep
 
 ---
 
-## 16. Registered Slash Commands
+## 17. Registered Slash Commands
 
 ### Discord
 
@@ -353,7 +375,7 @@ Google Chat uses free-text argument strings. Arguments are positional and parsed
 
 ---
 
-## 17. Command Usage
+## 18. Command Usage
 
 ### `/meal`
 
