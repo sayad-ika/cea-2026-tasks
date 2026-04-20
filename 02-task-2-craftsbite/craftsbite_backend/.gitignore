@@ -11,6 +11,7 @@ go.work
 go.work.sum
 
 # Build output
+dist/
 *.out
 
 # IDE
