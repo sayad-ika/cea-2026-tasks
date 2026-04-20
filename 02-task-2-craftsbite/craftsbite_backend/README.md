@@ -27,14 +27,15 @@ go run ./scripts/seed.go
 
 ## Dependencies
 
-| Package                                         | Version | Purpose                 |
-| ----------------------------------------------- | ------- | ----------------------- |
-| `github.com/aws/aws-lambda-go`                  | v1.47.0 | Lambda handler + events |
-| `github.com/aws/aws-sdk-go-v2`                  | v1.32.0 | AWS SDK core            |
-| `github.com/aws/aws-sdk-go-v2/config`           | v1.28.0 | AWS config loading      |
-| `github.com/aws/aws-sdk-go-v2/service/dynamodb` | v1.36.0 | DynamoDB client         |
-| `github.com/joho/godotenv`                      | v1.5.1  | `.env` file loading     |
-| `go.uber.org/zap`                               | v1.27.0 | Structured logging      |
-| `github.com/google/uuid`                        | v1.6.0  | UUID generation         |
+| Package                                                         | Version  | Purpose                  |
+| --------------------------------------------------------------- | -------- | ------------------------ |
+| `github.com/aws/aws-lambda-go`                                  | v1.53.0  | Lambda handler + events  |
+| `github.com/aws/aws-sdk-go-v2`                                  | v1.41.3  | AWS SDK core             |
+| `github.com/aws/aws-sdk-go-v2/config`                           | v1.32.11 | AWS config loading       |
+| `github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue`  | v1.20.34 | DynamoDB attribute codec |
+| `github.com/aws/aws-sdk-go-v2/service/dynamodb`                 | v1.56.1  | DynamoDB client          |
+| `github.com/aws/aws-sdk-go-v2/service/lambda`                   | v1.88.2  | Lambda invoke client     |
+| `github.com/aws/aws-sdk-go-v2/service/ssm`                      | v1.68.2  | SSM parameter store      |
+| `google.golang.org/api`                                         | v0.271.0 | Google Chat API client   |
 
-Go version: **1.23**
+Go version: **1.25.0**

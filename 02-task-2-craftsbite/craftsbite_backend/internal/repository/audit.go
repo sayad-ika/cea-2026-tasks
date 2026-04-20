@@ -72,10 +72,4 @@ func WriteAuditEntry(ctx context.Context, client *dynamodb.Client, table string,
 	return nil
 }
 
-// GetAuditEntriesForEntity retrieves all audit entries for a specific entity
-func GetAuditEntriesForEntity(ctx context.Context, client *dynamodb.Client, table, targetEntity string) ([]AuditEntry, error) {
-	// Query GSI1 with GSI1PK = AUDITEE#<targetEntity>
-	// This returns all changes made to this entity, sorted by timestamp
-	// Implementation left for future if needed
-	return nil, fmt.Errorf("not implemented")
-}
+
