@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/sayad-ika/craftsbite/internal/payload"
+	"github.com/sayad-ika/craftsbite/internal/repository"
 )
 
 var gchatCommandNames = map[int64]string{
@@ -71,15 +72,6 @@ func ToCommandEvent(evt Event, internalUserID, role string) (payload.CommandEven
 	}, nil
 }
 
-var validMealTypes = map[string]bool{
-	"lunch":           true,
-	"snacks":          true,
-	"event_dinner":    true,
-	"optional_dinner": true,
-	"iftar":           true,
-	"all":             true,
-}
-
 func parseMealArgs(raw string) (map[string]interface{}, error) {
 	tokens := strings.Fields(raw)
 	if len(tokens) == 0 {
@@ -95,8 +87,8 @@ func parseMealArgs(raw string) (map[string]interface{}, error) {
 	if len(tokens) > 1 {
 		mealType = strings.ToLower(tokens[1])
 	}
-	if !validMealTypes[mealType] {
-		return nil, fmt.Errorf("Invalid meal_type. Allowed: lunch, snacks, event_dinner, optional_dinner, all")
+	if !repository.IsValidMealOrAll(mealType) {
+		return nil, fmt.Errorf("Invalid meal_type. Allowed: lunch, snacks, iftar, event_dinner, optional_dinner, all")
 	}
 
 	dateStr := ""
@@ -152,6 +144,9 @@ func parseHeadcountArgs(raw string) (map[string]interface{}, error) {
 	dateStr := ""
 	if len(tokens) > 0 {
 		dateStr = tokens[0]
+		if dateStr != "today" && dateStr != "tomorrow" && !strings.HasPrefix(dateStr, "+") && !strings.ContainsAny(dateStr, "0123456789") {
+			dateStr = ""
+		}
 	}
 
 	// Pass raw date string to Lambda - let it handle parsing with proper timezone

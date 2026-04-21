@@ -2,7 +2,6 @@ package dateutil
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -13,15 +12,34 @@ const (
 	dateFormat      = "2006-01-02"
 )
 
+type DateParser struct {
+	loc *time.Location
+}
+
+func NewDateParser(timezone string) (*DateParser, error) {
+	tz := timezone
+	if tz == "" {
+		tz = defaultTimezone
+	}
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		return nil, fmt.Errorf("invalid TIMEZONE %q: %w", tz, err)
+	}
+	return &DateParser{loc: loc}, nil
+}
+
 // ParseDateWithDefaults parses a date string with support for shortcuts and defaults.
 // If dateStr is empty, returns tomorrow's date.
-func ParseDateWithDefaults(dateStr string) (string, error) {
-	loc, err := loadLocation()
-	if err != nil {
-		return "", err
+func (p *DateParser) ParseDateWithDefaults(dateStr string) (string, error) {
+	return p.parseDateWithDefaultsAt(dateStr, time.Now())
+}
+
+func (p *DateParser) parseDateWithDefaultsAt(dateStr string, now time.Time) (string, error) {
+	if p == nil || p.loc == nil {
+		return "", fmt.Errorf("date parser is not initialized")
 	}
 
-	now := time.Now().In(loc)
+	now = now.In(p.loc)
 
 	// Empty string defaults to tomorrow
 	if dateStr == "" {
@@ -58,31 +76,25 @@ func ParseDateWithDefaults(dateStr string) (string, error) {
 }
 
 // TodayInTimezone returns today's date in the configured timezone
-func TodayInTimezone() string {
-	loc, err := loadLocation()
-	if err != nil {
-		loc = time.UTC
-	}
-	return time.Now().In(loc).Format(dateFormat)
+func (p *DateParser) TodayInTimezone() string {
+	return p.todayInTimezoneAt(time.Now())
 }
 
 // TomorrowInTimezone returns tomorrow's date in the configured timezone
-func TomorrowInTimezone() string {
-	loc, err := loadLocation()
-	if err != nil {
-		loc = time.UTC
-	}
-	return time.Now().In(loc).AddDate(0, 0, 1).Format(dateFormat)
+func (p *DateParser) TomorrowInTimezone() string {
+	return p.tomorrowInTimezoneAt(time.Now())
 }
 
-func loadLocation() (*time.Location, error) {
-	tz := os.Getenv("TIMEZONE")
-	if tz == "" {
-		tz = defaultTimezone
+func (p *DateParser) todayInTimezoneAt(now time.Time) string {
+	if p == nil || p.loc == nil {
+		return now.UTC().Format(dateFormat)
 	}
-	loc, err := time.LoadLocation(tz)
-	if err != nil {
-		return nil, fmt.Errorf("invalid TIMEZONE %q: %w", tz, err)
+	return now.In(p.loc).Format(dateFormat)
+}
+
+func (p *DateParser) tomorrowInTimezoneAt(now time.Time) string {
+	if p == nil || p.loc == nil {
+		return now.UTC().AddDate(0, 0, 1).Format(dateFormat)
 	}
-	return loc, nil
+	return now.In(p.loc).AddDate(0, 0, 1).Format(dateFormat)
 }
