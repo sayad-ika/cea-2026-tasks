@@ -28,9 +28,7 @@ func TestGetLocationNotSetDefault(t *testing.T) {
 }
 
 func TestLocationDateGuards(t *testing.T) {
-	t.Setenv("CUTOFF_TIME", "21:00")
-	t.Setenv("TIMEZONE", "Asia/Dhaka")
-
+	checker := mustCutoffChecker(t)
 	loc := dhakaLoc(t)
 
 	tests := []struct {
@@ -88,10 +86,10 @@ func TestLocationDateGuards(t *testing.T) {
 			default:
 				target, _ := time.ParseInLocation("2006-01-02", tc.date, loc)
 				todayMidnight := time.Date(tc.now.Year(), tc.now.Month(), tc.now.Day(), 0, 0, 0, 0, loc)
-				if int(target.Sub(todayMidnight).Hours()/24) > maxDaysAhead {
+				if int(target.Sub(todayMidnight).Hours()/24) > checker.MaxDaysAhead() {
 					got = "tooFar"
 				} else {
-					ok, err := isBeforeCutoffAt(tc.date, tc.now)
+					ok, err := checker.isBeforeCutoffAt(tc.date, tc.now)
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}

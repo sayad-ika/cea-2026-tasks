@@ -7,7 +7,7 @@ import (
 	"github.com/sayad-ika/craftsbite/internal/dynamo"
 )
 
-func TestGetClient_WithLocalEndpoint(t *testing.T) {
+func TestNewClient_WithLocalEndpoint(t *testing.T) {
 	cfg := &config.Config{
 		AWSRegion:        "ap-southeast-1",
 		DynamoDBEndpoint: "http://localhost:8000",
@@ -15,13 +15,16 @@ func TestGetClient_WithLocalEndpoint(t *testing.T) {
 		DiscordPublicKey: "aabbccdd",
 	}
 
-	c := dynamo.GetClient(cfg)
+	c, err := dynamo.NewClient(cfg)
+	if err != nil {
+		t.Fatalf("NewClient() returned unexpected error: %v", err)
+	}
 	if c == nil {
-		t.Fatal("GetClient() returned nil; expected a valid *dynamodb.Client")
+		t.Fatal("NewClient() returned nil; expected a valid *dynamodb.Client")
 	}
 }
 
-func TestGetClient_WithoutLocalEndpoint(t *testing.T) {
+func TestNewClient_WithoutLocalEndpoint(t *testing.T) {
 	cfg := &config.Config{
 		AWSRegion:        "ap-southeast-1",
 		DynamoDBEndpoint: "",
@@ -29,8 +32,11 @@ func TestGetClient_WithoutLocalEndpoint(t *testing.T) {
 		DiscordPublicKey: "aabbccdd",
 	}
 
-	c := dynamo.GetClient(cfg)
+	c, err := dynamo.NewClient(cfg)
+	if err != nil {
+		t.Fatalf("NewClient() returned unexpected error: %v", err)
+	}
 	if c == nil {
-		t.Fatal("GetClient() returned nil without DynamoDBEndpoint set")
+		t.Fatal("NewClient() returned nil without DynamoDBEndpoint set")
 	}
 }

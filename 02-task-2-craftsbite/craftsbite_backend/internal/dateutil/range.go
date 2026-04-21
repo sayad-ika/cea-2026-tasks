@@ -11,26 +11,30 @@ import (
 // - Single date: "2026-03-20" or shortcuts (tomorrow, +N)
 // - Date range: "2026-03-20..2026-03-22"
 // - Week keyword: "week" (next 5 business days from tomorrow)
-func ParseDateRange(dateParam string) ([]string, error) {
+func (p *DateParser) ParseDateRange(dateParam string) ([]string, error) {
+	return p.parseDateRangeAt(dateParam, time.Now())
+}
+
+func (p *DateParser) parseDateRangeAt(dateParam string, now time.Time) ([]string, error) {
 	// Handle date range syntax: "2026-03-20..2026-03-22"
 	if strings.Contains(dateParam, "..") {
-		return parseDateRangeSyntax(dateParam)
+		return p.parseDateRangeSyntaxAt(dateParam, now)
 	}
 
 	// Handle "week" keyword
 	if strings.ToLower(dateParam) == "week" {
-		return getNextBusinessWeek()
+		return p.getNextBusinessWeekAt(now)
 	}
 
 	// Single date - use existing parser
-	date, err := ParseDateWithDefaults(dateParam)
+	date, err := p.parseDateWithDefaultsAt(dateParam, now)
 	if err != nil {
 		return nil, err
 	}
 	return []string{date}, nil
 }
 
-func parseDateRangeSyntax(rangeStr string) ([]string, error) {
+func (p *DateParser) parseDateRangeSyntaxAt(rangeStr string, now time.Time) ([]string, error) {
 	parts := strings.Split(rangeStr, "..")
 	if len(parts) != 2 {
 		return nil, fmt.Errorf("invalid date range format: %s (use YYYY-MM-DD..YYYY-MM-DD)", rangeStr)
@@ -40,13 +44,13 @@ func parseDateRangeSyntax(rangeStr string) ([]string, error) {
 	endStr := strings.TrimSpace(parts[1])
 
 	// Parse start date (supports shortcuts)
-	startDate, err := ParseDateWithDefaults(startStr)
+	startDate, err := p.parseDateWithDefaultsAt(startStr, now)
 	if err != nil {
 		return nil, fmt.Errorf("invalid start date: %w", err)
 	}
 
 	// Parse end date (supports shortcuts)
-	endDate, err := ParseDateWithDefaults(endStr)
+	endDate, err := p.parseDateWithDefaultsAt(endStr, now)
 	if err != nil {
 		return nil, fmt.Errorf("invalid end date: %w", err)
 	}
@@ -81,13 +85,12 @@ func parseDateRangeSyntax(rangeStr string) ([]string, error) {
 	return dates, nil
 }
 
-func getNextBusinessWeek() ([]string, error) {
-	loc, err := loadLocation()
-	if err != nil {
-		return nil, err
+func (p *DateParser) getNextBusinessWeekAt(now time.Time) ([]string, error) {
+	if p == nil || p.loc == nil {
+		return nil, fmt.Errorf("date parser is not initialized")
 	}
 
-	now := time.Now().In(loc)
+	now = now.In(p.loc)
 	tomorrow := now.AddDate(0, 0, 1)
 
 	var dates []string

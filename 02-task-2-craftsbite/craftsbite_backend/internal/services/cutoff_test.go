@@ -15,16 +15,14 @@ func dhakaLoc(t *testing.T) *time.Location {
 }
 
 func TestScenario_RequestMar10_TargetMar11(t *testing.T) {
-	t.Setenv("CUTOFF_TIME", "21:00")
-	t.Setenv("TIMEZONE", "Asia/Dhaka")
-
+	checker := mustCutoffChecker(t)
 	loc := dhakaLoc(t)
 
 	const target = "2026-03-11"
 
 	t.Run("before cutoff (18:00) — should be allowed", func(t *testing.T) {
 		now := time.Date(2026, 3, 10, 18, 0, 0, 0, loc)
-		got, err := isBeforeCutoffAt(target, now)
+		got, err := checker.isBeforeCutoffAt(target, now)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -35,7 +33,7 @@ func TestScenario_RequestMar10_TargetMar11(t *testing.T) {
 
 	t.Run("after cutoff (22:00) — should be denied", func(t *testing.T) {
 		now := time.Date(2026, 3, 10, 22, 0, 0, 0, loc)
-		got, err := isBeforeCutoffAt(target, now)
+		got, err := checker.isBeforeCutoffAt(target, now)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -46,15 +44,13 @@ func TestScenario_RequestMar10_TargetMar11(t *testing.T) {
 }
 
 func TestScenario_RequestMar10_2300_TargetMar10(t *testing.T) {
-	t.Setenv("CUTOFF_TIME", "21:00")
-	t.Setenv("TIMEZONE", "Asia/Dhaka")
-
+	checker := mustCutoffChecker(t)
 	loc := dhakaLoc(t)
 
 	now := time.Date(2026, 3, 10, 23, 0, 0, 0, loc)
 	const target = "2026-03-10"
 
-	got, err := isBeforeCutoffAt(target, now)
+	got, err := checker.isBeforeCutoffAt(target, now)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -64,9 +60,7 @@ func TestScenario_RequestMar10_2300_TargetMar10(t *testing.T) {
 }
 
 func TestMultiDayLookahead(t *testing.T) {
-	t.Setenv("CUTOFF_TIME", "21:00")
-	t.Setenv("TIMEZONE", "Asia/Dhaka")
-
+	checker := mustCutoffChecker(t)
 	loc := dhakaLoc(t)
 
 	now := time.Date(2026, 3, 10, 10, 0, 0, 0, loc)
@@ -86,12 +80,12 @@ func TestMultiDayLookahead(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := isBeforeCutoffAt(tc.target, now)
+			got, err := checker.isBeforeCutoffAt(tc.target, now)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if got != tc.wantOk {
-				t.Errorf("isBeforeCutoffAt(%q, 2026-03-10 10:00) = %v; want %v",
+				t.Errorf("CutoffChecker.isBeforeCutoffAt(%q, 2026-03-10 10:00) = %v; want %v",
 					tc.target, got, tc.wantOk)
 			}
 		})
@@ -99,9 +93,7 @@ func TestMultiDayLookahead(t *testing.T) {
 }
 
 func TestPostCutoff_StillAllowsFurtherDays(t *testing.T) {
-	t.Setenv("CUTOFF_TIME", "21:00")
-	t.Setenv("TIMEZONE", "Asia/Dhaka")
-
+	checker := mustCutoffChecker(t)
 	loc := dhakaLoc(t)
 
 	now := time.Date(2026, 3, 10, 23, 45, 0, 0, loc)
@@ -120,12 +112,12 @@ func TestPostCutoff_StillAllowsFurtherDays(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := isBeforeCutoffAt(tc.target, now)
+			got, err := checker.isBeforeCutoffAt(tc.target, now)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if got != tc.wantOk {
-				t.Errorf("isBeforeCutoffAt(%q, 2026-03-10 23:45) = %v; want %v",
+				t.Errorf("CutoffChecker.isBeforeCutoffAt(%q, 2026-03-10 23:45) = %v; want %v",
 					tc.target, got, tc.wantOk)
 			}
 		})
@@ -133,10 +125,17 @@ func TestPostCutoff_StillAllowsFurtherDays(t *testing.T) {
 }
 
 func TestIsBeforeCutoff_InvalidTimezone(t *testing.T) {
-	t.Setenv("TIMEZONE", "NotAReal/Timezone")
-
-	_, err := isBeforeCutoffAt("2026-03-10", time.Now())
+	_, err := NewCutoffChecker(CutoffConfig{Timezone: "NotAReal/Timezone"})
 	if err == nil {
 		t.Fatal("expected error for invalid timezone; got nil")
 	}
+}
+
+func mustCutoffChecker(t *testing.T) *CutoffChecker {
+	t.Helper()
+	checker, err := NewCutoffChecker(CutoffConfig{CutoffTime: "21:00", Timezone: "Asia/Dhaka"})
+	if err != nil {
+		t.Fatalf("NewCutoffChecker() returned unexpected error: %v", err)
+	}
+	return checker
 }

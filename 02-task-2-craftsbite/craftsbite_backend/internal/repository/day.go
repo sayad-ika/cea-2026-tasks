@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -11,8 +12,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
-
-
 
 func GetDay(ctx context.Context, client *dynamodb.Client, table, date string) (*DaySchedule, error) {
 	out, err := client.GetItem(ctx, &dynamodb.GetItemInput{
@@ -87,7 +86,10 @@ func UpsertDaySchedule(ctx context.Context, client *dynamodb.Client, table strin
 	}
 
 	// Check if schedule already exists to preserve creation metadata
-	existing, _ := GetDay(ctx, client, table, schedule.Date)
+	existing, err := GetDay(ctx, client, table, schedule.Date)
+	if err != nil {
+		return fmt.Errorf("repository: UpsertDaySchedule get existing: %w", err)
+	}
 
 	createdBy := schedule.CreatedBy
 	createdAt := now
@@ -127,11 +129,17 @@ func UpsertDaySchedule(ctx context.Context, client *dynamodb.Client, table strin
 	oldValueJSON := ""
 	if existing != nil {
 		action = "UPDATE"
-		oldBytes, _ := json.Marshal(existing)
+		oldBytes, marshalErr := json.Marshal(existing)
+		if marshalErr != nil {
+			return fmt.Errorf("repository: UpsertDaySchedule marshal old value: %w", marshalErr)
+		}
 		oldValueJSON = string(oldBytes)
 	}
 
-	newBytes, _ := json.Marshal(schedule)
+	newBytes, marshalErr := json.Marshal(schedule)
+	if marshalErr != nil {
+		return fmt.Errorf("repository: UpsertDaySchedule marshal new value: %w", marshalErr)
+	}
 	newValueJSON := string(newBytes)
 
 	auditEntry := AuditEntry{
@@ -146,7 +154,9 @@ func UpsertDaySchedule(ctx context.Context, client *dynamodb.Client, table strin
 	}
 
 	// Best effort - don't fail the operation if audit write fails
-	_ = WriteAuditEntry(ctx, client, table, auditEntry)
+	if auditErr := WriteAuditEntry(ctx, client, table, auditEntry); auditErr != nil {
+		log.Printf("WARN: failed to write audit entry for DAY_SCHEDULE %s: %v", schedule.Date, auditErr)
+	}
 
 	// Also update the MEALS record for quick lookup
 	return upsertDayMeals(ctx, client, table, schedule.Date, schedule.AvailableMeals)

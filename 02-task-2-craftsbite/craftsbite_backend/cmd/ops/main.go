@@ -4,118 +4,84 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
-	"sync"
 
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/sayad-ika/craftsbite/internal/cmdutil"
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
 	"github.com/sayad-ika/craftsbite/internal/dateutil"
-	"github.com/sayad-ika/craftsbite/internal/discord"
 	"github.com/sayad-ika/craftsbite/internal/dynamo"
-	"github.com/sayad-ika/craftsbite/internal/gchat"
 	"github.com/sayad-ika/craftsbite/internal/headcountreport"
 	"github.com/sayad-ika/craftsbite/internal/payload"
 	"github.com/sayad-ika/craftsbite/internal/repository"
 	"github.com/sayad-ika/craftsbite/internal/services"
 )
 
-var (
-	cfgOnce sync.Once
-	cfg     *appconfig.Config
-)
-
-func getConfig() *appconfig.Config {
-	cfgOnce.Do(func() {
-		cfg = appconfig.MustLoad()
-	})
-	return cfg
-}
-
-func handler(ctx context.Context, event payload.CommandEvent) error {
-	c := getConfig()
-	client := dynamo.GetClient(c)
-
+func handler(ctx context.Context, client *dynamodb.Client, cfg *appconfig.Config, dateParser *dateutil.DateParser, event payload.CommandEvent) error {
 	switch event.CommandName {
 	case "headcount":
-		return handleHeadcountCommand(ctx, client, c, event)
+		return handleHeadcountCommand(ctx, client, cfg, dateParser, event)
 	case "schedule-day":
-		return handleScheduleDayCommand(ctx, client, c, event)
+		return handleScheduleDayCommand(ctx, client, cfg, dateParser, event)
 	case "admin":
-		return sendOpsReply(ctx, c, event, "This feature is coming soon.")
+		return cmdutil.SendReply(ctx, cfg, event, "This feature is coming soon.")
 	default:
-		return sendOpsReply(ctx, c, event, fmt.Sprintf("Unknown command: /%s", event.CommandName))
+		return cmdutil.SendReply(ctx, cfg, event, fmt.Sprintf("Unknown command: /%s", event.CommandName))
 	}
 }
 
-func sendOpsReply(ctx context.Context, c *appconfig.Config, event payload.CommandEvent, text string) error {
-	if event.Source == "gchat" {
-		card, _ := gchat.SimpleTextCard(text)
-		return gchat.CreatePrivateMessage(ctx, c.GChatServiceAccountJSON, event.GChatSpaceName, event.GChatViewerName, card)
-	}
-	return discord.SendFollowup(event.ApplicationID, event.InteractionToken, text)
-}
-
-func handleHeadcountCommand(ctx context.Context, client *dynamodb.Client, c *appconfig.Config, event payload.CommandEvent) error {
+func handleHeadcountCommand(ctx context.Context, client *dynamodb.Client, cfg *appconfig.Config, dateParser *dateutil.DateParser, event payload.CommandEvent) error {
 	if event.Role != "admin" && event.Role != "logistics" {
-		return sendOpsReply(ctx, c, event, "You do not have permission to use `/headcount`.")
+		return cmdutil.SendReply(ctx, cfg, event, "You do not have permission to use `/headcount`.")
 	}
 
-	dateStr, _ := optString(event.Options, "date")
-	date, err := dateutil.ParseDateWithDefaults(dateStr)
+	dateStr, _ := cmdutil.OptString(event.Options, "date")
+	date, err := dateParser.ParseDateWithDefaults(dateStr)
 	if err != nil {
-		return sendOpsReply(ctx, c, event, fmt.Sprintf("Invalid date: %v\nUse: tomorrow (default), +N, or YYYY-MM-DD", err))
+		return cmdutil.SendReply(ctx, cfg, event, fmt.Sprintf("Invalid date: %v\nUse: tomorrow (default), +N, or YYYY-MM-DD", err))
 	}
 
-	result, err := services.GetHeadcount(ctx, client, c.DynamoDBTable, date)
+	result, err := services.GetHeadcount(ctx, client, cfg.DynamoDBTable, date)
 	if err != nil {
-		return sendOpsReply(ctx, c, event, "Something went wrong fetching headcount. Please try again later.")
+		return cmdutil.SendReply(ctx, cfg, event, "Something went wrong fetching headcount. Please try again later.")
 	}
 
 	if event.Source == "gchat" {
 		card, _ := headcountreport.BuildGChatCard(result)
-		return gchat.CreatePrivateMessage(ctx, c.GChatServiceAccountJSON, event.GChatSpaceName, event.GChatViewerName, card)
+		return cmdutil.SendGChatCard(ctx, cfg, event, card)
 	}
 
-	return discord.SendFollowup(event.ApplicationID, event.InteractionToken, headcountreport.BuildDiscordMessage(result))
+	return cmdutil.SendReply(ctx, cfg, event, headcountreport.BuildDiscordMessage(result))
 }
 
-func optString(opts map[string]interface{}, key string) (string, bool) {
-	v, ok := opts[key]
-	if !ok {
-		return "", false
-	}
-	s, ok := v.(string)
-	return s, ok
-}
-
-func handleScheduleDayCommand(ctx context.Context, client *dynamodb.Client, c *appconfig.Config, event payload.CommandEvent) error {
+func handleScheduleDayCommand(ctx context.Context, client *dynamodb.Client, cfg *appconfig.Config, dateParser *dateutil.DateParser, event payload.CommandEvent) error {
 	if event.Role != "admin" {
-		return sendOpsReply(ctx, c, event, "You do not have permission to use `/schedule-day`.")
+		return cmdutil.SendReply(ctx, cfg, event, "You do not have permission to use `/schedule-day`.")
 	}
 
-	dateStr, _ := optString(event.Options, "date")
-
-	dates, err := dateutil.ParseDateRange(dateStr)
+	dateStr, _ := cmdutil.OptString(event.Options, "date")
+	dates, err := dateParser.ParseDateRange(dateStr)
 	if err != nil {
-		return sendOpsReply(ctx, c, event, fmt.Sprintf("Invalid date: %v\nUse: YYYY-MM-DD, YYYY-MM-DD..YYYY-MM-DD, or week", err))
+		return cmdutil.SendReply(ctx, cfg, event, fmt.Sprintf("Invalid date: %v\nUse: YYYY-MM-DD, YYYY-MM-DD..YYYY-MM-DD, or week", err))
 	}
 
-	statusStr, ok := optString(event.Options, "status")
+	statusStr, ok := cmdutil.OptString(event.Options, "status")
 	if !ok || statusStr == "" {
-		return sendOpsReply(ctx, c, event, fmt.Sprintf("Day status is required. Valid values: %v", repository.ValidDayStatuses()))
+		return cmdutil.SendReply(ctx, cfg, event, fmt.Sprintf("Day status is required. Valid values: %v", repository.ValidDayStatuses()))
 	}
 
-	mealsStr, _ := optString(event.Options, "meals")
+	mealsStr, _ := cmdutil.OptString(event.Options, "meals")
 	var meals []string
 	if mealsStr != "" {
 		meals = strings.Split(strings.ReplaceAll(mealsStr, " ", ""), ",")
 	}
 
-	reason, _ := optString(event.Options, "reason")
+	reason, _ := cmdutil.OptString(event.Options, "reason")
 
 	if len(dates) > 1 {
-		return handleBulkScheduleDayCommand(ctx, client, c, event, dates, statusStr, meals, reason)
+		return handleBulkScheduleDayCommand(ctx, client, cfg, event, dates, statusStr, meals, reason)
 	}
 
 	input := services.SetDayScheduleInput{
@@ -126,15 +92,15 @@ func handleScheduleDayCommand(ctx context.Context, client *dynamodb.Client, c *a
 		SetBy:          event.UserID,
 	}
 
-	schedule, err := services.SetDaySchedule(ctx, client, c.DynamoDBTable, input)
+	schedule, err := services.SetDaySchedule(ctx, client, cfg.DynamoDBTable, input)
 	if err != nil {
-		return sendOpsReply(ctx, c, event, formatScheduleDayError(err))
+		return cmdutil.SendReply(ctx, cfg, event, formatScheduleDayError(err))
 	}
 
-	return sendOpsReply(ctx, c, event, formatScheduleDaySuccess(schedule))
+	return cmdutil.SendReply(ctx, cfg, event, formatScheduleDaySuccess(schedule))
 }
 
-func handleBulkScheduleDayCommand(ctx context.Context, client *dynamodb.Client, c *appconfig.Config, event payload.CommandEvent, dates []string, statusStr string, meals []string, reason string) error {
+func handleBulkScheduleDayCommand(ctx context.Context, client *dynamodb.Client, cfg *appconfig.Config, event payload.CommandEvent, dates []string, statusStr string, meals []string, reason string) error {
 	input := services.SetDayScheduleInput{
 		DayStatus:      statusStr,
 		AvailableMeals: meals,
@@ -142,12 +108,12 @@ func handleBulkScheduleDayCommand(ctx context.Context, client *dynamodb.Client, 
 		SetBy:          event.UserID,
 	}
 
-	result, err := services.BulkSetDaySchedule(ctx, client, c.DynamoDBTable, dates, input)
+	result, err := services.BulkSetDaySchedule(ctx, client, cfg.DynamoDBTable, dates, input)
 	if err != nil {
-		return sendOpsReply(ctx, c, event, formatBulkScheduleDayError(err))
+		return cmdutil.SendReply(ctx, cfg, event, formatBulkScheduleDayError(err))
 	}
 
-	return sendOpsReply(ctx, c, event, formatBulkScheduleDaySuccess(result, statusStr))
+	return cmdutil.SendReply(ctx, cfg, event, formatBulkScheduleDaySuccess(result, statusStr))
 }
 
 func formatBulkScheduleDaySuccess(result *services.BulkSetDayScheduleResult, statusStr string) string {
@@ -207,5 +173,17 @@ func formatScheduleDaySuccess(schedule *repository.DaySchedule) string {
 }
 
 func main() {
-	lambda.Start(handler)
+	cfg := appconfig.MustLoad()
+	client, err := dynamo.NewClient(cfg)
+	if err != nil {
+		log.Fatalf("ops: %v", err)
+	}
+	dateParser, err := dateutil.NewDateParser(cfg.Timezone)
+	if err != nil {
+		log.Fatalf("ops: %v", err)
+	}
+
+	lambda.Start(func(ctx context.Context, event payload.CommandEvent) error {
+		return handler(ctx, client, cfg, dateParser, event)
+	})
 }

@@ -7,9 +7,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sayad-ika/craftsbite/internal/dateutil"
 	"github.com/sayad-ika/craftsbite/internal/repository"
 	"github.com/sayad-ika/craftsbite/internal/services"
 )
+
+func testDateParser(t *testing.T) *dateutil.DateParser {
+	t.Helper()
+	parser, err := dateutil.NewDateParser("Asia/Dhaka")
+	if err != nil {
+		t.Fatalf("NewDateParser() returned unexpected error: %v", err)
+	}
+	return parser
+}
 
 func TestRunScheduledHeadcount_NoMeals(t *testing.T) {
 	deps := scheduledDeps{
@@ -33,7 +43,7 @@ func TestRunScheduledHeadcount_NoMeals(t *testing.T) {
 		},
 	}
 
-	err := runScheduledHeadcount(context.Background(), deps, ScheduledHeadcountEvent{})
+	err := runScheduledHeadcount(context.Background(), testDateParser(t), deps, ScheduledHeadcountEvent{})
 	if err != nil {
 		t.Fatalf("expected nil for no meals, got %v", err)
 	}
@@ -60,7 +70,7 @@ func TestRunScheduledHeadcount_HeadcountError(t *testing.T) {
 		},
 	}
 
-	err := runScheduledHeadcount(context.Background(), deps, ScheduledHeadcountEvent{})
+	err := runScheduledHeadcount(context.Background(), testDateParser(t), deps, ScheduledHeadcountEvent{})
 	if err == nil {
 		t.Fatal("expected error when headcount fails")
 	}
@@ -90,7 +100,7 @@ func TestRunScheduledHeadcount_BothSucceed(t *testing.T) {
 		},
 	}
 
-	err := runScheduledHeadcount(context.Background(), deps, ScheduledHeadcountEvent{})
+	err := runScheduledHeadcount(context.Background(), testDateParser(t), deps, ScheduledHeadcountEvent{})
 	if err != nil {
 		t.Fatalf("expected nil, got %v", err)
 	}
@@ -124,7 +134,7 @@ func TestRunScheduledHeadcount_DiscordFails_GChatSucceeds(t *testing.T) {
 		},
 	}
 
-	err := runScheduledHeadcount(context.Background(), deps, ScheduledHeadcountEvent{})
+	err := runScheduledHeadcount(context.Background(), testDateParser(t), deps, ScheduledHeadcountEvent{})
 	if err == nil {
 		t.Fatal("expected error when discord fails")
 	}
@@ -155,7 +165,7 @@ func TestRunScheduledHeadcount_GChatFails_DiscordSucceeds(t *testing.T) {
 		},
 	}
 
-	err := runScheduledHeadcount(context.Background(), deps, ScheduledHeadcountEvent{})
+	err := runScheduledHeadcount(context.Background(), testDateParser(t), deps, ScheduledHeadcountEvent{})
 	if err == nil {
 		t.Fatal("expected error when gchat fails")
 	}
@@ -192,7 +202,7 @@ func TestRunScheduledHeadcount_DeliveriesRunInParallel(t *testing.T) {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- runScheduledHeadcount(context.Background(), deps, ScheduledHeadcountEvent{Date: "2026-05-01"})
+		errCh <- runScheduledHeadcount(context.Background(), testDateParser(t), deps, ScheduledHeadcountEvent{Date: "2026-05-01"})
 	}()
 
 	select {
@@ -238,7 +248,7 @@ func TestRunScheduledHeadcount_BothFail(t *testing.T) {
 		},
 	}
 
-	err := runScheduledHeadcount(context.Background(), deps, ScheduledHeadcountEvent{})
+	err := runScheduledHeadcount(context.Background(), testDateParser(t), deps, ScheduledHeadcountEvent{})
 	if err == nil {
 		t.Fatal("expected error when both deliveries fail")
 	}
@@ -262,7 +272,7 @@ func TestRunScheduledHeadcount_DateOverride(t *testing.T) {
 		},
 	}
 
-	err := runScheduledHeadcount(context.Background(), deps, ScheduledHeadcountEvent{Date: "2026-05-01"})
+	err := runScheduledHeadcount(context.Background(), testDateParser(t), deps, ScheduledHeadcountEvent{Date: "2026-05-01"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

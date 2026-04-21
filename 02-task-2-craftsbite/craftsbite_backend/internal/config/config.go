@@ -21,6 +21,8 @@ type Config struct {
 	DynamoDBEndpoint string
 
 	DynamoDBTable string
+	Timezone      string
+	CutoffTime    string
 
 	LambdaSelfFunctionName       string
 	LambdaManagementFunctionName string
@@ -57,14 +59,16 @@ func Load() (*Config, error) {
 		AWSRegion:                    os.Getenv("AWS_REGION"),
 		DynamoDBEndpoint:             os.Getenv("DYNAMODB_ENDPOINT"),
 		DynamoDBTable:                os.Getenv("DYNAMODB_TABLE"),
+		Timezone:                     os.Getenv("TIMEZONE"),
+		CutoffTime:                   os.Getenv("CUTOFF_TIME"),
 		LambdaSelfFunctionName:       os.Getenv("LAMBDA_SELF_FUNCTION_NAME"),
 		LambdaManagementFunctionName: os.Getenv("LAMBDA_MANAGEMENT_FUNCTION_NAME"),
 		LambdaOpsFunctionName:        os.Getenv("LAMBDA_OPS_FUNCTION_NAME"),
 		GChatServiceAccountJSON:      os.Getenv("GCHAT_SERVICE_ACCOUNT_JSON"),
 		DiscordHeadcountChannelID:    os.Getenv("DISCORD_HEADCOUNT_CHANNEL_ID"),
 		GChatHeadcountSpace:          os.Getenv("GCHAT_HEADCOUNT_SPACE"),
-		DiscordBotToken:  params[paramPrefix+"DISCORD_BOT_TOKEN"],
-		DiscordPublicKey: params[paramPrefix+"DISCORD_PUBLIC_KEY"],
+		DiscordBotToken:              params[paramPrefix+"DISCORD_BOT_TOKEN"],
+		DiscordPublicKey:             params[paramPrefix+"DISCORD_PUBLIC_KEY"],
 	}
 
 	if cfg.AWSRegion == "" {
@@ -72,6 +76,12 @@ func Load() (*Config, error) {
 	}
 	if cfg.DynamoDBTable == "" {
 		cfg.DynamoDBTable = "craftsbite"
+	}
+	if cfg.Timezone == "" {
+		cfg.Timezone = "Asia/Dhaka"
+	}
+	if cfg.CutoffTime == "" {
+		cfg.CutoffTime = "21:00"
 	}
 
 	var missing []string

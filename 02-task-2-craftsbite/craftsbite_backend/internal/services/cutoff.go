@@ -2,61 +2,30 @@ package services
 
 import (
 	"fmt"
-	"os"
 	"time"
 )
 
 const (
 	defaultCutoffTime = "21:00"
 	defaultTimezone   = "Asia/Dhaka"
-
-	maxDaysAhead = 7
+	defaultMaxDays    = 7
 )
 
-func IsBeforeCutoff(targetDate string) (bool, error) {
-	return isBeforeCutoffAt(targetDate, time.Now())
+type CutoffConfig struct {
+	CutoffTime   string
+	Timezone     string
+	MaxDaysAhead int
 }
 
-func isBeforeCutoffAt(targetDate string, now time.Time) (bool, error) {
-	loc, err := loadLocation()
-	if err != nil {
-		return false, err
-	}
-
-	cutoffStr := os.Getenv("CUTOFF_TIME")
-	if cutoffStr == "" {
-		cutoffStr = defaultCutoffTime
-	}
-
-	var cutoffHour, cutoffMin int
-	if _, err := fmt.Sscanf(cutoffStr, "%d:%d", &cutoffHour, &cutoffMin); err != nil {
-		return false, fmt.Errorf("cutoff: invalid CUTOFF_TIME %q: %w", cutoffStr, err)
-	}
-
-	target, err := time.ParseInLocation("2006-01-02", targetDate, loc)
-	if err != nil {
-		return false, fmt.Errorf("cutoff: invalid targetDate %q: %w", targetDate, err)
-	}
-
-	nowLocal := now.In(loc)
-	todayLocal := time.Date(nowLocal.Year(), nowLocal.Month(), nowLocal.Day(), 0, 0, 0, 0, loc)
-
-	if !todayLocal.Before(target) {
-		return false, nil
-	}
-
-	daysAhead := int(target.Sub(todayLocal).Hours() / 24)
-	if daysAhead > maxDaysAhead {
-		return false, nil
-	}
-
-	dayBeforeTarget := target.AddDate(0, 0, -1)
-	cutoff := time.Date(dayBeforeTarget.Year(), dayBeforeTarget.Month(), dayBeforeTarget.Day(), cutoffHour, cutoffMin, 0, 0, loc)
-	return nowLocal.Before(cutoff), nil
+type CutoffChecker struct {
+	loc        *time.Location
+	cutoffHour int
+	cutoffMin  int
+	maxDays    int
 }
 
-func loadLocation() (*time.Location, error) {
-	tz := os.Getenv("TIMEZONE")
+func NewCutoffChecker(cfg CutoffConfig) (*CutoffChecker, error) {
+	tz := cfg.Timezone
 	if tz == "" {
 		tz = defaultTimezone
 	}
@@ -64,5 +33,66 @@ func loadLocation() (*time.Location, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cutoff: invalid TIMEZONE %q: %w", tz, err)
 	}
-	return loc, nil
+
+	cutoffStr := cfg.CutoffTime
+	if cutoffStr == "" {
+		cutoffStr = defaultCutoffTime
+	}
+
+	var h, m int
+	if _, err := fmt.Sscanf(cutoffStr, "%d:%d", &h, &m); err != nil {
+		return nil, fmt.Errorf("cutoff: invalid CUTOFF_TIME %q: %w", cutoffStr, err)
+	}
+
+	maxDays := cfg.MaxDaysAhead
+	if maxDays == 0 {
+		maxDays = defaultMaxDays
+	}
+
+	return &CutoffChecker{loc: loc, cutoffHour: h, cutoffMin: m, maxDays: maxDays}, nil
+}
+
+func (c *CutoffChecker) IsBeforeCutoff(targetDate string) (bool, error) {
+	return c.isBeforeCutoffAt(targetDate, time.Now())
+}
+
+func (c *CutoffChecker) isBeforeCutoffAt(targetDate string, now time.Time) (bool, error) {
+	if c == nil || c.loc == nil {
+		return false, fmt.Errorf("cutoff checker is not initialized")
+	}
+
+	nowLocal := now.In(c.loc)
+	todayLocal := time.Date(nowLocal.Year(), nowLocal.Month(), nowLocal.Day(), 0, 0, 0, 0, c.loc)
+
+	target, err := time.ParseInLocation("2006-01-02", targetDate, c.loc)
+	if err != nil {
+		return false, fmt.Errorf("cutoff: invalid targetDate %q: %w", targetDate, err)
+	}
+
+	if !todayLocal.Before(target) {
+		return false, nil
+	}
+
+	daysAhead := int(target.Sub(todayLocal).Hours() / 24)
+	if daysAhead > c.maxDays {
+		return false, nil
+	}
+
+	dayBeforeTarget := target.AddDate(0, 0, -1)
+	cutoff := time.Date(dayBeforeTarget.Year(), dayBeforeTarget.Month(), dayBeforeTarget.Day(), c.cutoffHour, c.cutoffMin, 0, 0, c.loc)
+	return nowLocal.Before(cutoff), nil
+}
+
+func (c *CutoffChecker) Location() *time.Location {
+	if c == nil {
+		return nil
+	}
+	return c.loc
+}
+
+func (c *CutoffChecker) MaxDaysAhead() int {
+	if c == nil {
+		return 0
+	}
+	return c.maxDays
 }

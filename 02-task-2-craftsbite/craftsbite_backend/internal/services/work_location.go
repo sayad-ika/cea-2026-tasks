@@ -35,11 +35,12 @@ func notSetLocation(userID, date string) *repository.WorkLocation {
 	}
 }
 
-func SetLocation(ctx context.Context, client *dynamodb.Client, table, userID, date, location string) (*repository.WorkLocation, error) {
-	loc, err := loadLocation()
-	if err != nil {
-		return nil, fmt.Errorf("location: load timezone: %w", err)
+func SetLocation(ctx context.Context, client *dynamodb.Client, table, userID, date, location string, cutoff *CutoffChecker) (*repository.WorkLocation, error) {
+	if cutoff == nil {
+		return nil, fmt.Errorf("location: cutoff checker is required")
 	}
+
+	loc := cutoff.Location()
 	nowLocal := time.Now().In(loc)
 	today := nowLocal.Format("2006-01-02")
 
@@ -52,11 +53,11 @@ func SetLocation(ctx context.Context, client *dynamodb.Client, table, userID, da
 			return nil, fmt.Errorf("location: invalid date %q: %w", date, parseErr)
 		}
 		todayMidnight := time.Date(nowLocal.Year(), nowLocal.Month(), nowLocal.Day(), 0, 0, 0, 0, loc)
-		if int(target.Sub(todayMidnight).Hours()/24) > maxDaysAhead {
+		if int(target.Sub(todayMidnight).Hours()/24) > cutoff.MaxDaysAhead() {
 			return nil, ErrLocationTooFarAhead
 		}
 
-		ok, err := IsBeforeCutoff(date)
+		ok, err := cutoff.IsBeforeCutoff(date)
 		if err != nil {
 			return nil, fmt.Errorf("location: cutoff check: %w", err)
 		}
