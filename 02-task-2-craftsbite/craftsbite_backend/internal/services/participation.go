@@ -78,11 +78,12 @@ func GetUserMealStatus(ctx context.Context, client *dynamodb.Client, table, user
 	return statuses, nil
 }
 
-func UpdateParticipation(ctx context.Context, client *dynamodb.Client, table, userID, date, mealType string, isParticipating bool) ([]ResolvedStatus, error) {
-	loc, err := loadLocation()
-	if err != nil {
-		return nil, fmt.Errorf("participation: load timezone: %w", err)
+func UpdateParticipation(ctx context.Context, client *dynamodb.Client, table, userID, date, mealType string, isParticipating bool, cutoff *CutoffChecker) ([]ResolvedStatus, error) {
+	if cutoff == nil {
+		return nil, fmt.Errorf("participation: cutoff checker is required")
 	}
+
+	loc := cutoff.Location()
 	nowLocal := time.Now().In(loc)
 	today := nowLocal.Format("2006-01-02")
 
@@ -96,11 +97,11 @@ func UpdateParticipation(ctx context.Context, client *dynamodb.Client, table, us
 			return nil, fmt.Errorf("participation: invalid date %q: %w", date, parseErr)
 		}
 		todayMidnight := time.Date(nowLocal.Year(), nowLocal.Month(), nowLocal.Day(), 0, 0, 0, 0, loc)
-		if int(target.Sub(todayMidnight).Hours()/24) > maxDaysAhead {
+		if int(target.Sub(todayMidnight).Hours()/24) > cutoff.MaxDaysAhead() {
 			return nil, ErrTooFarAhead
 		}
 
-		ok, err := IsBeforeCutoff(date)
+		ok, err := cutoff.IsBeforeCutoff(date)
 		if err != nil {
 			return nil, fmt.Errorf("participation: cutoff check: %w", err)
 		}

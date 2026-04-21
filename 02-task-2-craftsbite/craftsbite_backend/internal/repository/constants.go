@@ -65,3 +65,7 @@ func IsValidMealType(mealType string) bool {
 	}
 	return false
 }
+
+func IsValidMealOrAll(mealType string) bool {
+	return mealType == "all" || IsValidMealType(mealType)
+}
