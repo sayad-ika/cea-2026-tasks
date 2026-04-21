@@ -31,7 +31,6 @@ func GetHeadcount(ctx context.Context, client *dynamodb.Client, table, date stri
 	return buildResult(date, raw.schedule, raw.users, overallMeals, overallLoc, teamBreakdowns), nil
 }
 
-
 type rawData struct {
 	participations []repository.MealParticipation
 	locations      []repository.WorkLocation

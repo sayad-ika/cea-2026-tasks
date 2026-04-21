@@ -1,7 +1,6 @@
 package services
 
 import (
-	"os"
 	"testing"
 	"time"
 )
@@ -134,8 +133,7 @@ func TestPostCutoff_StillAllowsFurtherDays(t *testing.T) {
 }
 
 func TestIsBeforeCutoff_InvalidTimezone(t *testing.T) {
-	os.Setenv("TIMEZONE", "NotAReal/Timezone")
-	t.Cleanup(func() { os.Unsetenv("TIMEZONE") })
+	t.Setenv("TIMEZONE", "NotAReal/Timezone")
 
 	_, err := isBeforeCutoffAt("2026-03-10", time.Now())
 	if err == nil {

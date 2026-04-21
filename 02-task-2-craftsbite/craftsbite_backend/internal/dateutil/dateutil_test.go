@@ -1,15 +1,12 @@
 package dateutil
 
 import (
-	"os"
 	"testing"
 	"time"
 )
 
 func TestParseDateWithDefaults(t *testing.T) {
-	// Set timezone for consistent testing
-	os.Setenv("TIMEZONE", "Asia/Dhaka")
-	defer os.Unsetenv("TIMEZONE")
+	t.Setenv("TIMEZONE", "Asia/Dhaka")
 
 	loc, _ := time.LoadLocation("Asia/Dhaka")
 	now := time.Date(2026, 3, 19, 10, 0, 0, 0, loc)
@@ -89,8 +86,7 @@ func TestParseDateWithDefaults(t *testing.T) {
 }
 
 func TestTodayInTimezone(t *testing.T) {
-	os.Setenv("TIMEZONE", "Asia/Dhaka")
-	defer os.Unsetenv("TIMEZONE")
+	t.Setenv("TIMEZONE", "Asia/Dhaka")
 
 	result := TodayInTimezone()
 	if len(result) != 10 {
@@ -105,8 +101,7 @@ func TestTodayInTimezone(t *testing.T) {
 }
 
 func TestTomorrowInTimezone(t *testing.T) {
-	os.Setenv("TIMEZONE", "Asia/Dhaka")
-	defer os.Unsetenv("TIMEZONE")
+	t.Setenv("TIMEZONE", "Asia/Dhaka")
 
 	result := TomorrowInTimezone()
 	if len(result) != 10 {
