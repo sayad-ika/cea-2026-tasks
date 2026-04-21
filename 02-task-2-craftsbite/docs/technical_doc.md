@@ -1,7 +1,7 @@
 # Craftsbite -- Technical Spec
 
 - **Author:** Sayad Ibn Khairul Alam
-- **Updated:** 2026-03-25
+- **Updated:** 2026-04-21
 - **Status:** Draft
 
 ---
@@ -36,7 +36,6 @@ Employees have no direct way to update their own participation. Logistics staff 
 
 - No web dashboard or frontend in this iteration.
 - No user registration, password reset, or profile management.
-- No scheduled or automated report generation — on-demand only.
 
 ---
 
@@ -78,11 +77,32 @@ Discord Router Lambda                     GChat Router Lambda
                         v
              AWS DynamoDB  (on-demand -- single table)
                         +  craftsbite  (users, teams, meals, schedules, work locations, audit logs)
+
+
+EventBridge Scheduler
+    |  cron(0 21 * * ? *) Asia/Dhaka
+    |  fires daily at 21:00 BDT
+    v
+Scheduled Headcount Lambda  (cmd/scheduled-headcount)
+    |  checks available meals for tomorrow -- exits cleanly if none
+    |  calls services.GetHeadcount(tomorrow)
+    |  formats result for Discord and Google Chat independently
+    |                                         |
+    v                                         v
+Discord Channel POST                      Google Chat Space POST
+(discord.CreateChannelMessage)            (gchat.CreateSpaceMessage)
+    |  Authorization: Bot <token>             |  service account credentials
+    |  POST /channels/{id}/messages           |  spaces.messages.create
+    v                                         v
+Discord channel                           Google Chat space
+(Admin + Logistics members)               (Admin + Logistics members)
 ```
 
 **Request flow (Discord):** Discord sends every slash command as an HTTP POST to the API Gateway URL, including two signature headers for request verification. API Gateway forwards the request to the Discord Router Lambda. This function first verifies the Ed25519 signature using `DISCORD_PUBLIC_KEY` — any request that fails verification is rejected immediately and no command Lambda is ever invoked. On success, it resolves the caller's identity by looking up their `discordId` in DynamoDB (`PK=DISCORD#<id>`), reads the command name from the request body, and asynchronously invokes the correct grouped command Lambda with the caller identity attached. It then immediately returns `{ "type": 5 }` to Discord within the 3-second deadline.
 
 **Request flow (Google Chat):** Google Chat sends every slash command interaction as an HTTP POST to the `/gchat` API Gateway route, signed with a Google-issued Bearer JWT. The GChat Router Lambda verifies the JWT against Google's public keys using `GCHAT_AUDIENCE`, resolves the caller by email (`PK=GCHAT#<email>`), checks the ACL via the shared `discord.CheckPermission`, and asynchronously invokes the correct command Lambda. It then returns an immediate acknowledgement to Google Chat. The command Lambda receives a pre-verified, pre-routed event identical in structure to the Discord path (with `Source=gchat` attached), executes the business logic, and sends the result back via `internal/gchat/reply.go`.
+
+**Request flow (scheduled headcount):** EventBridge Scheduler fires once daily at 21:00 BDT and invokes `cmd/scheduled-headcount` asynchronously. The Lambda checks whether meals are configured for tomorrow — if none are configured it exits cleanly with no delivery. Otherwise it calls `services.GetHeadcount` and delivers the result to a configured Discord channel and Google Chat space independently. A failure on one platform does not block delivery on the other.
 
 **Boundaries:**
 
@@ -90,6 +110,7 @@ Discord Router Lambda                     GChat Router Lambda
 - Discord Router Lambda owns Ed25519 verification, Discord identity resolution, and command dispatch — command Lambdas only ever receive verified, enriched events
 - GChat Router Lambda owns JWT verification, Google Workspace identity resolution, and command dispatch — uses the same ACL and dispatch logic as the Discord router via `internal/discord/dispatch.go`
 - Command Lambdas each own the business logic for their command group — no auth, no routing, no platform awareness beyond the `Source` field on the event
+- Scheduled Headcount Lambda owns the daily notification flow — it is triggered by EventBridge Scheduler, not by user interaction, and delivers to fixed platform destinations rather than replying to a specific caller
 - DynamoDB owns persistence — all Lambdas are stateless and hold no data between invocations
 - Discord and Google Chat are the two supported external callers in this iteration — a frontend application may be introduced later
 
@@ -132,7 +153,7 @@ Discord Router Lambda                     GChat Router Lambda
 **Validation rules**
 
 - Updates for past dates are always rejected.
-- Updates for a future date are rejected if the cutoff has passed (see Section 11).
+- Updates for a future date are rejected if the cutoff has passed (see Section 13).
 - Overrides bypass the cutoff but not day availability — the meal must exist in `available_meals` for that date.
 - When a day is marked `office_closed` or `govt_holiday`, available meals are forced to empty — no participation writes are accepted for that date.
 
@@ -244,19 +265,80 @@ All entities live in a single DynamoDB table named `craftsbite` (`PAY_PER_REQUES
 
 ## 10. Deployment
 
-Each Lambda is compiled to a separate static binary named `bootstrap` (Lambda custom runtime requirement). The binaries are zipped and uploaded independently. No Docker image or layer is used. All functions use the `provided.al2` runtime.
+Each Lambda is compiled to a separate static binary named `bootstrap` (Lambda custom runtime requirement). The binaries are zipped and uploaded independently. No Docker image or layer is used. All functions use the `provided.al2023` runtime.
 
 - **Discord Router Lambda** — compiled from `cmd/router/main.go`, deployed as its own function, invoked directly by API Gateway (`POST /interactions`) on every Discord request
 - **GChat Router Lambda** — compiled from `cmd/gchat-router/main.go`, deployed as its own function, invoked by API Gateway (`POST /gchat`) on every Google Chat interaction. Uses `internal/gchat/` (`event.go` — event types; `card.go` — Card v2 builder; `reply.go` — Chat REST API reply). Reuses `internal/discord/dispatch.go` for ACL checks and Lambda dispatch. Resolves callers by Google Workspace email (`PK=GCHAT#<email>`, `SK=LOOKUP`).
 - **`self` Lambda** — compiled from `cmd/self/main.go`, handles `/meal`, `/location`, `/status` — available to all roles
 - **`management` Lambda** — compiled from `cmd/management/main.go`, handles `/override`, `/team-summary` — available to `team_lead`, `admin`, and `logistics` (read-only)
 - **`ops` Lambda** — compiled from `cmd/ops/main.go`, handles `/headcount`, `/schedule-day`, `/admin` — available to `admin` and `logistics` (headcount only)
-
-Local development runs each binary directly as a standalone executable — no adapter or environment detection required.
+- **`scheduled-headcount` Lambda** — compiled from `cmd/scheduled-headcount/main.go`, triggered by EventBridge Scheduler daily at 21:00 BDT, posts org-wide headcount to the configured Discord channel and Google Chat space. Exits cleanly if no meals are configured for the target date.
+  Local development runs each binary directly as a standalone executable — no adapter or environment detection required.
 
 ---
 
-## 11. Cutoff Time Logic
+## 11. Infrastructure as Code
+
+All AWS infrastructure is managed with Terraform (`>= 1.5`), using the AWS (`~> 5.0`) and Null (`~> 3.0`) providers, targeting `ap-southeast-1`. The configuration lives in `./terraform/` and is designed to run in a Linux environment, making it compatible with GitHub Actions and Jenkins.
+
+Terraform manages only the **build and deployment lifecycle** of the six Lambda functions — it does not provision the Lambda functions, API Gateway, DynamoDB table, IAM roles, or EventBridge Scheduler
+
+### Deployment Pipeline
+
+The pipeline runs automatically on `terraform apply` and re-executes only when source files have changed.
+
+| Stage           | Resource                      | What it does                                                                                                                                                                                                 |
+| --------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1 — Build & Zip | `null_resource.build_and_zip` | Compiles each Lambda into a static `bootstrap` binary (`GOOS=linux`, `GOARCH=amd64`, `CGO_ENABLED=0`) and zips it into `dist/<lambda-name>/<lambda-name>.zip`. Triggered by SHA1 hash of `.go` source files. |
+| 2 — Upload      | `aws_s3_object.lambda_zip`    | Uploads each zip to `s3://trainee-2026-sayad-craftsbite/lambdas/<lambda-name>.zip`. Re-uploads only when the source hash changes.                                                                            |
+| 3 — Deploy      | `null_resource.update_lambda` | Runs `aws lambda update-function-code` and waits for completion. Triggered by the S3 object ETag.                                                                                                            |
+
+### Requirements
+
+The execution environment must have `terraform`, `go`, `zip`, and the AWS CLI available. No Windows-specific tooling is used.
+
+---
+
+## 12. CI/CD Pipeline
+
+All Lambda deployments run through a Jenkins declarative pipeline defined in `Jenkinsfile` at the repository root. The pipeline wraps the Terraform lifecycle from Section 11.
+
+### Stages
+
+| Stage         | Runs on          | What it does                                                                             |
+| ------------- | ---------------- | ---------------------------------------------------------------------------------------- |
+| Init          | All branches     | `terraform init -input=false`                                                            |
+| Validate      | All branches     | `terraform validate`                                                                     |
+| Plan          | All branches     | `terraform plan -out=tfplan` — output visible in build log                               |
+| Apply         | `*/jenkins` only | `terraform apply -auto-approve` — builds, zips, uploads, and deploys all changed Lambdas |
+| Post (always) | All branches     | Deletes `terraform/tfplan` to prevent stale artifacts                                    |
+
+### Branch strategy
+
+Apply is gated on `env.GIT_BRANCH?.endsWith('/jenkins')`. All other branches — including feature branches — run Init, Validate, and Plan only. Deployment requires an explicit push or merge to the `jenkins` branch.
+
+### Credentials and limits
+
+AWS credentials are injected per-stage via a Jenkins `AmazonWebServicesCredentialsBinding` credential with ID `aws-credentials`. `disableConcurrentBuilds()` prevents Terraform state lock conflicts. A 15-minute timeout aborts hung runs.
+
+### Adding a new Lambda
+
+Add one entry to `terraform/locals.tf` — the existing build and deploy loops pick it up automatically on the next apply. No changes to `Jenkinsfile` are required.
+
+```hcl
+"scheduled-headcount" = {
+    cmd_path        = "./cmd/scheduled-headcount"
+    lambda_function = "trainee-2026-sayad-craftsbite-scheduled-headcount"
+}
+```
+
+### What the pipeline does not manage
+
+Lambda function definitions, API Gateway, DynamoDB, IAM roles, EventBridge Scheduler, and SSM parameters are all created manually. The pipeline only handles Lambda code builds and deployments.
+
+---
+
+## 13. Cutoff Time Logic
 
 Meal participation and work location updates for a given date are only accepted before the cutoff time of the **previous day at 09:00 PM**. For example, to update participation for Tuesday, the cutoff is Monday at 09:00 PM.
 
@@ -264,7 +346,7 @@ Updates submitted after the cutoff are rejected. Updates for past dates are alwa
 
 ---
 
-## 12. Error Handling
+## 14. Error Handling
 
 - **Signature verification failure** -- Authorizer + Router Lambda rejects the request immediately; no command Lambda is invoked
 - **Unknown command** -- Router Lambda returns a user-facing Discord message indicating the command is not recognised; no command Lambda is invoked
@@ -274,7 +356,7 @@ Updates submitted after the cutoff are rejected. Updates for past dates are alwa
 
 ---
 
-## 13. Discord Router Lambda — Request Flow
+## 15. Discord Router Lambda — Request Flow
 
 For every `POST /interactions` call:
 
@@ -289,7 +371,7 @@ Enriched payload: `userID`, `role`, `discordId`, `commandName`, `options`, `inte
 
 ---
 
-## 14. GChat Router Lambda — Request Flow
+## 16. GChat Router Lambda — Request Flow
 
 For every `POST /gchat` call:
 
@@ -308,7 +390,7 @@ Enriched payload: `userID`, `role`, `email`, `commandName`, `argumentText`, `rep
 
 ---
 
-## 15. Router Dispatch Table
+## 17. Router Dispatch Table
 
 | Command        | Target Lambda | Environment Variable              |
 | -------------- | ------------- | --------------------------------- |
@@ -323,7 +405,7 @@ Enriched payload: `userID`, `role`, `email`, `commandName`, `argumentText`, `rep
 
 ---
 
-## 16. Registered Slash Commands
+## 18. Registered Slash Commands
 
 ### Discord
 
@@ -353,7 +435,7 @@ Google Chat uses free-text argument strings. Arguments are positional and parsed
 
 ---
 
-## 17. Command Usage
+## 19. Command Usage
 
 ### `/meal`
 
