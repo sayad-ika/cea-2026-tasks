@@ -3,15 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"sort"
 	"strings"
-	"sync"
 
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/sayad-ika/craftsbite/internal/cmdutil"
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
 	"github.com/sayad-ika/craftsbite/internal/dateutil"
-	"github.com/sayad-ika/craftsbite/internal/discord"
 	"github.com/sayad-ika/craftsbite/internal/dynamo"
 	"github.com/sayad-ika/craftsbite/internal/gchat"
 	"github.com/sayad-ika/craftsbite/internal/payload"
@@ -19,76 +19,53 @@ import (
 	"github.com/sayad-ika/craftsbite/internal/services"
 )
 
-var (
-	cfgOnce sync.Once
-	cfg     *appconfig.Config
-)
-
-func getConfig() *appconfig.Config {
-	cfgOnce.Do(func() {
-		cfg = appconfig.MustLoad()
-	})
-	return cfg
-}
-
-func handler(ctx context.Context, event payload.CommandEvent) error {
-	c := getConfig()
-	client := dynamo.GetClient(c)
-
+func handler(ctx context.Context, client *dynamodb.Client, cfg *appconfig.Config, dateParser *dateutil.DateParser, event payload.CommandEvent) error {
 	switch event.CommandName {
 	case "team-summary":
-		return handleTeamSummaryCommand(ctx, client, c, event)
+		return handleTeamSummaryCommand(ctx, client, cfg, dateParser, event)
 	case "override":
-		return sendMgmtReply(ctx, c, event, "This feature is coming soon.")
+		return cmdutil.SendReply(ctx, cfg, event, "This feature is coming soon.")
 	default:
-		return sendMgmtReply(ctx, c, event, fmt.Sprintf("Unknown command: /%s", event.CommandName))
+		return cmdutil.SendReply(ctx, cfg, event, fmt.Sprintf("Unknown command: /%s", event.CommandName))
 	}
 }
 
-func sendMgmtReply(ctx context.Context, c *appconfig.Config, event payload.CommandEvent, text string) error {
-	if event.Source == "gchat" {
-		card, _ := gchat.SimpleTextCard(text)
-		return gchat.CreatePrivateMessage(ctx, c.GChatServiceAccountJSON, event.GChatSpaceName, event.GChatViewerName, card)
-	}
-	return discord.SendFollowup(event.ApplicationID, event.InteractionToken, text)
-}
-
-func handleTeamSummaryCommand(ctx context.Context, client *dynamodb.Client, c *appconfig.Config, event payload.CommandEvent) error {
+func handleTeamSummaryCommand(ctx context.Context, client *dynamodb.Client, cfg *appconfig.Config, dateParser *dateutil.DateParser, event payload.CommandEvent) error {
 	if event.Role != "team_lead" && event.Role != "admin" {
-		return sendMgmtReply(ctx, c, event, "You do not have permission to use `/team-summary`.")
+		return cmdutil.SendReply(ctx, cfg, event, "You do not have permission to use `/team-summary`.")
 	}
 
-	dateStr, _ := optString(event.Options, "date")
-	date, err := dateutil.ParseDateWithDefaults(dateStr)
+	dateStr, _ := cmdutil.OptString(event.Options, "date")
+	date, err := dateParser.ParseDateWithDefaults(dateStr)
 	if err != nil {
-		return sendMgmtReply(ctx, c, event, fmt.Sprintf("Invalid date: %v\nUse: tomorrow (default), +N, or YYYY-MM-DD", err))
+		return cmdutil.SendReply(ctx, cfg, event, fmt.Sprintf("Invalid date: %v\nUse: tomorrow (default), +N, or YYYY-MM-DD", err))
 	}
 
-	teams, err := repository.FindTeamsByLeadID(ctx, client, c.DynamoDBTable, event.UserID)
+	teams, err := repository.FindTeamsByLeadID(ctx, client, cfg.DynamoDBTable, event.UserID)
 	if err != nil {
-		return sendMgmtReply(ctx, c, event, "Something went wrong fetching your team. Please try again later.")
+		return cmdutil.SendReply(ctx, cfg, event, "Something went wrong fetching your team. Please try again later.")
 	}
 	if len(teams) == 0 {
-		return sendMgmtReply(ctx, c, event, "You are not assigned as a team lead to any team.")
+		return cmdutil.SendReply(ctx, cfg, event, "You are not assigned as a team lead to any team.")
 	}
 
-	team, err := repository.GetTeamByID(ctx, client, c.DynamoDBTable, teams[0].ID)
+	team, err := repository.GetTeamByID(ctx, client, cfg.DynamoDBTable, teams[0].ID)
 	if err != nil || team == nil {
-		return sendMgmtReply(ctx, c, event, "Team not found. Please try again later.")
+		return cmdutil.SendReply(ctx, cfg, event, "Team not found. Please try again later.")
 	}
 
-	summary, err := services.GetTeamSummary(ctx, client, c.DynamoDBTable, teams[0].ID, date)
+	summary, err := services.GetTeamSummary(ctx, client, cfg.DynamoDBTable, teams[0].ID, date)
 	if err != nil {
-		return sendMgmtReply(ctx, c, event, "Something went wrong fetching the team summary. Please try again later.")
+		return cmdutil.SendReply(ctx, cfg, event, "Something went wrong fetching the team summary. Please try again later.")
 	}
 
 	if event.Source == "gchat" {
 		rows := buildTeamSummaryRows(team, summary)
 		card, _ := gchat.TeamSummaryCard(date, rows)
-		return gchat.CreatePrivateMessage(ctx, c.GChatServiceAccountJSON, event.GChatSpaceName, event.GChatViewerName, card)
+		return cmdutil.SendGChatCard(ctx, cfg, event, card)
 	}
 
-	return discord.SendFollowup(event.ApplicationID, event.InteractionToken, formatTeamSummary(team, date, summary))
+	return cmdutil.SendReply(ctx, cfg, event, formatTeamSummary(team, date, summary))
 }
 
 func buildTeamSummaryRows(team *repository.Team, summary *services.TeamSummary) []gchat.TeamRow {
@@ -105,7 +82,7 @@ func buildTeamSummaryRows(team *repository.Team, summary *services.TeamSummary) 
 
 	for _, mt := range mealTypes {
 		rows = append(rows, gchat.TeamRow{
-			Label: displayMealName(mt),
+			Label: cmdutil.DisplayMealName(mt),
 			Value: fmt.Sprintf("%d / %d", summary.MealCounts[mt], summary.MemberCount),
 		})
 	}
@@ -117,15 +94,6 @@ func buildTeamSummaryRows(team *repository.Team, summary *services.TeamSummary) 
 	})
 
 	return rows
-}
-
-func optString(opts map[string]interface{}, key string) (string, bool) {
-	v, ok := opts[key]
-	if !ok {
-		return "", false
-	}
-	s, ok := v.(string)
-	return s, ok
 }
 
 func formatTeamSummary(team *repository.Team, date string, summary *services.TeamSummary) string {
@@ -145,7 +113,7 @@ func formatTeamSummary(team *repository.Team, date string, summary *services.Tea
 	if len(mealTypes) > 0 {
 		parts := make([]string, 0, len(mealTypes))
 		for _, mt := range mealTypes {
-			parts = append(parts, fmt.Sprintf("%s %d/%d", displayMealName(mt), summary.MealCounts[mt], summary.MemberCount))
+			parts = append(parts, fmt.Sprintf("%s %d/%d", cmdutil.DisplayMealName(mt), summary.MealCounts[mt], summary.MemberCount))
 		}
 		fmt.Fprintf(&sb, "Meals:    %s\n", strings.Join(parts, "  │  "))
 	}
@@ -156,16 +124,18 @@ func formatTeamSummary(team *repository.Team, date string, summary *services.Tea
 	return sb.String()
 }
 
-func displayMealName(s string) string {
-	words := strings.Split(strings.ReplaceAll(s, "_", " "), " ")
-	for i, w := range words {
-		if len(w) > 0 {
-			words[i] = strings.ToUpper(w[:1]) + w[1:]
-		}
-	}
-	return strings.Join(words, " ")
-}
-
 func main() {
-	lambda.Start(handler)
+	cfg := appconfig.MustLoad()
+	client, err := dynamo.NewClient(cfg)
+	if err != nil {
+		log.Fatalf("management: %v", err)
+	}
+	dateParser, err := dateutil.NewDateParser(cfg.Timezone)
+	if err != nil {
+		log.Fatalf("management: %v", err)
+	}
+
+	lambda.Start(func(ctx context.Context, event payload.CommandEvent) error {
+		return handler(ctx, client, cfg, dateParser, event)
+	})
 }

@@ -4,23 +4,25 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sync"
+	"log"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	lambdaclient "github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
 	"github.com/sayad-ika/craftsbite/internal/discord"
 	"github.com/sayad-ika/craftsbite/internal/dynamo"
+	"github.com/sayad-ika/craftsbite/internal/payload"
 	"github.com/sayad-ika/craftsbite/internal/repository"
 )
 
 // Type 1 = PONG, Type 4 = immediate message, Type 5 = deferred ("thinking").
 type RouterResponse struct {
-	Type int              `json:"type"`
-	Data *ResponseData   `json:"data,omitempty"`
+	Type int           `json:"type"`
+	Data *ResponseData `json:"data,omitempty"`
 }
 
 type ResponseData struct {
@@ -58,50 +60,17 @@ type interactionBody struct {
 	} `json:"user"`
 }
 
-type CommandPayload struct {
-	UserID           string                 `json:"userID"`
-	Role             string                 `json:"role"`
-	DiscordID        string                 `json:"discordId"`
-	CommandName      string                 `json:"commandName"`
-	Options          map[string]interface{} `json:"options"`
-	InteractionToken string                 `json:"interactionToken"`
-	ApplicationID    string                 `json:"applicationId"`
-}
-
-var (
-	cfgOnce    sync.Once
-	cfg        *appconfig.Config
-	lambdaOnce sync.Once
-	lc         *lambdaclient.Client
-)
-
-func getConfig() *appconfig.Config {
-	cfgOnce.Do(func() {
-		cfg = appconfig.MustLoad()
-	})
-	return cfg
-}
-
-func newLambdaClient(c *appconfig.Config) *lambdaclient.Client {
+func newLambdaClient(c *appconfig.Config) (*lambdaclient.Client, error) {
 	awscfg, err := awsconfig.LoadDefaultConfig(context.Background(),
 		awsconfig.WithRegion(c.AWSRegion),
 	)
 	if err != nil {
-		panic(fmt.Sprintf("router: failed to load AWS config for Lambda client: %v", err))
+		return nil, fmt.Errorf("router: failed to load AWS config for Lambda client: %w", err)
 	}
-	return lambdaclient.NewFromConfig(awscfg)
+	return lambdaclient.NewFromConfig(awscfg), nil
 }
 
-func getLambdaClient() *lambdaclient.Client {
-	lambdaOnce.Do(func() {
-		lc = newLambdaClient(getConfig())
-	})
-	return lc
-}
-
-func handler(ctx context.Context, event events.APIGatewayV2HTTPRequest) (RouterResponse, error) {
-	c := getConfig()
-
+func handler(ctx context.Context, c *appconfig.Config, client *dynamodb.Client, lambdaClient *lambdaclient.Client, event events.APIGatewayV2HTTPRequest) (RouterResponse, error) {
 	timestamp := event.Headers["x-signature-timestamp"]
 	signature := event.Headers["x-signature-ed25519"]
 	if !discord.VerifySignature(c.DiscordPublicKey, timestamp, event.Body, signature) {
@@ -122,7 +91,7 @@ func handler(ctx context.Context, event events.APIGatewayV2HTTPRequest) (RouterR
 		discordID = interaction.User.ID
 	}
 
-	userID, role, err := repository.GetUserByDiscordID(ctx, dynamo.GetClient(c), c.DynamoDBTable, discordID)
+	userID, role, err := repository.GetUserByDiscordID(ctx, client, c.DynamoDBTable, discordID)
 	if err != nil {
 		return RouterResponse{}, fmt.Errorf("identity resolution failed: %w", err)
 	}
@@ -151,7 +120,7 @@ func handler(ctx context.Context, event events.APIGatewayV2HTTPRequest) (RouterR
 		optionsMap[opt.Name] = opt.Value
 	}
 
-	payload := CommandPayload{
+	cmdPayload := payload.CommandEvent{
 		UserID:           userID,
 		Role:             role,
 		DiscordID:        discordID,
@@ -160,12 +129,12 @@ func handler(ctx context.Context, event events.APIGatewayV2HTTPRequest) (RouterR
 		InteractionToken: interaction.Token,
 		ApplicationID:    interaction.ApplicationID,
 	}
-	payloadBytes, err := json.Marshal(payload)
+	payloadBytes, err := json.Marshal(cmdPayload)
 	if err != nil {
 		return RouterResponse{}, fmt.Errorf("failed to marshal command payload: %w", err)
 	}
 
-	_, err = getLambdaClient().Invoke(ctx, &lambdaclient.InvokeInput{
+	_, err = lambdaClient.Invoke(ctx, &lambdaclient.InvokeInput{
 		FunctionName:   &targetFn,
 		InvocationType: types.InvocationTypeEvent,
 		Payload:        payloadBytes,
@@ -181,5 +150,17 @@ func handler(ctx context.Context, event events.APIGatewayV2HTTPRequest) (RouterR
 }
 
 func main() {
-	lambda.Start(handler)
+	cfg := appconfig.MustLoad()
+	client, err := dynamo.NewClient(cfg)
+	if err != nil {
+		log.Fatalf("router: %v", err)
+	}
+	lambdaClient, err := newLambdaClient(cfg)
+	if err != nil {
+		log.Fatalf("router: %v", err)
+	}
+
+	lambda.Start(func(ctx context.Context, event events.APIGatewayV2HTTPRequest) (RouterResponse, error) {
+		return handler(ctx, cfg, client, lambdaClient, event)
+	})
 }

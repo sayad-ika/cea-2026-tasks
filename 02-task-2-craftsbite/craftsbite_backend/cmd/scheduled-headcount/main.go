@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"log/slog"
 	"sync"
 
@@ -29,43 +30,21 @@ type scheduledDeps struct {
 	availableMeals func(ctx context.Context, date string) ([]string, error)
 }
 
-func handler(ctx context.Context, event ScheduledHeadcountEvent) error {
-	cfg := appconfig.MustLoad()
-
+func handler(ctx context.Context, dateParser *dateutil.DateParser, cfg *appconfig.Config, deps scheduledDeps, event ScheduledHeadcountEvent) error {
 	if cfg.DiscordHeadcountChannelID == "" {
 		return fmt.Errorf("notifier: DISCORD_HEADCOUNT_CHANNEL_ID is required")
 	}
 	if cfg.GChatHeadcountSpace == "" {
 		return fmt.Errorf("notifier: GCHAT_HEADCOUNT_SPACE is required")
 	}
-
-	client := dynamo.GetClient(cfg)
-
-	deps := scheduledDeps{
-		headcount: func(ctx context.Context, date string) (*services.HeadcountResult, error) {
-			return services.GetHeadcount(ctx, client, cfg.DynamoDBTable, date)
-		},
-		sendDiscord: func(content string) error {
-			return discord.CreateChannelMessage(cfg.DiscordBotToken, cfg.DiscordHeadcountChannelID, content)
-		},
-		sendGChat: func(ctx context.Context, body []byte) error {
-			return gchat.CreateSpaceMessage(ctx, cfg.GChatServiceAccountJSON, cfg.GChatHeadcountSpace, body)
-		},
-		listAudience: func(ctx context.Context, roles ...string) ([]repository.User, error) {
-			return repository.ListActiveUsersByRoles(ctx, client, cfg.DynamoDBTable, roles...)
-		},
-		availableMeals: func(ctx context.Context, date string) ([]string, error) {
-			return repository.GetAvailableMeals(ctx, client, cfg.DynamoDBTable, date)
-		},
-	}
-	return runScheduledHeadcount(ctx, deps, event)
+	return runScheduledHeadcount(ctx, dateParser, deps, event)
 }
 
-func runScheduledHeadcount(ctx context.Context, deps scheduledDeps, event ScheduledHeadcountEvent) error {
+func runScheduledHeadcount(ctx context.Context, dateParser *dateutil.DateParser, deps scheduledDeps, event ScheduledHeadcountEvent) error {
 	date := event.Date
 	if date == "" {
 		var err error
-		date, err = dateutil.ParseDateWithDefaults("")
+		date, err = dateParser.ParseDateWithDefaults("")
 		if err != nil {
 			return fmt.Errorf("resolve date: %w", err)
 		}
@@ -98,7 +77,9 @@ func runScheduledHeadcount(ctx context.Context, deps scheduledDeps, event Schedu
 		return fmt.Errorf("build gchat card: %w", err)
 	}
 
-	var discordErr, gchatErr error
+	var discordErr error
+	var gchatErr error
+	var mu sync.Mutex
 	var wg sync.WaitGroup
 	wg.Add(2)
 
@@ -106,7 +87,9 @@ func runScheduledHeadcount(ctx context.Context, deps scheduledDeps, event Schedu
 		defer wg.Done()
 		if err := deps.sendDiscord(discordBody); err != nil {
 			slog.Error("discord delivery failed", "error", err)
+			mu.Lock()
 			discordErr = err
+			mu.Unlock()
 		} else {
 			slog.Info("discord delivery succeeded", "date", date)
 		}
@@ -116,7 +99,9 @@ func runScheduledHeadcount(ctx context.Context, deps scheduledDeps, event Schedu
 		defer wg.Done()
 		if err := deps.sendGChat(ctx, gchatBody); err != nil {
 			slog.Error("gchat delivery failed", "error", err)
+			mu.Lock()
 			gchatErr = err
+			mu.Unlock()
 		} else {
 			slog.Info("gchat delivery succeeded", "date", date)
 		}
@@ -131,5 +116,35 @@ func runScheduledHeadcount(ctx context.Context, deps scheduledDeps, event Schedu
 }
 
 func main() {
-	lambda.Start(handler)
+	cfg := appconfig.MustLoad()
+	client, err := dynamo.NewClient(cfg)
+	if err != nil {
+		log.Fatalf("scheduled-headcount: %v", err)
+	}
+	dateParser, err := dateutil.NewDateParser(cfg.Timezone)
+	if err != nil {
+		log.Fatalf("scheduled-headcount: %v", err)
+	}
+
+	deps := scheduledDeps{
+		headcount: func(ctx context.Context, date string) (*services.HeadcountResult, error) {
+			return services.GetHeadcount(ctx, client, cfg.DynamoDBTable, date)
+		},
+		sendDiscord: func(content string) error {
+			return discord.CreateChannelMessage(cfg.DiscordBotToken, cfg.DiscordHeadcountChannelID, content)
+		},
+		sendGChat: func(ctx context.Context, body []byte) error {
+			return gchat.CreateSpaceMessage(ctx, cfg.GChatServiceAccountJSON, cfg.GChatHeadcountSpace, body)
+		},
+		listAudience: func(ctx context.Context, roles ...string) ([]repository.User, error) {
+			return repository.ListActiveUsersByRoles(ctx, client, cfg.DynamoDBTable, roles...)
+		},
+		availableMeals: func(ctx context.Context, date string) ([]string, error) {
+			return repository.GetAvailableMeals(ctx, client, cfg.DynamoDBTable, date)
+		},
+	}
+
+	lambda.Start(func(ctx context.Context, event ScheduledHeadcountEvent) error {
+		return handler(ctx, dateParser, cfg, deps, event)
+	})
 }
