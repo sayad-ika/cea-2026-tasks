@@ -23,6 +23,11 @@ locals {
       lambda_function = "trainee-2026-sayad-craftsbite-router"
     }
 
+    "scheduled-headcount" = {
+      cmd_path        = "./cmd/scheduled-headcount"
+      lambda_function = "trainee-2026-sayad-craftsbite-scheduled-headcount"
+    }
+
     "self" = {
       cmd_path        = "./cmd/self"
       lambda_function = "trainee-2026-sayad-craftsbite-self"
