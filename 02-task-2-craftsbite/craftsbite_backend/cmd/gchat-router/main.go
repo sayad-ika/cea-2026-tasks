@@ -6,48 +6,28 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"sync"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	lambdaclient "github.com/aws/aws-sdk-go-v2/service/lambda"
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
+	"github.com/sayad-ika/craftsbite/internal/dynamo"
 	"github.com/sayad-ika/craftsbite/internal/gchat"
 )
 
-var (
-	cfgOnce    sync.Once
-	cfg        *appconfig.Config
-	lambdaOnce sync.Once
-	lc         *lambdaclient.Client
-)
-
-func getConfig() *appconfig.Config {
-	cfgOnce.Do(func() {
-		cfg = appconfig.MustLoad()
-	})
-	return cfg
-}
-
-func newLambdaClient(c *appconfig.Config) *lambdaclient.Client {
+func newLambdaClient(c *appconfig.Config) (*lambdaclient.Client, error) {
 	awscfg, err := awsconfig.LoadDefaultConfig(context.Background(),
 		awsconfig.WithRegion(c.AWSRegion),
 	)
 	if err != nil {
-		panic(fmt.Sprintf("gchat-router: failed to load AWS config: %v", err))
+		return nil, fmt.Errorf("gchat-router: failed to load AWS config: %w", err)
 	}
-	return lambdaclient.NewFromConfig(awscfg)
+	return lambdaclient.NewFromConfig(awscfg), nil
 }
 
-func getLambdaClient() *lambdaclient.Client {
-	lambdaOnce.Do(func() {
-		lc = newLambdaClient(getConfig())
-	})
-	return lc
-}
-
-func handler(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
+func handler(ctx context.Context, cfg *appconfig.Config, client *dynamodb.Client, lambdaClient *lambdaclient.Client, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
 	if err := verifyGChatToken(ctx, req.Headers["authorization"]); err != nil {
 		log.Printf("gchat-router: JWT verification failed: %v", err)
 		return events.APIGatewayV2HTTPResponse{StatusCode: 401}, nil
@@ -70,7 +50,7 @@ func handler(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.AP
 	}
 
 	if evt.Chat.AppCommandPayload != nil {
-		resp, err := handleMessage(ctx, evt)
+		resp, err := handleMessage(ctx, cfg, client, lambdaClient, evt)
 		if err != nil {
 			log.Printf("gchat-router: handleMessage: %v", err)
 			return gchatText("An error occurred. Please try again.", evt.Chat.User.Name), nil
@@ -86,5 +66,17 @@ func ok(body string) (events.APIGatewayV2HTTPResponse, error) {
 }
 
 func main() {
-	lambda.Start(handler)
+	cfg := appconfig.MustLoad()
+	client, err := dynamo.NewClient(cfg)
+	if err != nil {
+		log.Fatalf("gchat-router: %v", err)
+	}
+	lambdaClient, err := newLambdaClient(cfg)
+	if err != nil {
+		log.Fatalf("gchat-router: %v", err)
+	}
+
+	lambda.Start(func(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
+		return handler(ctx, cfg, client, lambdaClient, req)
+	})
 }
