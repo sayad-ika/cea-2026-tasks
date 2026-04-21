@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/sayad-ika/craftsbite/internal/discord"
 	"github.com/sayad-ika/craftsbite/internal/dynamo"
 	"github.com/sayad-ika/craftsbite/internal/gchat"
+	"github.com/sayad-ika/craftsbite/internal/headcountreport"
 	"github.com/sayad-ika/craftsbite/internal/payload"
 	"github.com/sayad-ika/craftsbite/internal/repository"
 	"github.com/sayad-ika/craftsbite/internal/services"
@@ -73,45 +73,11 @@ func handleHeadcountCommand(ctx context.Context, client *dynamodb.Client, c *app
 	}
 
 	if event.Source == "gchat" {
-		card, _ := buildHeadcountCard(result)
+		card, _ := headcountreport.BuildGChatCard(result)
 		return gchat.CreatePrivateMessage(ctx, c.GChatServiceAccountJSON, event.GChatSpaceName, event.GChatViewerName, card)
 	}
 
-	return discord.SendFollowup(event.ApplicationID, event.InteractionToken, formatHeadcount(result))
-}
-
-func buildHeadcountCard(r *services.HeadcountResult) ([]byte, error) {
-	statusLabel := dayStatusLabel(r.DayStatus, r.DayReason)
-
-	var overallMeals []gchat.TeamRow
-	for _, mt := range sortedKeys(r.MealCounts) {
-		mc := r.MealCounts[mt]
-		overallMeals = append(overallMeals, gchat.TeamRow{
-			Label: displayMealName(mt),
-			Value: fmt.Sprintf("%d in / %d out", mc.OptedIn, mc.OptedOut),
-		})
-	}
-
-	var teams []gchat.HeadcountTeamSection
-	for _, t := range r.Teams {
-		var meals []gchat.TeamRow
-		for _, mt := range sortedKeys(t.MealCounts) {
-			mc := t.MealCounts[mt]
-			meals = append(meals, gchat.TeamRow{
-				Label: displayMealName(mt),
-				Value: fmt.Sprintf("%d in / %d out", mc.OptedIn, mc.OptedOut),
-			})
-		}
-		teams = append(teams, gchat.HeadcountTeamSection{
-			TeamName:    t.TeamName,
-			MemberCount: t.MemberCount,
-			Office:      t.LocationCounts.Office,
-			WFH:         t.LocationCounts.WFH,
-			Meals:       meals,
-		})
-	}
-
-	return gchat.HeadcountCard(r.Date, statusLabel, r.TotalUsers, r.LocationCounts.Office, r.LocationCounts.WFH, overallMeals, teams)
+	return discord.SendFollowup(event.ApplicationID, event.InteractionToken, headcountreport.BuildDiscordMessage(result))
 }
 
 func optString(opts map[string]interface{}, key string) (string, bool) {
@@ -121,89 +87,6 @@ func optString(opts map[string]interface{}, key string) (string, bool) {
 	}
 	s, ok := v.(string)
 	return s, ok
-}
-
-func formatHeadcount(r *services.HeadcountResult) string {
-	var sb strings.Builder
-
-	// Header
-	fmt.Fprintf(&sb, "**📊 Headcount — %s**\n", r.Date)
-
-	// Day status + overall totals
-	statusLine := dayStatusLabel(r.DayStatus, r.DayReason)
-	fmt.Fprintf(&sb, "> %s  ·  **%d** employees  ·  🏢 **%d** office  |  🏠 **%d** WFH\n",
-		statusLine, r.TotalUsers, r.LocationCounts.Office, r.LocationCounts.WFH)
-
-	// Overall meals
-	if len(r.MealCounts) > 0 {
-		sb.WriteString("\n**🍽 Overall Meals**\n")
-		for _, mt := range sortedKeys(r.MealCounts) {
-			mc := r.MealCounts[mt]
-			fmt.Fprintf(&sb, "> %-14s %d opted in  /  %d opted out\n",
-				displayMealName(mt)+":", mc.OptedIn, mc.OptedOut)
-		}
-	}
-
-	// Per-team breakdown
-	if len(r.Teams) > 0 {
-		sb.WriteString("\n**🏢 By Team**\n")
-		for _, t := range r.Teams {
-			fmt.Fprintf(&sb, "\n> **%s** · %d members · 🏢 %d office  |  🏠 %d WFH\n",
-				t.TeamName, t.MemberCount, t.LocationCounts.Office, t.LocationCounts.WFH)
-			if len(t.MealCounts) > 0 {
-				for _, mt := range sortedKeys(t.MealCounts) {
-					mc := t.MealCounts[mt]
-					fmt.Fprintf(&sb, "> 🍽 %-10s %d in / %d out\n",
-						displayMealName(mt)+":", mc.OptedIn, mc.OptedOut)
-				}
-			} else {
-				sb.WriteString("> _(no meal records)_\n")
-			}
-		}
-	}
-
-	return strings.TrimRight(sb.String(), "\n")
-}
-
-func dayStatusLabel(status, reason string) string {
-	var label string
-	switch status {
-	case "", "normal":
-		label = "📅 Normal Day"
-	case "holiday":
-		label = "🎉 Holiday"
-	case "office_closed":
-		label = "🔒 Office Closed"
-	case "event_day":
-		label = "🎪 Event Day"
-	case "wfh_day":
-		label = "🏠 WFH Day"
-	default:
-		label = "📅 " + displayMealName(status)
-	}
-	if reason != "" {
-		label += " — " + reason
-	}
-	return label
-}
-
-func sortedKeys(m map[string]services.MealCount) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
-}
-
-func displayMealName(s string) string {
-	words := strings.Split(strings.ReplaceAll(s, "_", " "), " ")
-	for i, w := range words {
-		if len(w) > 0 {
-			words[i] = strings.ToUpper(w[:1]) + w[1:]
-		}
-	}
-	return strings.Join(words, " ")
 }
 
 func handleScheduleDayCommand(ctx context.Context, client *dynamodb.Client, c *appconfig.Config, event payload.CommandEvent) error {
@@ -269,7 +152,7 @@ func handleBulkScheduleDayCommand(ctx context.Context, client *dynamodb.Client, 
 
 func formatBulkScheduleDaySuccess(result *services.BulkSetDayScheduleResult, statusStr string) string {
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "✓ Day schedule set to **%s** for %d weekday(s):\n", displayDayStatus(statusStr), len(result.SuccessDates))
+	fmt.Fprintf(&sb, "✓ Day schedule set to **%s** for %d weekday(s):\n", headcountreport.DisplayDayStatus(statusStr), len(result.SuccessDates))
 	for _, d := range result.SuccessDates {
 		fmt.Fprintf(&sb, "  • %s\n", d)
 	}
@@ -308,10 +191,10 @@ func formatScheduleDaySuccess(schedule *repository.DaySchedule) string {
 	var sb strings.Builder
 
 	fmt.Fprintf(&sb, "✓ Day schedule set for %s\n\n", schedule.Date)
-	fmt.Fprintf(&sb, "**Status**: %s\n", displayDayStatus(schedule.DayStatus))
+	fmt.Fprintf(&sb, "**Status**: %s\n", headcountreport.DisplayDayStatus(schedule.DayStatus))
 
 	if len(schedule.AvailableMeals) > 0 {
-		fmt.Fprintf(&sb, "**Meals**: %s\n", formatMealList(schedule.AvailableMeals))
+		fmt.Fprintf(&sb, "**Meals**: %s\n", headcountreport.FormatMealList(schedule.AvailableMeals))
 	} else {
 		fmt.Fprintf(&sb, "**Meals**: None\n")
 	}
@@ -321,33 +204,6 @@ func formatScheduleDaySuccess(schedule *repository.DaySchedule) string {
 	}
 
 	return sb.String()
-}
-
-func displayDayStatus(status string) string {
-	switch status {
-	case "normal":
-		return "📅 Normal Day"
-	case "office_closed":
-		return "🔒 Office Closed"
-	case "govt_holiday":
-		return "🎉 Government Holiday"
-	case "celebration":
-		return "🎊 Celebration"
-	case "weekend":
-		return "🏖 Weekend"
-	case "event_day":
-		return "🎪 Event Day"
-	default:
-		return status
-	}
-}
-
-func formatMealList(meals []string) string {
-	var formatted []string
-	for _, m := range meals {
-		formatted = append(formatted, displayMealName(m))
-	}
-	return strings.Join(formatted, ", ")
 }
 
 func main() {
