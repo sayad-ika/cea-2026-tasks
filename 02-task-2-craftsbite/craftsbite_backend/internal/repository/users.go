@@ -93,6 +93,24 @@ func ListActiveUsers(ctx context.Context, client *dynamodb.Client, tableName str
 	return results, nil
 }
 
+func ListActiveUsersByRoles(ctx context.Context, client *dynamodb.Client, tableName string, roles ...string) ([]User, error) {
+	all, err := ListActiveUsers(ctx, client, tableName)
+	if err != nil {
+		return nil, err
+	}
+	allowed := make(map[string]struct{}, len(roles))
+	for _, r := range roles {
+		allowed[r] = struct{}{}
+	}
+	filtered := all[:0]
+	for _, u := range all {
+		if _, ok := allowed[u.Role]; ok {
+			filtered = append(filtered, u)
+		}
+	}
+	return filtered, nil
+}
+
 func GetUserByID(ctx context.Context, client *dynamodb.Client, tableName, userID string) (*User, error) {
 	out, err := client.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: aws.String(tableName),

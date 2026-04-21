@@ -27,6 +27,9 @@ type Config struct {
 	LambdaOpsFunctionName        string
 
 	GChatServiceAccountJSON string
+
+	DiscordHeadcountChannelID string
+	GChatHeadcountSpace       string
 }
 
 const paramPrefix = "/craftsbite/"
@@ -58,6 +61,8 @@ func Load() (*Config, error) {
 		LambdaManagementFunctionName: os.Getenv("LAMBDA_MANAGEMENT_FUNCTION_NAME"),
 		LambdaOpsFunctionName:        os.Getenv("LAMBDA_OPS_FUNCTION_NAME"),
 		GChatServiceAccountJSON:      os.Getenv("GCHAT_SERVICE_ACCOUNT_JSON"),
+		DiscordHeadcountChannelID:    os.Getenv("DISCORD_HEADCOUNT_CHANNEL_ID"),
+		GChatHeadcountSpace:          os.Getenv("GCHAT_HEADCOUNT_SPACE"),
 		DiscordBotToken:  params[paramPrefix+"DISCORD_BOT_TOKEN"],
 		DiscordPublicKey: params[paramPrefix+"DISCORD_PUBLIC_KEY"],
 	}
