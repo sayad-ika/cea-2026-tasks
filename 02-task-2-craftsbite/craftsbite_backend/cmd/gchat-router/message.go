@@ -4,10 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/aws/aws-lambda-go/events"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	lambdaclient "github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
@@ -16,7 +15,7 @@ import (
 	"github.com/sayad-ika/craftsbite/internal/repository"
 )
 
-func handleMessage(ctx context.Context, cfg *appconfig.Config, client *dynamodb.Client, lambdaClient *lambdaclient.Client, evt gchat.Event) (events.APIGatewayV2HTTPResponse, error) {
+func handleMessage(ctx context.Context, cfg *appconfig.Config, store *repository.Store, lambdaClient *lambdaclient.Client, evt gchat.Event) (events.APIGatewayV2HTTPResponse, error) {
 	viewerName := evt.Chat.User.Name
 
 	p := evt.Chat.AppCommandPayload
@@ -24,7 +23,7 @@ func handleMessage(ctx context.Context, cfg *appconfig.Config, client *dynamodb.
 		return gchatText("Only slash commands are supported.", viewerName), nil
 	}
 
-	userID, role, err := repository.GetUserByGChatEmail(ctx, client, cfg.DynamoDBTable, evt.Chat.User.Email)
+	userID, role, err := store.GetUserByGChatEmail(ctx, evt.Chat.User.Email)
 	if err != nil {
 		return events.APIGatewayV2HTTPResponse{StatusCode: 500}, fmt.Errorf("gchat-router: identity resolution: %w", err)
 	}
@@ -43,7 +42,7 @@ func handleMessage(ctx context.Context, cfg *appconfig.Config, client *dynamodb.
 
 	targetFn, ok := discord.Dispatch(cfg, cmdEvt.CommandName)
 	if !ok || targetFn == "" {
-		log.Printf("gchat-router: no target function configured for command=%q", cmdEvt.CommandName)
+		slog.Warn("no target function configured for command", "command", cmdEvt.CommandName)
 		return gchatText(fmt.Sprintf("Command `/%s` is not configured.", cmdEvt.CommandName), viewerName), nil
 	}
 
