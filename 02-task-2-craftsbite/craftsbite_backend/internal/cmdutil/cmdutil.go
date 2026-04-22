@@ -11,15 +11,6 @@ import (
 	"github.com/sayad-ika/craftsbite/internal/payload"
 )
 
-func OptString(opts map[string]interface{}, key string) (string, bool) {
-	v, ok := opts[key]
-	if !ok {
-		return "", false
-	}
-	s, ok := v.(string)
-	return s, ok
-}
-
 func DisplayMealName(s string) string {
 	words := strings.Split(strings.ReplaceAll(s, "_", " "), " ")
 	for i, w := range words {

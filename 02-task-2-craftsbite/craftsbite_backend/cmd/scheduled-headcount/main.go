@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"os"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
@@ -116,6 +118,8 @@ func runScheduledHeadcount(ctx context.Context, dateParser *dateutil.DateParser,
 }
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
+
 	cfg := appconfig.MustLoad()
 	client, err := dynamo.NewClient(cfg)
 	if err != nil {
@@ -125,10 +129,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("scheduled-headcount: %v", err)
 	}
+	store := repository.NewStore(client, cfg.DynamoDBTable)
 
 	deps := scheduledDeps{
 		headcount: func(ctx context.Context, date string) (*services.HeadcountResult, error) {
-			return services.GetHeadcount(ctx, client, cfg.DynamoDBTable, date)
+			return services.GetHeadcount(ctx, store, date)
 		},
 		sendDiscord: func(content string) error {
 			return discord.CreateChannelMessage(cfg.DiscordBotToken, cfg.DiscordHeadcountChannelID, content)
@@ -137,14 +142,17 @@ func main() {
 			return gchat.CreateSpaceMessage(ctx, cfg.GChatServiceAccountJSON, cfg.GChatHeadcountSpace, body)
 		},
 		listAudience: func(ctx context.Context, roles ...string) ([]repository.User, error) {
-			return repository.ListActiveUsersByRoles(ctx, client, cfg.DynamoDBTable, roles...)
+			return store.ListActiveUsersByRoles(ctx, roles...)
 		},
 		availableMeals: func(ctx context.Context, date string) ([]string, error) {
-			return repository.GetAvailableMeals(ctx, client, cfg.DynamoDBTable, date)
+			return store.GetAvailableMeals(ctx, date)
 		},
 	}
 
+	const handlerTimeout = 28 * time.Second
 	lambda.Start(func(ctx context.Context, event ScheduledHeadcountEvent) error {
+		ctx, cancel := context.WithTimeout(ctx, handlerTimeout)
+		defer cancel()
 		return handler(ctx, dateParser, cfg, deps, event)
 	})
 }

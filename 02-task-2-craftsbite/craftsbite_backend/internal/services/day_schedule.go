@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/sayad-ika/craftsbite/internal/repository"
 )
 
@@ -22,30 +21,25 @@ type BulkSetDayScheduleResult struct {
 	SuccessDates []string
 }
 
-// SetDayScheduleInput represents input for setting a day schedule
 type SetDayScheduleInput struct {
 	Date           string
 	DayStatus      string
 	AvailableMeals []string
 	Reason         string
-	SetBy          string // user ID of admin setting this
+	SetBy          string
 }
 
-// SetDaySchedule creates or updates a day schedule
-func SetDaySchedule(ctx context.Context, client *dynamodb.Client, table string, input SetDayScheduleInput) (*repository.DaySchedule, error) {
-	// Validate date format
+func SetDaySchedule(ctx context.Context, repo DayScheduleWriter, input SetDayScheduleInput) (*repository.DaySchedule, error) {
 	parsedDate, err := time.Parse("2006-01-02", input.Date)
 	if err != nil {
 		return nil, ErrInvalidDate
 	}
 
-	// Validate day status
 	if !repository.IsValidDayStatus(input.DayStatus) {
 		return nil, fmt.Errorf("%w: %s (valid: %v)",
 			ErrInvalidDayStatus, input.DayStatus, repository.ValidDayStatuses())
 	}
 
-	// Validate meal types
 	for _, meal := range input.AvailableMeals {
 		if !repository.IsValidMealType(meal) {
 			return nil, fmt.Errorf("%w: %s (valid: %v)",
@@ -53,14 +47,12 @@ func SetDaySchedule(ctx context.Context, client *dynamodb.Client, table string, 
 		}
 	}
 
-	// Business rule: office_closed and govt_holiday should have no meals
 	if (input.DayStatus == string(repository.DayStatusOfficeClosed) ||
 		input.DayStatus == string(repository.DayStatusGovtHoliday)) &&
 		len(input.AvailableMeals) > 0 {
 		return nil, errors.New("office_closed and govt_holiday days cannot have meals")
 	}
 
-	// Create schedule
 	schedule := repository.DaySchedule{
 		Date:           input.Date,
 		DayStatus:      input.DayStatus,
@@ -71,25 +63,22 @@ func SetDaySchedule(ctx context.Context, client *dynamodb.Client, table string, 
 		UpdatedAt:      time.Now().UTC(),
 	}
 
-	// Save to repository
-	if err := repository.UpsertDaySchedule(ctx, client, table, schedule); err != nil {
+	if err := repo.UpsertDaySchedule(ctx, schedule); err != nil {
 		return nil, fmt.Errorf("failed to save day schedule: %w", err)
 	}
 
 	return &schedule, nil
 }
 
-// GetDaySchedule retrieves a day schedule (wrapper for repository function)
-func GetDaySchedule(ctx context.Context, client *dynamodb.Client, table, date string) (*repository.DaySchedule, error) {
-	return repository.GetDay(ctx, client, table, date)
+func GetDaySchedule(ctx context.Context, repo DayScheduleReader, date string) (*repository.DaySchedule, error) {
+	return repo.GetDay(ctx, date)
 }
 
-// DeleteDaySchedule removes a day schedule (resets to default)
-func DeleteDaySchedule(ctx context.Context, client *dynamodb.Client, table, date string) error {
-	return repository.DeleteDaySchedule(ctx, client, table, date)
+func DeleteDaySchedule(ctx context.Context, repo DayScheduleWriter, date string) error {
+	return repo.DeleteDaySchedule(ctx, date)
 }
 
-func BulkSetDaySchedule(ctx context.Context, client *dynamodb.Client, table string, dates []string, input SetDayScheduleInput) (*BulkSetDayScheduleResult, error) {
+func BulkSetDaySchedule(ctx context.Context, repo DayScheduleWriter, dates []string, input SetDayScheduleInput) (*BulkSetDayScheduleResult, error) {
 	var weekdays []string
 	for _, d := range dates {
 		t, err := time.Parse("2006-01-02", d)
@@ -110,10 +99,10 @@ func BulkSetDaySchedule(ctx context.Context, client *dynamodb.Client, table stri
 	for _, date := range weekdays {
 		singleInput := input
 		singleInput.Date = date
-		_, err := SetDaySchedule(ctx, client, table, singleInput)
+		_, err := SetDaySchedule(ctx, repo, singleInput)
 		if err != nil {
 			for _, prev := range written {
-				_ = repository.DeleteDaySchedule(ctx, client, table, prev)
+				_ = repo.DeleteDaySchedule(ctx, prev)
 			}
 			return nil, fmt.Errorf("failed on %s: %w", date, err)
 		}

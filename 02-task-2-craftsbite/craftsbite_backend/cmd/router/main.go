@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
+	"os"
+	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	lambdaclient "github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
@@ -70,7 +72,7 @@ func newLambdaClient(c *appconfig.Config) (*lambdaclient.Client, error) {
 	return lambdaclient.NewFromConfig(awscfg), nil
 }
 
-func handler(ctx context.Context, c *appconfig.Config, client *dynamodb.Client, lambdaClient *lambdaclient.Client, event events.APIGatewayV2HTTPRequest) (RouterResponse, error) {
+func handler(ctx context.Context, c *appconfig.Config, store *repository.Store, lambdaClient *lambdaclient.Client, event events.APIGatewayV2HTTPRequest) (RouterResponse, error) {
 	timestamp := event.Headers["x-signature-timestamp"]
 	signature := event.Headers["x-signature-ed25519"]
 	if !discord.VerifySignature(c.DiscordPublicKey, timestamp, event.Body, signature) {
@@ -91,7 +93,7 @@ func handler(ctx context.Context, c *appconfig.Config, client *dynamodb.Client, 
 		discordID = interaction.User.ID
 	}
 
-	userID, role, err := repository.GetUserByDiscordID(ctx, client, c.DynamoDBTable, discordID)
+	userID, role, err := store.GetUserByDiscordID(ctx, discordID)
 	if err != nil {
 		return RouterResponse{}, fmt.Errorf("identity resolution failed: %w", err)
 	}
@@ -120,12 +122,14 @@ func handler(ctx context.Context, c *appconfig.Config, client *dynamodb.Client, 
 		optionsMap[opt.Name] = opt.Value
 	}
 
+	optionsJSON, _ := json.Marshal(optionsMap)
+
 	cmdPayload := payload.CommandEvent{
 		UserID:           userID,
 		Role:             role,
 		DiscordID:        discordID,
 		CommandName:      commandName,
-		Options:          optionsMap,
+		Options:          optionsJSON,
 		InteractionToken: interaction.Token,
 		ApplicationID:    interaction.ApplicationID,
 	}
@@ -150,6 +154,8 @@ func handler(ctx context.Context, c *appconfig.Config, client *dynamodb.Client, 
 }
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
+
 	cfg := appconfig.MustLoad()
 	client, err := dynamo.NewClient(cfg)
 	if err != nil {
@@ -159,8 +165,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("router: %v", err)
 	}
+	store := repository.NewStore(client, cfg.DynamoDBTable)
 
+	const handlerTimeout = 28 * time.Second
 	lambda.Start(func(ctx context.Context, event events.APIGatewayV2HTTPRequest) (RouterResponse, error) {
-		return handler(ctx, cfg, client, lambdaClient, event)
+		ctx, cancel := context.WithTimeout(ctx, handlerTimeout)
+		defer cancel()
+		return handler(ctx, cfg, store, lambdaClient, event)
 	})
 }

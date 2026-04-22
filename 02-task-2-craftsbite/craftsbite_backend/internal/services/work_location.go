@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/sayad-ika/craftsbite/internal/repository"
 )
 
@@ -16,8 +15,8 @@ var (
 	ErrLocationTooFarAhead  = errors.New("cannot set work location more than 7 days in advance")
 )
 
-func GetLocation(ctx context.Context, client *dynamodb.Client, table, userID, date string) (*repository.WorkLocation, error) {
-	wl, err := repository.GetWorkLocation(ctx, client, table, userID, date)
+func GetLocation(ctx context.Context, repo LocationReader, userID, date string) (*repository.WorkLocation, error) {
+	wl, err := repo.GetWorkLocation(ctx, userID, date)
 	if err != nil {
 		return nil, fmt.Errorf("location: GetLocation: %w", err)
 	}
@@ -35,7 +34,7 @@ func notSetLocation(userID, date string) *repository.WorkLocation {
 	}
 }
 
-func SetLocation(ctx context.Context, client *dynamodb.Client, table, userID, date, location string, cutoff *CutoffChecker) (*repository.WorkLocation, error) {
+func SetLocation(ctx context.Context, repo LocationWriter, userID, date, location string, cutoff *CutoffChecker) (*repository.WorkLocation, error) {
 	if cutoff == nil {
 		return nil, fmt.Errorf("location: cutoff checker is required")
 	}
@@ -71,9 +70,9 @@ func SetLocation(ctx context.Context, client *dynamodb.Client, table, userID, da
 		Date:     date,
 		Location: location,
 	}
-	if err := repository.UpsertWorkLocation(ctx, client, table, wl); err != nil {
+	if err := repo.UpsertWorkLocation(ctx, wl); err != nil {
 		return nil, fmt.Errorf("location: SetLocation upsert: %w", err)
 	}
 
-	return GetLocation(ctx, client, table, userID, date)
+	return GetLocation(ctx, repo, userID, date)
 }
