@@ -1,6 +1,7 @@
 package gchat
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -60,11 +61,13 @@ func ToCommandEvent(evt Event, internalUserID, role string) (payload.CommandEven
 		opts = parseScheduleDayArgs(argText)
 	}
 
+	optsJSON, _ := json.Marshal(opts)
+
 	return payload.CommandEvent{
 		UserID:           internalUserID,
 		Role:             role,
 		CommandName:      commandName,
-		Options:          opts,
+		Options:          optsJSON,
 		Source:           "gchat",
 		GChatSpaceName:   p.Space.Name,
 		GChatMessageName: msgName,

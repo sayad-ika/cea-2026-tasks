@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -155,7 +155,7 @@ func UpsertDaySchedule(ctx context.Context, client *dynamodb.Client, table strin
 
 	// Best effort - don't fail the operation if audit write fails
 	if auditErr := WriteAuditEntry(ctx, client, table, auditEntry); auditErr != nil {
-		log.Printf("WARN: failed to write audit entry for DAY_SCHEDULE %s: %v", schedule.Date, auditErr)
+		slog.Warn("failed to write audit entry", "entity_type", "DAY_SCHEDULE", "date", schedule.Date, "error", auditErr)
 	}
 
 	// Also update the MEALS record for quick lookup
