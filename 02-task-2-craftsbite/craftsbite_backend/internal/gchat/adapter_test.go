@@ -1,6 +1,7 @@
 package gchat
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -177,8 +178,11 @@ func TestToCommandEvent_HeadcountParseError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// Adapter passes empty string - Lambda will handle default
-	if ce.Options["date"] != "" {
-		t.Errorf("date = %q, want empty string", ce.Options["date"])
+	var opts map[string]interface{}
+	if err := json.Unmarshal(ce.Options, &opts); err != nil {
+		t.Fatalf("failed to unmarshal options: %v", err)
+	}
+	if opts["date"] != "" {
+		t.Errorf("date = %q, want empty string", opts["date"])
 	}
 }
