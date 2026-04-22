@@ -6,17 +6,16 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/sayad-ika/craftsbite/internal/repository"
 )
 
-func GetHeadcount(ctx context.Context, client *dynamodb.Client, table, date string) (*HeadcountResult, error) {
-	raw, err := fetchRawData(ctx, client, table, date)
+func GetHeadcount(ctx context.Context, store HeadcountStore, date string) (*HeadcountResult, error) {
+	raw, err := fetchRawData(ctx, store, date)
 	if err != nil {
 		return nil, err
 	}
 
-	teamNames, err := fetchTeamNames(ctx, client, table, raw.users)
+	teamNames, err := fetchTeamNames(ctx, store, raw.users)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +37,7 @@ type rawData struct {
 	schedule       *repository.DaySchedule
 }
 
-func fetchRawData(ctx context.Context, client *dynamodb.Client, table, date string) (*rawData, error) {
+func fetchRawData(ctx context.Context, store HeadcountStore, date string) (*rawData, error) {
 	var (
 		wg  sync.WaitGroup
 		mu  sync.Mutex
@@ -61,7 +60,7 @@ func fetchRawData(ctx context.Context, client *dynamodb.Client, table, date stri
 	}
 
 	fetch(func() error {
-		p, e := repository.GetParticipationsByDate(ctx, client, table, date)
+		p, e := store.GetParticipationsByDate(ctx, date)
 		res.participations = p
 		if e != nil {
 			return fmt.Errorf("participations: %w", e)
@@ -69,7 +68,7 @@ func fetchRawData(ctx context.Context, client *dynamodb.Client, table, date stri
 		return nil
 	})
 	fetch(func() error {
-		l, e := repository.GetWorkLocationsByDate(ctx, client, table, date)
+		l, e := store.GetWorkLocationsByDate(ctx, date)
 		res.locations = l
 		if e != nil {
 			return fmt.Errorf("locations: %w", e)
@@ -77,7 +76,7 @@ func fetchRawData(ctx context.Context, client *dynamodb.Client, table, date stri
 		return nil
 	})
 	fetch(func() error {
-		u, e := repository.ListActiveUsers(ctx, client, table)
+		u, e := store.ListActiveUsers(ctx)
 		res.users = u
 		if e != nil {
 			return fmt.Errorf("users: %w", e)
@@ -85,7 +84,7 @@ func fetchRawData(ctx context.Context, client *dynamodb.Client, table, date stri
 		return nil
 	})
 	fetch(func() error {
-		s, e := repository.GetDay(ctx, client, table, date)
+		s, e := store.GetDay(ctx, date)
 		res.schedule = s
 		if e != nil {
 			return fmt.Errorf("schedule: %w", e)
@@ -101,24 +100,24 @@ func fetchRawData(ctx context.Context, client *dynamodb.Client, table, date stri
 	return &res, nil
 }
 
-func fetchTeamNames(ctx context.Context, client *dynamodb.Client, table string, users []repository.User) (map[string]string, error) {
+func fetchTeamNames(ctx context.Context, store HeadcountStore, users []repository.User) (map[string]string, error) {
 	uniqueIDs := uniqueTeamIDs(users)
 	if len(uniqueIDs) == 0 {
 		return map[string]string{}, nil
 	}
 
 	var (
-		wg      sync.WaitGroup
-		mu      sync.Mutex
-		names   = make(map[string]string, len(uniqueIDs))
+		wg    sync.WaitGroup
+		mu    sync.Mutex
+		names = make(map[string]string, len(uniqueIDs))
 	)
 
 	for id := range uniqueIDs {
 		wg.Add(1)
 		go func(id string) {
 			defer wg.Done()
-			t, err := repository.GetTeamByID(ctx, client, table, id)
-			name := id // fallback
+			t, err := store.GetTeamByID(ctx, id)
+			name := id
 			if err == nil && t != nil && t.Name != "" {
 				name = t.Name
 			}
@@ -131,8 +130,6 @@ func fetchTeamNames(ctx context.Context, client *dynamodb.Client, table string, 
 	wg.Wait()
 	return names, nil
 }
-
-// --- Lookup Builders ---
 
 func buildLocationLookup(locations []repository.WorkLocation) map[string]string {
 	lookup := make(map[string]string, len(locations))
@@ -152,8 +149,6 @@ func buildParticipationLookup(participations []repository.MealParticipation) map
 	}
 	return lookup
 }
-
-// --- Business Logic ---
 
 func resolveAvailableMeals(schedule *repository.DaySchedule, participations []repository.MealParticipation) []string {
 	if schedule != nil && len(schedule.AvailableMeals) > 0 {
@@ -189,8 +184,6 @@ func isOptedIn(partsByUserMeal map[string]map[string]repository.MealParticipatio
 	p, hasRecord := partsByUserMeal[userID][mealType]
 	return !hasRecord || p.IsParticipating
 }
-
-// --- Aggregation ---
 
 func buildTeamBreakdowns(
 	users []repository.User,
@@ -290,8 +283,6 @@ func sortTeamBreakdowns(teams []TeamHeadcount) {
 		return teams[i].TeamName < teams[j].TeamName
 	})
 }
-
-// --- Result Builder ---
 
 func buildResult(date string, schedule *repository.DaySchedule, users []repository.User, meals map[string]MealCount, loc LocationCount, teams []TeamHeadcount) *HeadcountResult {
 	dayStatus, dayReason := "", ""

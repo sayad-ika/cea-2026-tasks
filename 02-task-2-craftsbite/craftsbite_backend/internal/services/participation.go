@@ -8,7 +8,6 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/sayad-ika/craftsbite/internal/repository"
 )
 
@@ -46,13 +45,13 @@ func Resolve(schedule *repository.DaySchedule, availableMeals []string, record *
 	return ResolvedStatus{MealType: mealType, Status: "opted_in", Source: "system_default"}
 }
 
-func GetUserMealStatus(ctx context.Context, client *dynamodb.Client, table, userID, date string) ([]ResolvedStatus, error) {
-	schedule, err := repository.GetDay(ctx, client, table, date)
+func GetUserMealStatus(ctx context.Context, dayRepo DayScheduleReader, pRepo ParticipationReader, userID, date string) ([]ResolvedStatus, error) {
+	schedule, err := dayRepo.GetDay(ctx, date)
 	if err != nil {
 		return nil, fmt.Errorf("participation: GetUserMealStatus schedule: %w", err)
 	}
 
-	availableMeals, err := repository.GetAvailableMeals(ctx, client, table, date)
+	availableMeals, err := dayRepo.GetAvailableMeals(ctx, date)
 	if err != nil {
 		return nil, fmt.Errorf("participation: GetUserMealStatus available meals: %w", err)
 	}
@@ -60,12 +59,11 @@ func GetUserMealStatus(ctx context.Context, client *dynamodb.Client, table, user
 		return []ResolvedStatus{}, nil
 	}
 
-	records, err := repository.GetParticipationsByUserDate(ctx, client, table, userID, date)
+	records, err := pRepo.GetParticipationsByUserDate(ctx, userID, date)
 	if err != nil {
 		return nil, fmt.Errorf("participation: GetUserMealStatus records: %w", err)
 	}
 
-	// Build a lookup from mealType → record.
 	recordByMeal := make(map[string]*repository.MealParticipation, len(records))
 	for i := range records {
 		recordByMeal[records[i].MealType] = &records[i]
@@ -78,7 +76,7 @@ func GetUserMealStatus(ctx context.Context, client *dynamodb.Client, table, user
 	return statuses, nil
 }
 
-func UpdateParticipation(ctx context.Context, client *dynamodb.Client, table, userID, date, mealType string, isParticipating bool, cutoff *CutoffChecker) ([]ResolvedStatus, error) {
+func UpdateParticipation(ctx context.Context, dayRepo DayScheduleReader, pRepo ParticipationWriter, userID, date, mealType string, isParticipating bool, cutoff *CutoffChecker) ([]ResolvedStatus, error) {
 	if cutoff == nil {
 		return nil, fmt.Errorf("participation: cutoff checker is required")
 	}
@@ -91,7 +89,6 @@ func UpdateParticipation(ctx context.Context, client *dynamodb.Client, table, us
 		return nil, ErrPastDate
 	}
 	if date > today {
-		// Reject dates beyond the hard lookahead cap before hitting the cutoff check.
 		target, parseErr := time.ParseInLocation("2006-01-02", date, loc)
 		if parseErr != nil {
 			return nil, fmt.Errorf("participation: invalid date %q: %w", date, parseErr)
@@ -110,7 +107,7 @@ func UpdateParticipation(ctx context.Context, client *dynamodb.Client, table, us
 		}
 	}
 
-	schedule, err := repository.GetDay(ctx, client, table, date)
+	schedule, err := dayRepo.GetDay(ctx, date)
 	if err != nil {
 		return nil, fmt.Errorf("participation: UpdateParticipation schedule: %w", err)
 	}
@@ -119,7 +116,7 @@ func UpdateParticipation(ctx context.Context, client *dynamodb.Client, table, us
 		return nil, ErrDayClosed
 	}
 
-	availableMeals, err := repository.GetAvailableMeals(ctx, client, table, date)
+	availableMeals, err := dayRepo.GetAvailableMeals(ctx, date)
 	if err != nil {
 		return nil, fmt.Errorf("participation: UpdateParticipation available meals: %w", err)
 	}
@@ -152,12 +149,12 @@ func UpdateParticipation(ctx context.Context, client *dynamodb.Client, table, us
 			CreatedAt:       now,
 			UpdatedAt:       now,
 		}
-		if err := repository.UpsertParticipation(ctx, client, table, p); err != nil {
+		if err := pRepo.UpsertParticipation(ctx, p); err != nil {
 			return nil, fmt.Errorf("participation: upsert %s: %w", meal, err)
 		}
 	}
 
-	return GetUserMealStatus(ctx, client, table, userID, date)
+	return GetUserMealStatus(ctx, dayRepo, pRepo, userID, date)
 }
 
 func containsMeal(available []string, meal string) bool {

@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/sayad-ika/craftsbite/internal/repository"
 )
 
 type TeamSummary struct {
 	MemberCount int
-	MealCounts  map[string]int // meal_type -> opted-in count
+	MealCounts  map[string]int
 	WFHCount    int
 }
 
@@ -26,7 +25,7 @@ type memberData struct {
 	location *repository.WorkLocation
 }
 
-func fetchMemberData(ctx context.Context, client *dynamodb.Client, table, userID, date string) (memberData, error) {
+func fetchMemberData(ctx context.Context, store TeamSummaryStore, userID, date string) (memberData, error) {
 	var (
 		data    memberData
 		userErr error
@@ -39,17 +38,17 @@ func fetchMemberData(ctx context.Context, client *dynamodb.Client, table, userID
 
 	go func() {
 		defer wg.Done()
-		data.user, userErr = repository.GetUserByID(ctx, client, table, userID)
+		data.user, userErr = store.GetUserByID(ctx, userID)
 	}()
 
 	go func() {
 		defer wg.Done()
-		data.meals, mealErr = repository.GetParticipationsByUserDate(ctx, client, table, userID, date)
+		data.meals, mealErr = store.GetParticipationsByUserDate(ctx, userID, date)
 	}()
 
 	go func() {
 		defer wg.Done()
-		data.location, locErr = repository.GetWorkLocation(ctx, client, table, userID, date)
+		data.location, locErr = store.GetWorkLocation(ctx, userID, date)
 	}()
 
 	wg.Wait()
@@ -78,8 +77,8 @@ func buildMemberStatus(d memberData) memberStatus {
 	}
 }
 
-func GetTeamSummary(ctx context.Context, client *dynamodb.Client, table, teamID, date string) (*TeamSummary, error) {
-	members, err := repository.GetTeamMembers(ctx, client, table, teamID)
+func GetTeamSummary(ctx context.Context, store TeamSummaryStore, teamID, date string) (*TeamSummary, error) {
+	members, err := store.GetTeamMembers(ctx, teamID)
 	if err != nil {
 		return nil, fmt.Errorf("team_summary: members: %w", err)
 	}
@@ -99,14 +98,14 @@ func GetTeamSummary(ctx context.Context, client *dynamodb.Client, table, teamID,
 
 	go func() {
 		defer wg.Done()
-		availableMeals, mealsErr = repository.GetAvailableMeals(ctx, client, table, date)
+		availableMeals, mealsErr = store.GetAvailableMeals(ctx, date)
 	}()
 
 	for i, m := range members {
 		i, m := i, m
 		go func() {
 			defer wg.Done()
-			data, err := fetchMemberData(ctx, client, table, m.UserID, date)
+			data, err := fetchMemberData(ctx, store, m.UserID, date)
 			if err != nil {
 				errs[i] = fmt.Errorf("team_summary: member %s: %w", m.UserID, err)
 				return
