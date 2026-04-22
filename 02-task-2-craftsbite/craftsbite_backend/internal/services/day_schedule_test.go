@@ -102,6 +102,7 @@ func TestBulkSetDaySchedule_AllWeekends(t *testing.T) {
 	client := newTestClient(t)
 	table := testTable()
 	ensureTable(t, client, table)
+	store := repository.NewStore(client, table)
 
 	sat := nextSaturdayDate()
 	sun := nextSundayDate()
@@ -114,7 +115,7 @@ func TestBulkSetDaySchedule_AllWeekends(t *testing.T) {
 		SetBy:     "test-admin",
 	}
 
-	_, err := services.BulkSetDaySchedule(context.Background(), client, table, dates, input)
+	_, err := services.BulkSetDaySchedule(context.Background(), store, dates, input)
 	if err == nil {
 		t.Fatal("expected ErrAllWeekend, got nil")
 	}
@@ -123,9 +124,9 @@ func TestBulkSetDaySchedule_AllWeekends(t *testing.T) {
 	}
 
 	for _, d := range dates {
-		schedule, err2 := repository.GetDay(context.Background(), client, table, d)
+		schedule, err2 := services.GetDaySchedule(context.Background(), store, d)
 		if err2 != nil {
-			t.Fatalf("GetDay(%s): %v", d, err2)
+			t.Fatalf("GetDaySchedule(%s): %v", d, err2)
 		}
 		if schedule != nil {
 			t.Errorf("expected no record for %s (weekend), but one was written", d)
@@ -137,6 +138,7 @@ func TestBulkSetDaySchedule_WeekendSkipping(t *testing.T) {
 	client := newTestClient(t)
 	table := testTable()
 	ensureTable(t, client, table)
+	store := repository.NewStore(client, table)
 
 	mon := nextWeekdayDate(time.Monday)
 	sat := nextSaturdayDate()
@@ -153,7 +155,7 @@ func TestBulkSetDaySchedule_WeekendSkipping(t *testing.T) {
 		SetBy:          "test-admin",
 	}
 
-	result, err := services.BulkSetDaySchedule(context.Background(), client, table, allDates, input)
+	result, err := services.BulkSetDaySchedule(context.Background(), store, allDates, input)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -163,9 +165,9 @@ func TestBulkSetDaySchedule_WeekendSkipping(t *testing.T) {
 	}
 
 	for _, weekend := range []string{sat, sun} {
-		schedule, err2 := repository.GetDay(context.Background(), client, table, weekend)
+		schedule, err2 := services.GetDaySchedule(context.Background(), store, weekend)
 		if err2 != nil {
-			t.Fatalf("GetDay(%s): %v", weekend, err2)
+			t.Fatalf("GetDaySchedule(%s): %v", weekend, err2)
 		}
 		if schedule != nil {
 			t.Errorf("weekend date %s should not have a record, but one was written", weekend)
@@ -173,9 +175,9 @@ func TestBulkSetDaySchedule_WeekendSkipping(t *testing.T) {
 	}
 
 	for _, weekday := range []string{mon, tue} {
-		schedule, err2 := repository.GetDay(context.Background(), client, table, weekday)
+		schedule, err2 := services.GetDaySchedule(context.Background(), store, weekday)
 		if err2 != nil {
-			t.Fatalf("GetDay(%s): %v", weekday, err2)
+			t.Fatalf("GetDaySchedule(%s): %v", weekday, err2)
 		}
 		if schedule == nil {
 			t.Errorf("weekday %s should have a record, but none was found", weekday)
@@ -187,6 +189,7 @@ func TestBulkSetDaySchedule_Success(t *testing.T) {
 	client := newTestClient(t)
 	table := testTable()
 	ensureTable(t, client, table)
+	store := repository.NewStore(client, table)
 
 	mon := nextWeekdayDate(time.Monday)
 	fri := nextWeekdayDate(time.Friday)
@@ -200,7 +203,7 @@ func TestBulkSetDaySchedule_Success(t *testing.T) {
 		SetBy:          "test-admin",
 	}
 
-	result, err := services.BulkSetDaySchedule(context.Background(), client, table, dates, input)
+	result, err := services.BulkSetDaySchedule(context.Background(), store, dates, input)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -226,13 +229,14 @@ func TestBulkSetDaySchedule_InvalidDateFormat(t *testing.T) {
 	client := newTestClient(t)
 	table := testTable()
 	ensureTable(t, client, table)
+	store := repository.NewStore(client, table)
 
 	input := services.SetDayScheduleInput{
 		DayStatus: "normal",
 		SetBy:     "test-admin",
 	}
 
-	_, err := services.BulkSetDaySchedule(context.Background(), client, table, []string{"not-a-date"}, input)
+	_, err := services.BulkSetDaySchedule(context.Background(), store, []string{"not-a-date"}, input)
 	if err == nil {
 		t.Fatal("expected error for invalid date format, got nil")
 	}
