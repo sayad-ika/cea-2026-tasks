@@ -6,16 +6,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
+	"os"
+	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	lambdaclient "github.com/aws/aws-sdk-go-v2/service/lambda"
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
 	"github.com/sayad-ika/craftsbite/internal/dynamo"
 	"github.com/sayad-ika/craftsbite/internal/gchat"
+	"github.com/sayad-ika/craftsbite/internal/repository"
 )
+
+const handlerTimeout = 28 * time.Second
 
 func newLambdaClient(c *appconfig.Config) (*lambdaclient.Client, error) {
 	awscfg, err := awsconfig.LoadDefaultConfig(context.Background(),
@@ -27,9 +32,9 @@ func newLambdaClient(c *appconfig.Config) (*lambdaclient.Client, error) {
 	return lambdaclient.NewFromConfig(awscfg), nil
 }
 
-func handler(ctx context.Context, cfg *appconfig.Config, client *dynamodb.Client, lambdaClient *lambdaclient.Client, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
+func handler(ctx context.Context, cfg *appconfig.Config, store *repository.Store, lambdaClient *lambdaclient.Client, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
 	if err := verifyGChatToken(ctx, req.Headers["authorization"]); err != nil {
-		log.Printf("gchat-router: JWT verification failed: %v", err)
+		slog.Error("JWT verification failed", "error", err)
 		return events.APIGatewayV2HTTPResponse{StatusCode: 401}, nil
 	}
 
@@ -37,7 +42,7 @@ func handler(ctx context.Context, cfg *appconfig.Config, client *dynamodb.Client
 	if req.IsBase64Encoded {
 		decoded, err := base64.StdEncoding.DecodeString(body)
 		if err != nil {
-			log.Printf("gchat-router: base64 decode failed: %v", err)
+			slog.Error("base64 decode failed", "error", err)
 			return events.APIGatewayV2HTTPResponse{StatusCode: 400}, nil
 		}
 		body = string(decoded)
@@ -45,14 +50,14 @@ func handler(ctx context.Context, cfg *appconfig.Config, client *dynamodb.Client
 
 	var evt gchat.Event
 	if err := json.Unmarshal([]byte(body), &evt); err != nil {
-		log.Printf("gchat-router: failed to unmarshal request body: %v", err)
+		slog.Error("failed to unmarshal request body", "error", err)
 		return events.APIGatewayV2HTTPResponse{StatusCode: 400}, nil
 	}
 
 	if evt.Chat.AppCommandPayload != nil {
-		resp, err := handleMessage(ctx, cfg, client, lambdaClient, evt)
+		resp, err := handleMessage(ctx, cfg, store, lambdaClient, evt)
 		if err != nil {
-			log.Printf("gchat-router: handleMessage: %v", err)
+			slog.Error("handleMessage failed", "error", err)
 			return gchatText("An error occurred. Please try again.", evt.Chat.User.Name), nil
 		}
 		return resp, nil
@@ -66,6 +71,8 @@ func ok(body string) (events.APIGatewayV2HTTPResponse, error) {
 }
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
+
 	cfg := appconfig.MustLoad()
 	client, err := dynamo.NewClient(cfg)
 	if err != nil {
@@ -75,8 +82,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("gchat-router: %v", err)
 	}
+	store := repository.NewStore(client, cfg.DynamoDBTable)
 
 	lambda.Start(func(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
-		return handler(ctx, cfg, client, lambdaClient, req)
+		ctx, cancel := context.WithTimeout(ctx, handlerTimeout)
+		defer cancel()
+		return handler(ctx, cfg, store, lambdaClient, req)
 	})
 }

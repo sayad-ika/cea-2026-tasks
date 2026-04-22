@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/sayad-ika/craftsbite/internal/cmdutil"
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
 	"github.com/sayad-ika/craftsbite/internal/dateutil"
@@ -19,33 +20,36 @@ import (
 	"github.com/sayad-ika/craftsbite/internal/services"
 )
 
-func handler(ctx context.Context, client *dynamodb.Client, cfg *appconfig.Config, dateParser *dateutil.DateParser, cutoff *services.CutoffChecker, event payload.CommandEvent) error {
+func handler(ctx context.Context, store *repository.Store, cfg *appconfig.Config, dateParser *dateutil.DateParser, cutoff *services.CutoffChecker, event payload.CommandEvent) error {
 	switch event.CommandName {
 	case "meal":
-		replyContent := handleMeal(ctx, client, cfg.DynamoDBTable, dateParser, cutoff, event)
+		replyContent := handleMeal(ctx, store, cfg, dateParser, cutoff, event)
 		return cmdutil.SendReply(ctx, cfg, event, replyContent)
 	case "location":
-		return handleLocationCommand(ctx, client, cfg, dateParser, cutoff, event)
+		return handleLocationCommand(ctx, store, cfg, dateParser, cutoff, event)
 	case "status":
-		return handleStatusCommand(ctx, client, cfg, dateParser, event)
+		return handleStatusCommand(ctx, store, cfg, dateParser, event)
 	default:
 		return cmdutil.SendReply(ctx, cfg, event, fmt.Sprintf("Unknown command: /%s", event.CommandName))
 	}
 }
 
-func handleStatusCommand(ctx context.Context, client *dynamodb.Client, cfg *appconfig.Config, dateParser *dateutil.DateParser, event payload.CommandEvent) error {
-	dateStr, _ := cmdutil.OptString(event.Options, "date")
-	date, err := dateParser.ParseDateWithDefaults(dateStr)
+func handleStatusCommand(ctx context.Context, store *repository.Store, cfg *appconfig.Config, dateParser *dateutil.DateParser, event payload.CommandEvent) error {
+	var opts payload.StatusOptions
+	if err := event.ParseOptions(&opts); err != nil {
+		return cmdutil.SendReply(ctx, cfg, event, fmt.Sprintf("Invalid command options."))
+	}
+	date, err := dateParser.ParseDateWithDefaults(opts.Date)
 	if err != nil {
 		return cmdutil.SendReply(ctx, cfg, event, fmt.Sprintf("Invalid date: %v\nUse: tomorrow (default), today, +N, or YYYY-MM-DD", err))
 	}
 
-	mealStatuses, err := services.GetUserMealStatus(ctx, client, cfg.DynamoDBTable, event.UserID, date)
+	mealStatuses, err := services.GetUserMealStatus(ctx, store, store, event.UserID, date)
 	if err != nil {
 		return cmdutil.SendReply(ctx, cfg, event, "Unable to fetch meal status. Please try again later.")
 	}
 
-	location, err := services.GetLocation(ctx, client, cfg.DynamoDBTable, event.UserID, date)
+	location, err := services.GetLocation(ctx, store, event.UserID, date)
 	if err != nil {
 		return cmdutil.SendReply(ctx, cfg, event, "Unable to fetch location status. Please try again later.")
 	}
@@ -53,13 +57,13 @@ func handleStatusCommand(ctx context.Context, client *dynamodb.Client, cfg *appc
 	return cmdutil.SendReply(ctx, cfg, event, formatStatusView(date, location.Location, mealStatuses))
 }
 
-func handleBulkLocationUpdate(ctx context.Context, client *dynamodb.Client, cfg *appconfig.Config, cutoff *services.CutoffChecker, event payload.CommandEvent, dates []string, location string) error {
+func handleBulkLocationUpdate(ctx context.Context, store *repository.Store, cfg *appconfig.Config, cutoff *services.CutoffChecker, event payload.CommandEvent, dates []string, location string) error {
 	var successDates []string
 	var failedDates []string
 	var errors []string
 
 	for _, date := range dates {
-		_, err := services.SetLocation(ctx, client, cfg.DynamoDBTable, event.UserID, date, location, cutoff)
+		_, err := services.SetLocation(ctx, store, event.UserID, date, location, cutoff)
 		if err != nil {
 			failedDates = append(failedDates, date)
 			errors = append(errors, fmt.Sprintf("%s: %s", date, locationErrorReply(err, date)))
@@ -94,29 +98,31 @@ func handleBulkLocationUpdate(ctx context.Context, client *dynamodb.Client, cfg 
 	return cmdutil.SendReply(ctx, cfg, event, sb.String())
 }
 
-func handleLocationCommand(ctx context.Context, client *dynamodb.Client, cfg *appconfig.Config, dateParser *dateutil.DateParser, cutoff *services.CutoffChecker, event payload.CommandEvent) error {
-	dateStr, _ := cmdutil.OptString(event.Options, "date")
-	dates, err := dateParser.ParseDateRange(dateStr)
+func handleLocationCommand(ctx context.Context, store *repository.Store, cfg *appconfig.Config, dateParser *dateutil.DateParser, cutoff *services.CutoffChecker, event payload.CommandEvent) error {
+	var opts payload.LocationOptions
+	if err := event.ParseOptions(&opts); err != nil {
+		return cmdutil.SendReply(ctx, cfg, event, "Invalid command options.")
+	}
+	dates, err := dateParser.ParseDateRange(opts.Date)
 	if err != nil {
 		return cmdutil.SendReply(ctx, cfg, event, fmt.Sprintf("Invalid date: %v\nUse: tomorrow (default), today, +N, YYYY-MM-DD, YYYY-MM-DD..YYYY-MM-DD, or week", err))
 	}
 
-	loc, ok := cmdutil.OptString(event.Options, "location")
-	if !ok || (loc != "office" && loc != "wfh") {
+	if opts.Location != "office" && opts.Location != "wfh" {
 		return cmdutil.SendReply(ctx, cfg, event, "Please specify location as `office` or `wfh`.")
 	}
 
 	if len(dates) > 1 {
-		return handleBulkLocationUpdate(ctx, client, cfg, cutoff, event, dates, loc)
+		return handleBulkLocationUpdate(ctx, store, cfg, cutoff, event, dates, opts.Location)
 	}
 
 	date := dates[0]
-	wl, err := services.SetLocation(ctx, client, cfg.DynamoDBTable, event.UserID, date, loc, cutoff)
+	wl, err := services.SetLocation(ctx, store, event.UserID, date, opts.Location, cutoff)
 	if err != nil {
 		return cmdutil.SendReply(ctx, cfg, event, locationErrorReply(err, date))
 	}
 
-	mealStatuses, _ := services.GetUserMealStatus(ctx, client, cfg.DynamoDBTable, event.UserID, date)
+	mealStatuses, _ := services.GetUserMealStatus(ctx, store, store, event.UserID, date)
 
 	if event.Source == "gchat" {
 		mealText := formatMealStatusLine(mealStatuses)
@@ -144,13 +150,13 @@ func formatMealStatusLine(statuses []services.ResolvedStatus) string {
 	return strings.Join(parts, "  ")
 }
 
-func handleBulkMealUpdate(ctx context.Context, client *dynamodb.Client, table, userID string, dates []string, mealType string, isParticipating bool, cutoff *services.CutoffChecker) string {
+func handleBulkMealUpdate(ctx context.Context, store *repository.Store, userID string, dates []string, mealType string, isParticipating bool, cutoff *services.CutoffChecker) string {
 	var successDates []string
 	var failedDates []string
 	var errors []string
 
 	for _, date := range dates {
-		_, err := services.UpdateParticipation(ctx, client, table, userID, date, mealType, isParticipating, cutoff)
+		_, err := services.UpdateParticipation(ctx, store, store, userID, date, mealType, isParticipating, cutoff)
 		if err != nil {
 			failedDates = append(failedDates, date)
 			errors = append(errors, fmt.Sprintf("%s: %s", date, mealErrorReply(err, date)))
@@ -186,20 +192,22 @@ func handleBulkMealUpdate(ctx context.Context, client *dynamodb.Client, table, u
 	return sb.String()
 }
 
-func handleMeal(ctx context.Context, client *dynamodb.Client, table string, dateParser *dateutil.DateParser, cutoff *services.CutoffChecker, event payload.CommandEvent) string {
-	dateStr, _ := cmdutil.OptString(event.Options, "date")
-	dates, err := dateParser.ParseDateRange(dateStr)
+func handleMeal(ctx context.Context, store *repository.Store, cfg *appconfig.Config, dateParser *dateutil.DateParser, cutoff *services.CutoffChecker, event payload.CommandEvent) string {
+	var opts payload.MealOptions
+	if err := event.ParseOptions(&opts); err != nil {
+		return "Invalid command options."
+	}
+	dates, err := dateParser.ParseDateRange(opts.Date)
 	if err != nil {
 		return fmt.Sprintf("Invalid date: %v\nUse: tomorrow (default), +N, YYYY-MM-DD, YYYY-MM-DD..YYYY-MM-DD, or week", err)
 	}
 
-	statusStr, ok := cmdutil.OptString(event.Options, "status")
-	if !ok || (statusStr != "in" && statusStr != "out") {
+	if opts.Status != "in" && opts.Status != "out" {
 		return "Please specify status as `in` or `out`."
 	}
-	isParticipating := statusStr == "in"
+	isParticipating := opts.Status == "in"
 
-	mealType, _ := cmdutil.OptString(event.Options, "meal")
+	mealType := opts.Meal
 	if mealType == "" {
 		mealType = "all"
 	}
@@ -208,11 +216,11 @@ func handleMeal(ctx context.Context, client *dynamodb.Client, table string, date
 	}
 
 	if len(dates) > 1 {
-		return handleBulkMealUpdate(ctx, client, table, event.UserID, dates, mealType, isParticipating, cutoff)
+		return handleBulkMealUpdate(ctx, store, event.UserID, dates, mealType, isParticipating, cutoff)
 	}
 
 	date := dates[0]
-	statuses, err := services.UpdateParticipation(ctx, client, table, event.UserID, date, mealType, isParticipating, cutoff)
+	statuses, err := services.UpdateParticipation(ctx, store, store, event.UserID, date, mealType, isParticipating, cutoff)
 	if err != nil {
 		return mealErrorReply(err, date)
 	}
@@ -361,6 +369,8 @@ func formatStatusView(date, location string, mealStatuses []services.ResolvedSta
 }
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
+
 	cfg := appconfig.MustLoad()
 	client, err := dynamo.NewClient(cfg)
 	if err != nil {
@@ -374,8 +384,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("self: %v", err)
 	}
+	store := repository.NewStore(client, cfg.DynamoDBTable)
 
+	const handlerTimeout = 28 * time.Second
 	lambda.Start(func(ctx context.Context, event payload.CommandEvent) error {
-		return handler(ctx, client, cfg, dateParser, cutoff, event)
+		ctx, cancel := context.WithTimeout(ctx, handlerTimeout)
+		defer cancel()
+		return handler(ctx, store, cfg, dateParser, cutoff, event)
 	})
 }

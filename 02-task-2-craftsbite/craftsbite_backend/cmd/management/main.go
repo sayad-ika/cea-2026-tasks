@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
+	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/sayad-ika/craftsbite/internal/cmdutil"
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
 	"github.com/sayad-ika/craftsbite/internal/dateutil"
@@ -19,10 +21,10 @@ import (
 	"github.com/sayad-ika/craftsbite/internal/services"
 )
 
-func handler(ctx context.Context, client *dynamodb.Client, cfg *appconfig.Config, dateParser *dateutil.DateParser, event payload.CommandEvent) error {
+func handler(ctx context.Context, store *repository.Store, cfg *appconfig.Config, dateParser *dateutil.DateParser, event payload.CommandEvent) error {
 	switch event.CommandName {
 	case "team-summary":
-		return handleTeamSummaryCommand(ctx, client, cfg, dateParser, event)
+		return handleTeamSummaryCommand(ctx, store, cfg, dateParser, event)
 	case "override":
 		return cmdutil.SendReply(ctx, cfg, event, "This feature is coming soon.")
 	default:
@@ -30,18 +32,21 @@ func handler(ctx context.Context, client *dynamodb.Client, cfg *appconfig.Config
 	}
 }
 
-func handleTeamSummaryCommand(ctx context.Context, client *dynamodb.Client, cfg *appconfig.Config, dateParser *dateutil.DateParser, event payload.CommandEvent) error {
+func handleTeamSummaryCommand(ctx context.Context, store *repository.Store, cfg *appconfig.Config, dateParser *dateutil.DateParser, event payload.CommandEvent) error {
 	if event.Role != "team_lead" && event.Role != "admin" {
 		return cmdutil.SendReply(ctx, cfg, event, "You do not have permission to use `/team-summary`.")
 	}
 
-	dateStr, _ := cmdutil.OptString(event.Options, "date")
-	date, err := dateParser.ParseDateWithDefaults(dateStr)
+	var opts payload.TeamSummaryOptions
+	if err := event.ParseOptions(&opts); err != nil {
+		return cmdutil.SendReply(ctx, cfg, event, "Invalid command options.")
+	}
+	date, err := dateParser.ParseDateWithDefaults(opts.Date)
 	if err != nil {
 		return cmdutil.SendReply(ctx, cfg, event, fmt.Sprintf("Invalid date: %v\nUse: tomorrow (default), +N, or YYYY-MM-DD", err))
 	}
 
-	teams, err := repository.FindTeamsByLeadID(ctx, client, cfg.DynamoDBTable, event.UserID)
+	teams, err := store.FindTeamsByLeadID(ctx, event.UserID)
 	if err != nil {
 		return cmdutil.SendReply(ctx, cfg, event, "Something went wrong fetching your team. Please try again later.")
 	}
@@ -49,12 +54,12 @@ func handleTeamSummaryCommand(ctx context.Context, client *dynamodb.Client, cfg 
 		return cmdutil.SendReply(ctx, cfg, event, "You are not assigned as a team lead to any team.")
 	}
 
-	team, err := repository.GetTeamByID(ctx, client, cfg.DynamoDBTable, teams[0].ID)
+	team, err := store.GetTeamByID(ctx, teams[0].ID)
 	if err != nil || team == nil {
 		return cmdutil.SendReply(ctx, cfg, event, "Team not found. Please try again later.")
 	}
 
-	summary, err := services.GetTeamSummary(ctx, client, cfg.DynamoDBTable, teams[0].ID, date)
+	summary, err := services.GetTeamSummary(ctx, store, teams[0].ID, date)
 	if err != nil {
 		return cmdutil.SendReply(ctx, cfg, event, "Something went wrong fetching the team summary. Please try again later.")
 	}
@@ -125,6 +130,8 @@ func formatTeamSummary(team *repository.Team, date string, summary *services.Tea
 }
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
+
 	cfg := appconfig.MustLoad()
 	client, err := dynamo.NewClient(cfg)
 	if err != nil {
@@ -134,8 +141,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("management: %v", err)
 	}
+	store := repository.NewStore(client, cfg.DynamoDBTable)
 
+	const handlerTimeout = 28 * time.Second
 	lambda.Start(func(ctx context.Context, event payload.CommandEvent) error {
-		return handler(ctx, client, cfg, dateParser, event)
+		ctx, cancel := context.WithTimeout(ctx, handlerTimeout)
+		defer cancel()
+		return handler(ctx, store, cfg, dateParser, event)
 	})
 }
