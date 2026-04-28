@@ -12,10 +12,11 @@ import (
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
 	"github.com/sayad-ika/craftsbite/internal/discord"
 	"github.com/sayad-ika/craftsbite/internal/gchat"
+	"github.com/sayad-ika/craftsbite/internal/ratelimit"
 	"github.com/sayad-ika/craftsbite/internal/repository"
 )
 
-func handleMessage(ctx context.Context, cfg *appconfig.Config, store *repository.Store, lambdaClient *lambdaclient.Client, evt gchat.Event) (events.APIGatewayV2HTTPResponse, error) {
+func handleMessage(ctx context.Context, cfg *appconfig.Config, store *repository.Store, lambdaClient *lambdaclient.Client, limiter *ratelimit.Limiter, evt gchat.Event) (events.APIGatewayV2HTTPResponse, error) {
 	viewerName := evt.Chat.User.Name
 
 	p := evt.Chat.AppCommandPayload
@@ -38,6 +39,16 @@ func handleMessage(ctx context.Context, cfg *appconfig.Config, store *repository
 
 	if !discord.CheckPermission(cmdEvt.CommandName, role) {
 		return gchatText(fmt.Sprintf("You do not have permission to use `/%s`.", cmdEvt.CommandName), viewerName), nil
+	}
+
+	allowed, err := limiter.Allow(ctx, userID, cmdEvt.CommandName)
+	if err != nil {
+		slog.Error("rate limit check failed", "error", err, "userID", userID, "command", cmdEvt.CommandName)
+		return events.APIGatewayV2HTTPResponse{StatusCode: 500}, nil
+	}
+	if !allowed {
+		slog.Warn("rate limit exceeded", "userID", userID, "command", cmdEvt.CommandName)
+		return gchatText("Rate limit exceeded. Please slow down.", viewerName), nil
 	}
 
 	targetFn, ok := discord.Dispatch(cfg, cmdEvt.CommandName)

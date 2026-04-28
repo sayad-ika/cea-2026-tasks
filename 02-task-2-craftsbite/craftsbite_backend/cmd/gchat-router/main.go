@@ -17,6 +17,7 @@ import (
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
 	"github.com/sayad-ika/craftsbite/internal/dynamo"
 	"github.com/sayad-ika/craftsbite/internal/gchat"
+	"github.com/sayad-ika/craftsbite/internal/ratelimit"
 	"github.com/sayad-ika/craftsbite/internal/repository"
 )
 
@@ -32,7 +33,7 @@ func newLambdaClient(c *appconfig.Config) (*lambdaclient.Client, error) {
 	return lambdaclient.NewFromConfig(awscfg), nil
 }
 
-func handler(ctx context.Context, cfg *appconfig.Config, store *repository.Store, lambdaClient *lambdaclient.Client, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
+func handler(ctx context.Context, cfg *appconfig.Config, store *repository.Store, lambdaClient *lambdaclient.Client, limiter *ratelimit.Limiter, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
 	_ = extractJWTEmail(req) // log for audit; JWT authenticates the Chat app, not the end user
 
 	body := req.Body
@@ -52,7 +53,7 @@ func handler(ctx context.Context, cfg *appconfig.Config, store *repository.Store
 	}
 
 	if evt.Chat.AppCommandPayload != nil {
-		resp, err := handleMessage(ctx, cfg, store, lambdaClient, evt)
+		resp, err := handleMessage(ctx, cfg, store, lambdaClient, limiter, evt)
 		if err != nil {
 			slog.Error("handleMessage failed", "error", err)
 			return gchatText("An error occurred. Please try again.", evt.Chat.User.Name), nil
@@ -95,9 +96,15 @@ func main() {
 	}
 	store := repository.NewStore(client, cfg.DynamoDBTable)
 
+	tz, err := time.LoadLocation(cfg.Timezone)
+	if err != nil {
+		log.Fatalf("gchat-router: invalid timezone %q: %v", cfg.Timezone, err)
+	}
+	limiter := ratelimit.NewLimiter(client, cfg.DynamoDBTable, cfg.RateLimitMaxTokens, cfg.RateLimitRefillSeconds, tz)
+
 	lambda.Start(func(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
 		ctx, cancel := context.WithTimeout(ctx, handlerTimeout)
 		defer cancel()
-		return handler(ctx, cfg, store, lambdaClient, req)
+		return handler(ctx, cfg, store, lambdaClient, limiter, req)
 	})
 }
