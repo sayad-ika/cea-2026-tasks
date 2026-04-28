@@ -33,10 +33,7 @@ func newLambdaClient(c *appconfig.Config) (*lambdaclient.Client, error) {
 }
 
 func handler(ctx context.Context, cfg *appconfig.Config, store *repository.Store, lambdaClient *lambdaclient.Client, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
-	if err := verifyGChatToken(ctx, req.Headers["authorization"]); err != nil {
-		slog.Error("JWT verification failed", "error", err)
-		return events.APIGatewayV2HTTPResponse{StatusCode: 401}, nil
-	}
+	_ = extractJWTEmail(req) // log for audit; JWT authenticates the Chat app, not the end user
 
 	body := req.Body
 	if req.IsBase64Encoded {
@@ -64,6 +61,20 @@ func handler(ctx context.Context, cfg *appconfig.Config, store *repository.Store
 	}
 
 	return ok("")
+}
+
+func extractJWTEmail(req events.APIGatewayV2HTTPRequest) string {
+	if req.RequestContext.Authorizer == nil || req.RequestContext.Authorizer.JWT == nil {
+		slog.Warn("JWT authorizer claims not present — is the native JWT authorizer attached to this route?")
+		return ""
+	}
+	email, ok := req.RequestContext.Authorizer.JWT.Claims["email"]
+	if !ok || email == "" {
+		slog.Warn("email claim missing from JWT")
+		return ""
+	}
+	slog.Info("JWT claims extracted", "email", email, "sub", req.RequestContext.Authorizer.JWT.Claims["sub"])
+	return email
 }
 
 func ok(body string) (events.APIGatewayV2HTTPResponse, error) {
