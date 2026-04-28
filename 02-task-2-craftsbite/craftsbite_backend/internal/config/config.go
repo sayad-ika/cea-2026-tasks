@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -32,6 +33,9 @@ type Config struct {
 
 	DiscordHeadcountChannelID string
 	GChatHeadcountSpace       string
+
+	RateLimitMaxTokens     int
+	RateLimitRefillSeconds int
 }
 
 const paramPrefix = "/craftsbite/"
@@ -67,6 +71,8 @@ func Load() (*Config, error) {
 		GChatServiceAccountJSON:      os.Getenv("GCHAT_SERVICE_ACCOUNT_JSON"),
 		DiscordHeadcountChannelID:    os.Getenv("DISCORD_HEADCOUNT_CHANNEL_ID"),
 		GChatHeadcountSpace:          os.Getenv("GCHAT_HEADCOUNT_SPACE"),
+		RateLimitMaxTokens:           parseIntDefault(os.Getenv("RATE_LIMIT_MAX_TOKENS"), 5),
+		RateLimitRefillSeconds:       parseIntDefault(os.Getenv("RATE_LIMIT_REFILL_SECONDS"), 30),
 		DiscordBotToken:              params[paramPrefix+"DISCORD_BOT_TOKEN"],
 		DiscordPublicKey:             params[paramPrefix+"DISCORD_PUBLIC_KEY"],
 	}
@@ -112,6 +118,17 @@ func fetchParams(ctx context.Context, client *ssm.Client, names []string) (map[s
 		result[*p.Name] = *p.Value
 	}
 	return result, nil
+}
+
+func parseIntDefault(s string, def int) int {
+	if s == "" {
+		return def
+	}
+	v, err := strconv.Atoi(s)
+	if err != nil {
+		return def
+	}
+	return v
 }
 
 func MustLoad() *Config {
