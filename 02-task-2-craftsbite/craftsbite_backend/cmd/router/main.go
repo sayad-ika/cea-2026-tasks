@@ -18,6 +18,7 @@ import (
 	"github.com/sayad-ika/craftsbite/internal/discord"
 	"github.com/sayad-ika/craftsbite/internal/dynamo"
 	"github.com/sayad-ika/craftsbite/internal/payload"
+	"github.com/sayad-ika/craftsbite/internal/ratelimit"
 	"github.com/sayad-ika/craftsbite/internal/repository"
 )
 
@@ -72,7 +73,7 @@ func newLambdaClient(c *appconfig.Config) (*lambdaclient.Client, error) {
 	return lambdaclient.NewFromConfig(awscfg), nil
 }
 
-func handler(ctx context.Context, c *appconfig.Config, store *repository.Store, lambdaClient *lambdaclient.Client, event events.APIGatewayV2HTTPRequest) (RouterResponse, error) {
+func handler(ctx context.Context, c *appconfig.Config, store *repository.Store, lambdaClient *lambdaclient.Client, limiter *ratelimit.Limiter, event events.APIGatewayV2HTTPRequest) (RouterResponse, error) {
 	timestamp := event.Headers["x-signature-timestamp"]
 	signature := event.Headers["x-signature-ed25519"]
 	if !discord.VerifySignature(c.DiscordPublicKey, timestamp, event.Body, signature) {
@@ -115,6 +116,16 @@ func handler(ctx context.Context, c *appconfig.Config, store *repository.Store, 
 
 	if !discord.CheckPermission(commandName, role) {
 		return ephemeral(fmt.Sprintf("You do not have permission to use `/%s`.", commandName)), nil
+	}
+
+	allowed, err := limiter.Allow(ctx, userID, commandName)
+	if err != nil {
+		slog.Error("rate limit check failed", "error", err, "userID", userID, "command", commandName)
+		return ephemeral("An internal error occurred. Please try again."), nil
+	}
+	if !allowed {
+		slog.Warn("rate limit exceeded", "userID", userID, "command", commandName)
+		return ephemeral("Rate limit exceeded. Please slow down."), nil
 	}
 
 	optionsMap := make(map[string]interface{}, len(interaction.Data.Options))
@@ -167,10 +178,16 @@ func main() {
 	}
 	store := repository.NewStore(client, cfg.DynamoDBTable)
 
+	tz, err := time.LoadLocation(cfg.Timezone)
+	if err != nil {
+		log.Fatalf("router: invalid timezone %q: %v", cfg.Timezone, err)
+	}
+	limiter := ratelimit.NewLimiter(client, cfg.DynamoDBTable, cfg.RateLimitMaxTokens, cfg.RateLimitRefillSeconds, tz)
+
 	const handlerTimeout = 28 * time.Second
 	lambda.Start(func(ctx context.Context, event events.APIGatewayV2HTTPRequest) (RouterResponse, error) {
 		ctx, cancel := context.WithTimeout(ctx, handlerTimeout)
 		defer cancel()
-		return handler(ctx, cfg, store, lambdaClient, event)
+		return handler(ctx, cfg, store, lambdaClient, limiter, event)
 	})
 }
