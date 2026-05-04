@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/sayad-ika/craftsbite/internal/dateutil"
+	"github.com/sayad-ika/craftsbite/internal/discord"
 	"github.com/sayad-ika/craftsbite/internal/repository"
 	"github.com/sayad-ika/craftsbite/internal/services"
 )
@@ -26,7 +28,7 @@ func TestRunScheduledHeadcount_NoMeals(t *testing.T) {
 		availableMeals: func(ctx context.Context, date string) ([]string, error) {
 			return nil, nil
 		},
-		sendDiscord: func(content string) error {
+		sendDiscord: func(message discord.Message) error {
 			t.Error("sendDiscord should not be called when no meals")
 			return nil
 		},
@@ -57,7 +59,7 @@ func TestRunScheduledHeadcount_HeadcountError(t *testing.T) {
 		headcount: func(ctx context.Context, date string) (*services.HeadcountResult, error) {
 			return nil, errors.New("dynamo down")
 		},
-		sendDiscord: func(content string) error {
+		sendDiscord: func(message discord.Message) error {
 			t.Error("sendDiscord should not be called on headcount error")
 			return nil
 		},
@@ -87,8 +89,11 @@ func TestRunScheduledHeadcount_BothSucceed(t *testing.T) {
 		headcount: func(ctx context.Context, date string) (*services.HeadcountResult, error) {
 			return &services.HeadcountResult{Date: date, TotalUsers: 5}, nil
 		},
-		sendDiscord: func(content string) error {
+		sendDiscord: func(message discord.Message) error {
 			discordCalled.Store(true)
+			if len(message.Embeds) == 0 {
+				t.Error("expected discord embed payload")
+			}
 			return nil
 		},
 		sendGChat: func(ctx context.Context, body []byte) error {
@@ -112,6 +117,51 @@ func TestRunScheduledHeadcount_BothSucceed(t *testing.T) {
 	}
 }
 
+func TestRunScheduledHeadcount_UsesCompactSummaryPayload(t *testing.T) {
+	deps := scheduledDeps{
+		availableMeals: func(ctx context.Context, date string) ([]string, error) {
+			return []string{"lunch"}, nil
+		},
+		headcount: func(ctx context.Context, date string) (*services.HeadcountResult, error) {
+			return &services.HeadcountResult{
+				Date:           date,
+				DayStatus:      "normal",
+				TotalUsers:     8,
+				LocationCounts: services.LocationCount{Office: 5, WFH: 3},
+				MealCounts: map[string]services.MealCount{
+					"lunch": {MealType: "lunch", OptedIn: 5, OptedOut: 3},
+				},
+				Teams: []services.TeamHeadcount{{TeamName: "Engineering", MemberCount: 4}},
+			}, nil
+		},
+		sendDiscord: func(message discord.Message) error {
+			if len(message.Embeds) != 1 {
+				t.Fatalf("expected 1 compact embed, got %d", len(message.Embeds))
+			}
+			for _, field := range message.Embeds[0].Fields {
+				if field.Name == "Engineering" || strings.Contains(field.Value, "Engineering") {
+					t.Fatal("did not expect team-specific details in scheduled discord payload")
+				}
+			}
+			return nil
+		},
+		sendGChat: func(ctx context.Context, body []byte) error {
+			if strings.Contains(string(body), "Engineering") {
+				t.Fatal("did not expect team-specific details in scheduled gchat payload")
+			}
+			return nil
+		},
+		listAudience: func(ctx context.Context, roles ...string) ([]repository.User, error) {
+			return nil, nil
+		},
+	}
+
+	err := runScheduledHeadcount(context.Background(), testDateParser(t), deps, ScheduledHeadcountEvent{Date: "2026-05-01"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestRunScheduledHeadcount_DiscordFails_GChatSucceeds(t *testing.T) {
 	var gchatCalled atomic.Bool
 
@@ -122,7 +172,7 @@ func TestRunScheduledHeadcount_DiscordFails_GChatSucceeds(t *testing.T) {
 		headcount: func(ctx context.Context, date string) (*services.HeadcountResult, error) {
 			return &services.HeadcountResult{Date: date, TotalUsers: 5}, nil
 		},
-		sendDiscord: func(content string) error {
+		sendDiscord: func(message discord.Message) error {
 			return errors.New("discord 403")
 		},
 		sendGChat: func(ctx context.Context, body []byte) error {
@@ -153,7 +203,7 @@ func TestRunScheduledHeadcount_GChatFails_DiscordSucceeds(t *testing.T) {
 		headcount: func(ctx context.Context, date string) (*services.HeadcountResult, error) {
 			return &services.HeadcountResult{Date: date, TotalUsers: 5}, nil
 		},
-		sendDiscord: func(content string) error {
+		sendDiscord: func(message discord.Message) error {
 			discordCalled.Store(true)
 			return nil
 		},
@@ -186,7 +236,7 @@ func TestRunScheduledHeadcount_DeliveriesRunInParallel(t *testing.T) {
 		headcount: func(ctx context.Context, date string) (*services.HeadcountResult, error) {
 			return &services.HeadcountResult{Date: date, TotalUsers: 5}, nil
 		},
-		sendDiscord: func(content string) error {
+		sendDiscord: func(message discord.Message) error {
 			close(discordStarted)
 			<-releaseDiscord
 			return nil
@@ -237,7 +287,7 @@ func TestRunScheduledHeadcount_BothFail(t *testing.T) {
 		headcount: func(ctx context.Context, date string) (*services.HeadcountResult, error) {
 			return &services.HeadcountResult{Date: date, TotalUsers: 5}, nil
 		},
-		sendDiscord: func(content string) error {
+		sendDiscord: func(message discord.Message) error {
 			return errors.New("discord error")
 		},
 		sendGChat: func(ctx context.Context, body []byte) error {
@@ -265,7 +315,7 @@ func TestRunScheduledHeadcount_DateOverride(t *testing.T) {
 		headcount: func(ctx context.Context, date string) (*services.HeadcountResult, error) {
 			return &services.HeadcountResult{Date: date, TotalUsers: 3}, nil
 		},
-		sendDiscord: func(content string) error { return nil },
+		sendDiscord: func(message discord.Message) error { return nil },
 		sendGChat:   func(ctx context.Context, body []byte) error { return nil },
 		listAudience: func(ctx context.Context, roles ...string) ([]repository.User, error) {
 			return nil, nil
