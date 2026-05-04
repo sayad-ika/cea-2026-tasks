@@ -12,19 +12,16 @@ import (
 var channelHTTPClient = &http.Client{Timeout: 10 * time.Second}
 
 func CreateChannelMessage(botToken, channelID, content string) error {
+	return CreateChannelMessageObject(botToken, channelID, Message{Content: content})
+}
+
+func CreateChannelMessageObject(botToken, channelID string, message Message) error {
 	if botToken == "" || channelID == "" {
 		return nil
 	}
 
-	const discordLimit = 2000
-	if len(content) > discordLimit {
-		suffix := "\n_(message truncated — use `/headcount` for full results)_"
-		content = content[:discordLimit-len(suffix)] + suffix
-	}
-
 	url := fmt.Sprintf("https://discord.com/api/v10/channels/%s/messages", channelID)
-	payload := map[string]string{"content": content}
-	body, err := json.Marshal(payload)
+	body, err := json.Marshal(NormalizeMessage(message))
 	if err != nil {
 		return fmt.Errorf("discord: marshal channel message: %w", err)
 	}
