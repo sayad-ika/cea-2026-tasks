@@ -26,7 +26,7 @@ type ScheduledHeadcountEvent struct {
 
 type scheduledDeps struct {
 	headcount      func(ctx context.Context, date string) (*services.HeadcountResult, error)
-	sendDiscord    func(content string) error
+	sendDiscord    func(message discord.Message) error
 	sendGChat      func(ctx context.Context, body []byte) error
 	listAudience   func(ctx context.Context, roles ...string) ([]repository.User, error)
 	availableMeals func(ctx context.Context, date string) ([]string, error)
@@ -73,8 +73,8 @@ func runScheduledHeadcount(ctx context.Context, dateParser *dateutil.DateParser,
 		return fmt.Errorf("get headcount: %w", err)
 	}
 
-	discordBody := headcountreport.BuildDiscordMessage(result)
-	gchatBody, err := headcountreport.BuildGChatCard(result)
+	discordBody := headcountreport.BuildScheduledDiscordMessage(result)
+	gchatBody, err := headcountreport.BuildScheduledGChatCard(result)
 	if err != nil {
 		return fmt.Errorf("build gchat card: %w", err)
 	}
@@ -135,8 +135,8 @@ func main() {
 		headcount: func(ctx context.Context, date string) (*services.HeadcountResult, error) {
 			return services.GetHeadcount(ctx, store, date)
 		},
-		sendDiscord: func(content string) error {
-			return discord.CreateChannelMessage(cfg.DiscordBotToken, cfg.DiscordHeadcountChannelID, content)
+		sendDiscord: func(message discord.Message) error {
+			return discord.CreateChannelMessageObject(cfg.DiscordBotToken, cfg.DiscordHeadcountChannelID, message)
 		},
 		sendGChat: func(ctx context.Context, body []byte) error {
 			return gchat.CreateSpaceMessage(ctx, cfg.GChatServiceAccountJSON, cfg.GChatHeadcountSpace, body)
