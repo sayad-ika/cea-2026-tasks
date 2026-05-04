@@ -12,7 +12,7 @@ export async function submitApplication(
     console.log("Submitting application with data:", data);
     return new Promise((resolve) => {
         setTimeout(() => {
-            const ok = Math.random() > 0.3;
+            const ok = Math.random() > 0.5;
             resolve({
                 success: ok,
                 message: ok
