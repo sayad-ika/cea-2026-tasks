@@ -11,6 +11,7 @@ import { ReviewSubmit } from "./components/ReviewSubmit";
 import { SubmissionSuccess } from "./components/SubmissionSuccess";
 import Toast from "./components/Toast";
 import type { ToastType } from "./type/toast";
+import logoUrl from "./assets/new_vite.svg";
 
 const STEP_LABELS = ["Personal Info", "Experience", "Review & Submit"];
 
@@ -114,9 +115,16 @@ export default function App() {
     return (
         <div className="min-h-screen bg-[#FDF6EC] flex items-center justify-center px-4 py-12">
             <div className="w-full max-w-xl bg-[#FFFCF7] rounded-2xl shadow-lg p-8 border border-[#E5DDD0]">
-                <h1 className="text-2xl font-bold text-neutral-900 mb-6 text-center">
-                    Craftsmen Job Application
-                </h1>
+                <div className="flex items-center justify-center gap-3 mb-6">
+                    <img
+                        src={logoUrl}
+                        alt="Company logo"
+                        className="w-10 h-10"
+                    />
+                    <h1 className="text-2xl font-bold text-neutral-900">
+                        Craftsmen Job Application Portal
+                    </h1>
+                </div>
 
                 {submittedData ? (
                     <SubmissionSuccess
