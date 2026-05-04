@@ -1,6 +1,7 @@
 package discord
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,7 +17,7 @@ func withFollowupServer(t *testing.T, handler http.HandlerFunc, fn func()) {
 	defer func() { followupClient = orig }()
 
 	followupClient = &http.Client{
-		Timeout: orig.Timeout,
+		Timeout:   orig.Timeout,
 		Transport: &urlRewriter{target: server.Listener.Addr().String()},
 	}
 
@@ -28,9 +29,17 @@ func TestSendFollowup_Success(t *testing.T) {
 		if r.Method != http.MethodPatch {
 			t.Errorf("expected PATCH, got %s", r.Method)
 		}
+		var payload map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload: %v", err)
+		}
+		embeds, ok := payload["embeds"].([]interface{})
+		if !ok || len(embeds) != 1 {
+			t.Fatalf("expected 1 embed, got %#v", payload["embeds"])
+		}
 		w.WriteHeader(http.StatusOK)
 	}, func() {
-		err := SendFollowup("app-id", "token-abc", "response text")
+		err := SendFollowupMessage("app-id", "token-abc", NoticeMessage("CraftsBite Update", "response text"))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

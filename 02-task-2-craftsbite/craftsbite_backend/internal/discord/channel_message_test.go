@@ -55,9 +55,17 @@ func TestCreateChannelMessage_Success(t *testing.T) {
 		if r.Header.Get("Authorization") != "Bot test-token" {
 			t.Errorf("expected Bot test-token auth header")
 		}
+		var payload map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request payload: %v", err)
+		}
+		embeds, ok := payload["embeds"].([]interface{})
+		if !ok || len(embeds) != 1 {
+			t.Fatalf("expected 1 embed, got %#v", payload["embeds"])
+		}
 		w.WriteHeader(http.StatusOK)
 	}, func() {
-		err := CreateChannelMessage("test-token", "chan123", "hello world")
+		err := CreateChannelMessageObject("test-token", "chan123", NoticeMessage("Headcount Snapshot", "hello world"))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -82,9 +90,9 @@ func TestCreateChannelMessage_Non2xx(t *testing.T) {
 func TestCreateChannelMessage_Truncation(t *testing.T) {
 	var receivedContent string
 	withTestServer(t, func(w http.ResponseWriter, r *http.Request) {
-		var body map[string]string
+		var body map[string]interface{}
 		json.NewDecoder(r.Body).Decode(&body)
-		receivedContent = body["content"]
+		receivedContent = body["content"].(string)
 		w.WriteHeader(http.StatusOK)
 	}, func() {
 		longContent := strings.Repeat("a", 2500)
