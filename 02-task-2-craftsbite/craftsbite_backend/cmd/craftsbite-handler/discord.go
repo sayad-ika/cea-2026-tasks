@@ -16,19 +16,24 @@ import (
 
 // Type 1 = PONG, Type 4 = immediate message, Type 5 = deferred ("thinking").
 type RouterResponse struct {
-	Type int           `json:"type"`
-	Data *ResponseData `json:"data,omitempty"`
-}
-
-type ResponseData struct {
-	Content string `json:"content"`
-	Flags   int    `json:"flags"`
+	Type int              `json:"type"`
+	Data *discord.Message `json:"data,omitempty"`
 }
 
 func ephemeral(msg string) RouterResponse {
+	return ephemeralNotice(msg, discord.NoticeToneInfo)
+}
+
+func ephemeralNotice(msg string, tone discord.NoticeTone) RouterResponse {
+	return ephemeralMessage(discord.ToneMessage(discord.DefaultNoticeTitle(tone), msg, tone))
+}
+
+func ephemeralMessage(message discord.Message) RouterResponse {
+	message.Flags = 64
+	message = discord.NormalizeMessage(message)
 	return RouterResponse{
 		Type: 4,
-		Data: &ResponseData{Content: msg, Flags: 64},
+		Data: &message,
 	}
 }
 
@@ -88,18 +93,18 @@ func discordCommandEvent(ctx context.Context, cfg *appconfig.Config, store *repo
 	}
 
 	if userID == "" {
-		resp := ephemeral("You are not registered. Please contact an administrator.")
+		resp := ephemeralNotice("You are not registered. Please contact an administrator.", discord.NoticeToneWarning)
 		return payload.CommandEvent{}, &resp, nil
 	}
 
 	commandName := interaction.Data.Name
 	if !knownCommand(commandName) {
-		resp := ephemeral(fmt.Sprintf("Unknown command: /%s", commandName))
+		resp := ephemeralNotice(fmt.Sprintf("Unknown command: /%s", commandName), discord.NoticeToneWarning)
 		return payload.CommandEvent{}, &resp, nil
 	}
 
 	if !discord.CheckPermission(commandName, role) {
-		resp := ephemeral(fmt.Sprintf("You do not have permission to use `/%s`.", commandName))
+		resp := ephemeralNotice(fmt.Sprintf("You do not have permission to use `/%s`.", commandName), discord.NoticeToneWarning)
 		return payload.CommandEvent{}, &resp, nil
 	}
 
@@ -150,7 +155,7 @@ func getHeader(headers map[string]string, name string) string {
 
 func knownCommand(commandName string) bool {
 	switch commandName {
-	case "meal", "location", "status", "override", "team-summary", "headcount", "schedule-day", "admin":
+	case "help", "meal", "location", "status", "override", "team-summary", "headcount", "schedule-day", "admin":
 		return true
 	default:
 		return false

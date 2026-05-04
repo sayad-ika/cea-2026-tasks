@@ -42,14 +42,18 @@ type slashCommand struct {
 func commands() []slashCommand {
 	return []slashCommand{
 		{
+			Name:        "help",
+			Description: "Show the commands available to you",
+		},
+		{
 			Name:        "meal",
-			Description: "Update your meal participation for a date",
+			Description: "Update your meal participation for a date, or toggle it if status is omitted",
 			Options: []commandOption{
 				{
 					Type:        optTypeString,
 					Name:        "status",
-					Description: "Participation status",
-					Required:    true,
+					Description: "Participation status (omit to toggle current choice)",
+					Required:    false,
 					Choices: []commandChoice{
 						{Name: "In", Value: "in"},
 						{Name: "Out", Value: "out"},
@@ -91,13 +95,13 @@ func commands() []slashCommand {
 		},
 		{
 			Name:        "location",
-			Description: "Set your work location for a date",
+			Description: "Set your work location for a date, or toggle it if location is omitted",
 			Options: []commandOption{
 				{
 					Type:        optTypeString,
 					Name:        "location",
-					Description: "Work location",
-					Required:    true,
+					Description: "Work location (omit to toggle current choice)",
+					Required:    false,
 					Choices: []commandChoice{
 						{Name: "Office", Value: "office"},
 						{Name: "WFH", Value: "wfh"},

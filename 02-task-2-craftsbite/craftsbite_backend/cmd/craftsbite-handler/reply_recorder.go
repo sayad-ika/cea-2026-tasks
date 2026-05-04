@@ -8,6 +8,8 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/sayad-ika/craftsbite/internal/cmdutil"
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
+	"github.com/sayad-ika/craftsbite/internal/discord"
+	"github.com/sayad-ika/craftsbite/internal/gchat"
 	"github.com/sayad-ika/craftsbite/internal/payload"
 )
 
@@ -29,12 +31,42 @@ func recorderFromContext(ctx context.Context) *replyRecorder {
 }
 
 func sendReply(ctx context.Context, cfg *appconfig.Config, event payload.CommandEvent, text string) error {
+	return sendNotice(ctx, cfg, event, discord.NoticeToneInfo, text)
+}
+
+func sendWarningReply(ctx context.Context, cfg *appconfig.Config, event payload.CommandEvent, text string) error {
+	return sendNotice(ctx, cfg, event, discord.NoticeToneWarning, text)
+}
+
+func sendErrorReply(ctx context.Context, cfg *appconfig.Config, event payload.CommandEvent, text string) error {
+	return sendNotice(ctx, cfg, event, discord.NoticeToneError, text)
+}
+
+func sendNotice(ctx context.Context, cfg *appconfig.Config, event payload.CommandEvent, tone discord.NoticeTone, text string) error {
+	if event.Source == "discord" {
+		message := discord.ToneMessage(discord.DefaultNoticeTitle(tone), text, tone)
+		return sendDiscordMessage(ctx, cfg, event, message)
+	}
+
+	card, err := gchat.NoticeCard(discord.DefaultNoticeTitle(tone), discord.DefaultNoticeSubtitle(tone), text, tone)
+	if err != nil {
+		if recorder := recorderFromContext(ctx); recorder != nil {
+			resp := gchatNoticeText(text, event.GChatViewerName, tone)
+			recorder.response = &resp
+			return nil
+		}
+		return cmdutil.SendReply(ctx, cfg, event, text)
+	}
+	return sendGChatCard(ctx, cfg, event, card)
+}
+
+func sendDiscordMessage(ctx context.Context, cfg *appconfig.Config, event payload.CommandEvent, message discord.Message) error {
 	if recorder := recorderFromContext(ctx); recorder != nil {
-		resp := recorder.textResponse(event, text)
+		resp := discordJSON(ephemeralMessage(message))
 		recorder.response = &resp
 		return nil
 	}
-	return cmdutil.SendReply(ctx, cfg, event, text)
+	return cmdutil.SendDiscordMessage(ctx, cfg, event, message)
 }
 
 func sendGChatCard(ctx context.Context, cfg *appconfig.Config, event payload.CommandEvent, card []byte) error {
@@ -51,9 +83,9 @@ func sendGChatCard(ctx context.Context, cfg *appconfig.Config, event payload.Com
 
 func (r *replyRecorder) textResponse(event payload.CommandEvent, text string) events.APIGatewayV2HTTPResponse {
 	if r.req.Platform == PlatformDiscord {
-		return discordJSON(ephemeral(text))
+		return discordJSON(ephemeralMessage(discord.NoticeMessage(discord.DefaultNoticeTitle(discord.NoticeToneInfo), text)))
 	}
-	return gchatText(text, event.GChatViewerName)
+	return gchatNoticeText(text, event.GChatViewerName, discord.NoticeToneInfo)
 }
 
 func (r *replyRecorder) finalResponse() events.APIGatewayV2HTTPResponse {
@@ -61,9 +93,9 @@ func (r *replyRecorder) finalResponse() events.APIGatewayV2HTTPResponse {
 		return *r.response
 	}
 	if r.req.Platform == PlatformDiscord {
-		return discordJSON(ephemeral("Done."))
+		return discordJSON(ephemeralMessage(discord.NoticeMessage(discord.DefaultNoticeTitle(discord.NoticeToneInfo), "Done.")))
 	}
-	return gchatText("Done.", r.req.Command.GChatViewerName)
+	return gchatNoticeText("Done.", r.req.Command.GChatViewerName, discord.NoticeToneInfo)
 }
 
 func gchatCardResponse(card []byte, viewerName string) (events.APIGatewayV2HTTPResponse, error) {
