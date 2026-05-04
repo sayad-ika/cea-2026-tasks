@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sayad-ika/craftsbite/internal/discord"
 	"github.com/sayad-ika/craftsbite/internal/services"
 )
 
@@ -37,17 +38,31 @@ func TestBuildDiscordMessage(t *testing.T) {
 
 	msg := BuildDiscordMessage(result)
 
-	if !strings.Contains(msg, "Headcount") {
-		t.Error("expected message to contain 'Headcount'")
+	if len(msg.Embeds) == 0 {
+		t.Fatal("expected at least one embed")
 	}
-	if !strings.Contains(msg, "2026-04-21") {
-		t.Error("expected message to contain date")
+	if msg.Embeds[0].Title != "Headcount Snapshot" {
+		t.Errorf("embed title = %q, want %q", msg.Embeds[0].Title, "Headcount Snapshot")
 	}
-	if !strings.Contains(msg, "10") {
-		t.Error("expected message to contain total users")
+	if msg.Embeds[0].Color != discord.BrandColor {
+		t.Errorf("embed color = %d, want %d", msg.Embeds[0].Color, discord.BrandColor)
 	}
-	if !strings.Contains(msg, "Engineering") {
-		t.Error("expected message to contain team name")
+	if msg.Embeds[0].Description != "2026-04-21" {
+		t.Errorf("description = %q, want date", msg.Embeds[0].Description)
+	}
+	if len(msg.Embeds) < 2 {
+		t.Fatalf("expected multiple embeds, got %d", len(msg.Embeds))
+	}
+	foundTeam := false
+	for _, embed := range msg.Embeds {
+		for _, field := range embed.Fields {
+			if field.Name == "Engineering" {
+				foundTeam = true
+			}
+		}
+	}
+	if !foundTeam {
+		t.Error("expected team breakdown field for Engineering")
 	}
 }
 
@@ -60,14 +75,14 @@ func TestBuildDiscordMessage_EmptyResult(t *testing.T) {
 
 	msg := BuildDiscordMessage(result)
 
-	if !strings.Contains(msg, "2026-04-21") {
-		t.Error("expected message to contain date")
+	if len(msg.Embeds) != 1 {
+		t.Fatalf("expected exactly 1 embed for empty result, got %d", len(msg.Embeds))
 	}
-	if strings.Contains(msg, "Overall Meals") {
-		t.Error("expected no meals section for empty meal counts")
+	if msg.Embeds[0].Description != "2026-04-21" {
+		t.Errorf("description = %q, want date", msg.Embeds[0].Description)
 	}
-	if strings.Contains(msg, "By Team") {
-		t.Error("expected no teams section for empty teams")
+	if got := len(msg.Embeds[0].Fields); got != 4 {
+		t.Errorf("expected 4 summary fields, got %d", got)
 	}
 }
 
@@ -75,6 +90,7 @@ func TestBuildGChatCard(t *testing.T) {
 	result := &services.HeadcountResult{
 		Date:       "2026-04-21",
 		DayStatus:  "normal",
+		DayReason:  "Lunch moved to Level 12",
 		TotalUsers: 8,
 		LocationCounts: services.LocationCount{
 			Office: 5,
@@ -108,6 +124,86 @@ func TestBuildGChatCard(t *testing.T) {
 	var raw map[string]interface{}
 	if err := json.Unmarshal(card, &raw); err != nil {
 		t.Fatalf("failed to unmarshal card: %v", err)
+	}
+}
+
+func TestBuildScheduledDiscordMessage(t *testing.T) {
+	result := &services.HeadcountResult{
+		Date:       "2026-04-21",
+		DayStatus:  "normal",
+		DayReason:  "Lunch moved to Level 12",
+		TotalUsers: 8,
+		LocationCounts: services.LocationCount{
+			Office: 5,
+			WFH:    3,
+		},
+		MealCounts: map[string]services.MealCount{
+			"lunch": {MealType: "lunch", OptedIn: 5, OptedOut: 3},
+		},
+		Teams: []services.TeamHeadcount{{TeamName: "Design", MemberCount: 3}},
+	}
+
+	msg := BuildScheduledDiscordMessage(result)
+	if len(msg.Embeds) != 1 {
+		t.Fatalf("expected 1 compact embed, got %d", len(msg.Embeds))
+	}
+	embed := msg.Embeds[0]
+	if embed.Title != "Daily Headcount Summary" {
+		t.Fatalf("title = %q, want %q", embed.Title, "Daily Headcount Summary")
+	}
+	if embed.Description != "2026-04-21" {
+		t.Fatalf("description = %q, want date", embed.Description)
+	}
+	for _, field := range embed.Fields {
+		if field.Name == "Design" {
+			t.Fatal("did not expect team-specific field in scheduled summary")
+		}
+	}
+	if !hasEmbedField(embed.Fields, "Office / WFH", "5 / 3") {
+		t.Fatal("expected compact Office / WFH field")
+	}
+	if !hasEmbedField(embed.Fields, "Lunch", "5 confirmed") {
+		t.Fatal("expected compact meal summary field")
+	}
+	if !hasEmbedField(embed.Fields, "Note", "Lunch moved to Level 12") {
+		t.Fatal("expected day note in scheduled summary")
+	}
+}
+
+func TestBuildScheduledGChatCard(t *testing.T) {
+	result := &services.HeadcountResult{
+		Date:       "2026-04-21",
+		DayStatus:  "normal",
+		DayReason:  "Lunch moved to Level 12",
+		TotalUsers: 8,
+		LocationCounts: services.LocationCount{
+			Office: 5,
+			WFH:    3,
+		},
+		MealCounts: map[string]services.MealCount{
+			"lunch": {MealType: "lunch", OptedIn: 5, OptedOut: 3},
+		},
+		Teams: []services.TeamHeadcount{{TeamName: "Design", MemberCount: 3}},
+	}
+
+	card, err := BuildScheduledGChatCard(result)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !json.Valid(card) {
+		t.Fatal("expected valid JSON output")
+	}
+	if strings.Contains(string(card), "Design") {
+		t.Fatal("did not expect team-specific content in scheduled gchat summary")
+	}
+	if !strings.Contains(string(card), "Daily Headcount Summary") {
+		t.Fatal("expected compact scheduled title")
+	}
+	if !strings.Contains(string(card), "Office / WFH") {
+		t.Fatal("expected Office / WFH row")
+	}
+	if !strings.Contains(string(card), "Lunch moved to Level 12") {
+		t.Fatal("expected note content in scheduled gchat summary")
 	}
 }
 
@@ -186,9 +282,9 @@ func TestFormatMealList(t *testing.T) {
 
 func TestSortedMealCountKeys(t *testing.T) {
 	m := map[string]services.MealCount{
-		"dinner":   {MealType: "dinner"},
+		"dinner":    {MealType: "dinner"},
 		"breakfast": {MealType: "breakfast"},
-		"lunch":    {MealType: "lunch"},
+		"lunch":     {MealType: "lunch"},
 	}
 
 	keys := SortedMealCountKeys(m)
@@ -200,4 +296,13 @@ func TestSortedMealCountKeys(t *testing.T) {
 			t.Errorf("keys not sorted: %v", keys)
 		}
 	}
+}
+
+func hasEmbedField(fields []discord.EmbedField, name, value string) bool {
+	for _, field := range fields {
+		if field.Name == name && field.Value == value {
+			return true
+		}
+	}
+	return false
 }

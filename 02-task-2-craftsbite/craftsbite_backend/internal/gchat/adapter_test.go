@@ -35,13 +35,35 @@ func TestParseMealArgs_StatusOnly(t *testing.T) {
 	}
 }
 
-func TestParseMealArgs_InvalidStatus(t *testing.T) {
-	_, err := parseMealArgs("maybe lunch")
-	if err == nil {
-		t.Fatal("expected error for invalid status, got nil")
+func TestParseMealArgs_ToggleMealOnly(t *testing.T) {
+	opts, err := parseMealArgs("lunch")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(err.Error(), "Usage: /meal") {
-		t.Errorf("error = %q, want usage message", err.Error())
+	if opts["status"] != "" {
+		t.Errorf("status = %q, want empty", opts["status"])
+	}
+	if opts["meal"] != "lunch" {
+		t.Errorf("meal = %q, want %q", opts["meal"], "lunch")
+	}
+	if opts["date"] != "" {
+		t.Errorf("date = %q, want empty", opts["date"])
+	}
+}
+
+func TestParseMealArgs_ToggleDateOnly(t *testing.T) {
+	opts, err := parseMealArgs("2026-03-20")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if opts["status"] != "" {
+		t.Errorf("status = %q, want empty", opts["status"])
+	}
+	if opts["meal"] != "all" {
+		t.Errorf("meal = %q, want %q", opts["meal"], "all")
+	}
+	if opts["date"] != "2026-03-20" {
+		t.Errorf("date = %q, want %q", opts["date"], "2026-03-20")
 	}
 }
 
@@ -67,9 +89,35 @@ func TestParseMealArgs_InvalidDateFormat(t *testing.T) {
 }
 
 func TestParseMealArgs_Empty(t *testing.T) {
-	_, err := parseMealArgs("")
-	if err == nil {
-		t.Fatal("expected error for empty input, got nil")
+	opts, err := parseMealArgs("")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if opts["status"] != "" {
+		t.Errorf("status = %q, want empty", opts["status"])
+	}
+	if opts["meal"] != "all" {
+		t.Errorf("meal = %q, want %q", opts["meal"], "all")
+	}
+}
+
+func TestParseLocationArgs_ToggleDateOnly(t *testing.T) {
+	opts := parseLocationArgs("2026-03-20")
+	if opts["location"] != "" {
+		t.Errorf("location = %q, want empty", opts["location"])
+	}
+	if opts["date"] != "2026-03-20" {
+		t.Errorf("date = %q, want %q", opts["date"], "2026-03-20")
+	}
+}
+
+func TestParseLocationArgs_ToggleDefaultDate(t *testing.T) {
+	opts := parseLocationArgs("")
+	if opts["location"] != "" {
+		t.Errorf("location = %q, want empty", opts["location"])
+	}
+	if opts["date"] != "" {
+		t.Errorf("date = %q, want empty", opts["date"])
 	}
 }
 
@@ -112,6 +160,8 @@ func TestCommandMapping(t *testing.T) {
 		3: "team-summary",
 		4: "headcount",
 		5: "status",
+		6: "schedule-day",
+		9: "help",
 	}
 	for id, want := range expected {
 		got, ok := gchatCommandNames[id]
@@ -155,7 +205,7 @@ func TestToCommandEvent_MealParseError(t *testing.T) {
 		Chat: ChatEvent{
 			AppCommandPayload: &AppCommandPayload{
 				AppCommandMetadata: AppCommandMetadata{AppCommandID: 1},
-				Message:            &Message{ArgumentText: "maybe"},
+				Message:            &Message{ArgumentText: "lunch tomorrow extra"},
 			},
 		},
 	}
@@ -184,5 +234,32 @@ func TestToCommandEvent_HeadcountParseError(t *testing.T) {
 	}
 	if opts["date"] != "" {
 		t.Errorf("date = %q, want empty string", opts["date"])
+	}
+}
+
+func TestToCommandEvent_HelpNoArgs(t *testing.T) {
+	evt := Event{
+		Chat: ChatEvent{
+			User: Sender{Name: "users/123"},
+			AppCommandPayload: &AppCommandPayload{
+				AppCommandMetadata: AppCommandMetadata{AppCommandID: 9},
+				Space:              Space{Name: "spaces/abc"},
+			},
+		},
+	}
+
+	ce, err := ToCommandEvent(evt, "user1", "employee")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ce.CommandName != "help" {
+		t.Fatalf("CommandName = %q, want help", ce.CommandName)
+	}
+	var opts map[string]interface{}
+	if err := json.Unmarshal(ce.Options, &opts); err != nil {
+		t.Fatalf("failed to unmarshal options: %v", err)
+	}
+	if len(opts) != 0 {
+		t.Fatalf("expected no options, got %#v", opts)
 	}
 }

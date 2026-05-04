@@ -36,7 +36,7 @@ func gchatCommandEvent(ctx context.Context, cfg *appconfig.Config, store *reposi
 
 	viewerName := evt.Chat.User.Name
 	if evt.Chat.AppCommandPayload == nil {
-		resp := gchatText("Only slash commands are supported.", viewerName)
+		resp := gchatNoticeText("Only slash commands are supported.", viewerName, discord.NoticeToneWarning)
 		return payload.CommandEvent{}, &resp, nil
 	}
 
@@ -45,24 +45,24 @@ func gchatCommandEvent(ctx context.Context, cfg *appconfig.Config, store *reposi
 		return payload.CommandEvent{}, nil, fmt.Errorf("gchat handler: identity resolution: %w", err)
 	}
 	if userID == "" {
-		resp := gchatText("Your Google Chat account is not linked to CraftsBite. Contact your admin.", viewerName)
+		resp := gchatNoticeText("Your Google Chat account is not linked to CraftsBite. Contact your admin.", viewerName, discord.NoticeToneWarning)
 		return payload.CommandEvent{}, &resp, nil
 	}
 
 	cmdEvt, err := gchat.ToCommandEvent(evt, userID, role)
 	if err != nil {
-		resp := gchatText(err.Error(), viewerName)
+		resp := gchatNoticeText(err.Error(), viewerName, discord.NoticeToneWarning)
 		return payload.CommandEvent{}, &resp, nil
 	}
 
 	if !discord.CheckPermission(cmdEvt.CommandName, role) {
-		resp := gchatText(fmt.Sprintf("You do not have permission to use `/%s`.", cmdEvt.CommandName), viewerName)
+		resp := gchatNoticeText(fmt.Sprintf("You do not have permission to use `/%s`.", cmdEvt.CommandName), viewerName, discord.NoticeToneWarning)
 		return payload.CommandEvent{}, &resp, nil
 	}
 
 	if _, ok := discord.Dispatch(cfg, cmdEvt.CommandName); !ok {
 		slog.Warn("no target function configured for command", "command", cmdEvt.CommandName)
-		resp := gchatText(fmt.Sprintf("Command `/%s` is not configured.", cmdEvt.CommandName), viewerName)
+		resp := gchatNoticeText(fmt.Sprintf("Command `/%s` is not configured.", cmdEvt.CommandName), viewerName, discord.NoticeToneWarning)
 		return payload.CommandEvent{}, &resp, nil
 	}
 
@@ -70,13 +70,22 @@ func gchatCommandEvent(ctx context.Context, cfg *appconfig.Config, store *reposi
 }
 
 func gchatText(msg, viewerName string) events.APIGatewayV2HTTPResponse {
-	message := map[string]interface{}{
-		"text": msg,
+	return gchatNoticeText(msg, viewerName, discord.NoticeToneInfo)
+}
+
+func gchatNoticeText(msg, viewerName string, tone discord.NoticeTone) events.APIGatewayV2HTTPResponse {
+	card, err := gchat.NoticeCard(discord.DefaultNoticeTitle(tone), discord.DefaultNoticeSubtitle(tone), msg, tone)
+	if err == nil {
+		resp, wrapErr := gchatCardResponse(card, viewerName)
+		if wrapErr == nil {
+			return resp
+		}
 	}
+
+	message := map[string]interface{}{"text": msg}
 	if viewerName != "" {
 		message["privateMessageViewer"] = map[string]string{"name": viewerName}
 	}
-
 	body, _ := json.Marshal(map[string]interface{}{
 		"hostAppDataAction": map[string]interface{}{
 			"chatDataAction": map[string]interface{}{

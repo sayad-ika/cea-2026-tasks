@@ -16,6 +16,7 @@ var gchatCommandNames = map[int64]string{
 	4: "headcount",
 	5: "status",
 	6: "schedule-day",
+	9: "help",
 }
 
 func ToCommandEvent(evt Event, internalUserID, role string) (payload.CommandEvent, error) {
@@ -41,6 +42,8 @@ func ToCommandEvent(evt Event, internalUserID, role string) (payload.CommandEven
 	var err error
 
 	switch commandID {
+	case 9:
+		opts = map[string]interface{}{}
 	case 1:
 		opts, err = parseMealArgs(argText)
 		if err != nil {
@@ -77,26 +80,26 @@ func ToCommandEvent(evt Event, internalUserID, role string) (payload.CommandEven
 
 func parseMealArgs(raw string) (map[string]interface{}, error) {
 	tokens := strings.Fields(raw)
-	if len(tokens) == 0 {
-		return nil, fmt.Errorf("Usage: /meal <in|out> [meal_type] [date]\nDate can be: tomorrow (default), +N, or YYYY-MM-DD")
-	}
-
-	status := strings.ToLower(tokens[0])
-	if status != "in" && status != "out" {
-		return nil, fmt.Errorf("Usage: /meal <in|out> [meal_type] [date]\nDate can be: tomorrow (default), +N, or YYYY-MM-DD")
-	}
-
+	status := ""
 	mealType := "all"
-	if len(tokens) > 1 {
-		mealType = strings.ToLower(tokens[1])
-	}
-	if !repository.IsValidMealOrAll(mealType) {
-		return nil, fmt.Errorf("Invalid meal_type. Allowed: lunch, snacks, iftar, event_dinner, optional_dinner, all")
-	}
-
 	dateStr := ""
-	if len(tokens) > 2 {
-		dateStr = tokens[2]
+	mealSet := false
+
+	for _, token := range tokens {
+		lower := strings.ToLower(token)
+		switch {
+		case (lower == "in" || lower == "out") && status == "":
+			status = lower
+		case repository.IsValidMealOrAll(lower) && !mealSet:
+			mealType = lower
+			mealSet = true
+		case dateStr == "" && looksLikeDateArg(lower):
+			dateStr = token
+		case !mealSet:
+			return nil, fmt.Errorf("Invalid meal_type. Allowed: lunch, snacks, iftar, event_dinner, optional_dinner, all")
+		default:
+			return nil, fmt.Errorf("Usage: /meal [in|out] [meal_type] [date]\nIf status is omitted, CraftsBite toggles the current choice.")
+		}
 	}
 
 	// Pass raw date string to Lambda - let it handle parsing with proper timezone
@@ -111,13 +114,17 @@ func parseLocationArgs(raw string) map[string]interface{} {
 	tokens := strings.Fields(raw)
 
 	loc := ""
-	if len(tokens) > 0 {
-		loc = strings.ToLower(tokens[0])
-	}
-
 	dateStr := ""
-	if len(tokens) > 1 {
-		dateStr = tokens[1]
+	for _, token := range tokens {
+		lower := strings.ToLower(token)
+		switch {
+		case (lower == "office" || lower == "wfh") && loc == "":
+			loc = lower
+		case dateStr == "" && looksLikeDateArg(lower):
+			dateStr = token
+		case loc == "":
+			loc = lower
+		}
 	}
 
 	// Pass raw date string to Lambda - let it handle parsing with proper timezone
@@ -125,6 +132,10 @@ func parseLocationArgs(raw string) map[string]interface{} {
 		"location": loc,
 		"date":     dateStr,
 	}
+}
+
+func looksLikeDateArg(token string) bool {
+	return token == "today" || token == "tomorrow" || token == "week" || strings.HasPrefix(token, "+") || strings.Contains(token, "..") || strings.ContainsAny(token, "0123456789")
 }
 
 func parseDateArg(raw string) map[string]interface{} {

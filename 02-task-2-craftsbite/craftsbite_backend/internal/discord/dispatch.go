@@ -4,6 +4,7 @@ import "github.com/sayad-ika/craftsbite/internal/config"
 
 // commandACL maps each command to the set of roles allowed to execute it.
 var commandACL = map[string]map[string]struct{}{
+	"help":         {"employee": {}, "team_lead": {}, "admin": {}, "logistics": {}},
 	"meal":         {"employee": {}, "team_lead": {}, "admin": {}, "logistics": {}},
 	"location":     {"employee": {}, "team_lead": {}, "admin": {}, "logistics": {}},
 	"status":       {"employee": {}, "team_lead": {}, "admin": {}, "logistics": {}},
@@ -27,7 +28,7 @@ func CheckPermission(commandName, role string) bool {
 
 func Dispatch(cfg *config.Config, commandName string) (string, bool) {
 	switch commandName {
-	case "meal", "location", "status":
+	case "help", "meal", "location", "status":
 		return cfg.LambdaSelfFunctionName, true
 	case "override", "team-summary":
 		return cfg.LambdaManagementFunctionName, true

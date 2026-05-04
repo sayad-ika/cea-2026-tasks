@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
 	"github.com/sayad-ika/craftsbite/internal/dateutil"
+	"github.com/sayad-ika/craftsbite/internal/discord"
 	"github.com/sayad-ika/craftsbite/internal/dynamo"
 	"github.com/sayad-ika/craftsbite/internal/ratelimit"
 	"github.com/sayad-ika/craftsbite/internal/repository"
@@ -48,17 +49,17 @@ func handler(ctx context.Context, deps handlerDeps, event events.APIGatewayV2HTT
 	allowed, msg, err := applyRateLimit(ctx, deps.limiter, req.Command)
 	if err != nil {
 		slog.Error("rate limit check failed", "error", err, "userID", req.Command.UserID, "command", req.Command.CommandName)
-		return platformTextResponse(req, msg), nil
+		return platformNoticeResponse(req, msg, discord.NoticeToneError), nil
 	}
 	if !allowed {
 		slog.Warn("rate limit exceeded", "userID", req.Command.UserID, "command", req.Command.CommandName)
-		return platformTextResponse(req, msg), nil
+		return platformNoticeResponse(req, msg, discord.NoticeToneWarning), nil
 	}
 
 	recordedCtx, recorder := withReplyRecorder(ctx, req)
 	if err := route(recordedCtx, deps, req); err != nil {
 		slog.Error("command route failed", "error", err, "platform", req.Platform, "command", req.Command.CommandName)
-		return platformTextResponse(req, "An internal error occurred. Please try again."), nil
+		return platformNoticeResponse(req, "An internal error occurred. Please try again.", discord.NoticeToneError), nil
 	}
 
 	return recorder.finalResponse(), nil
@@ -82,10 +83,14 @@ func immediateResponse(platform Platform, gchatResp *events.APIGatewayV2HTTPResp
 }
 
 func platformTextResponse(req HandlerRequest, msg string) events.APIGatewayV2HTTPResponse {
+	return platformNoticeResponse(req, msg, discord.NoticeToneInfo)
+}
+
+func platformNoticeResponse(req HandlerRequest, msg string, tone discord.NoticeTone) events.APIGatewayV2HTTPResponse {
 	if req.Platform == PlatformDiscord {
-		return discordJSON(ephemeral(msg))
+		return discordJSON(ephemeralNotice(msg, tone))
 	}
-	return gchatText(msg, req.Command.GChatViewerName)
+	return gchatNoticeText(msg, req.Command.GChatViewerName, tone)
 }
 
 func discordJSON(resp RouterResponse) events.APIGatewayV2HTTPResponse {

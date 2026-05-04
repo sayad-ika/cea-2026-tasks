@@ -8,6 +8,8 @@ import (
 
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
 	"github.com/sayad-ika/craftsbite/internal/dateutil"
+	"github.com/sayad-ika/craftsbite/internal/discord"
+	"github.com/sayad-ika/craftsbite/internal/gchat"
 	"github.com/sayad-ika/craftsbite/internal/headcountreport"
 	"github.com/sayad-ika/craftsbite/internal/payload"
 	"github.com/sayad-ika/craftsbite/internal/repository"
@@ -23,27 +25,27 @@ func handleOpsCommand(ctx context.Context, deps handlerDeps, event payload.Comma
 	case "admin":
 		return sendReply(ctx, deps.cfg, event, "This feature is coming soon.")
 	default:
-		return sendReply(ctx, deps.cfg, event, fmt.Sprintf("Unknown command: /%s", event.CommandName))
+		return sendWarningReply(ctx, deps.cfg, event, fmt.Sprintf("Unknown command: /%s", event.CommandName))
 	}
 }
 
 func handleHeadcountCommand(ctx context.Context, store *repository.Store, cfg *appconfig.Config, dateParser *dateutil.DateParser, event payload.CommandEvent) error {
 	if event.Role != "admin" && event.Role != "logistics" {
-		return sendReply(ctx, cfg, event, "You do not have permission to use `/headcount`.")
+		return sendWarningReply(ctx, cfg, event, "You do not have permission to use `/headcount`.")
 	}
 
 	var opts payload.HeadcountOptions
 	if err := event.ParseOptions(&opts); err != nil {
-		return sendReply(ctx, cfg, event, "Invalid command options.")
+		return sendWarningReply(ctx, cfg, event, "Invalid command options.")
 	}
 	date, err := dateParser.ParseDateWithDefaults(opts.Date)
 	if err != nil {
-		return sendReply(ctx, cfg, event, fmt.Sprintf("Invalid date: %v\nUse: tomorrow (default), +N, or YYYY-MM-DD", err))
+		return sendWarningReply(ctx, cfg, event, fmt.Sprintf("Invalid date: %v\nUse: tomorrow (default), +N, or YYYY-MM-DD", err))
 	}
 
 	result, err := services.GetHeadcount(ctx, store, date)
 	if err != nil {
-		return sendReply(ctx, cfg, event, "Something went wrong fetching headcount. Please try again later.")
+		return sendErrorReply(ctx, cfg, event, "Something went wrong fetching headcount. Please try again later.")
 	}
 
 	if event.Source == "gchat" {
@@ -51,25 +53,25 @@ func handleHeadcountCommand(ctx context.Context, store *repository.Store, cfg *a
 		return sendGChatCard(ctx, cfg, event, card)
 	}
 
-	return sendReply(ctx, cfg, event, headcountreport.BuildDiscordMessage(result))
+	return sendDiscordMessage(ctx, cfg, event, headcountreport.BuildDiscordMessage(result))
 }
 
 func handleScheduleDayCommand(ctx context.Context, store *repository.Store, cfg *appconfig.Config, dateParser *dateutil.DateParser, event payload.CommandEvent) error {
 	if event.Role != "admin" {
-		return sendReply(ctx, cfg, event, "You do not have permission to use `/schedule-day`.")
+		return sendWarningReply(ctx, cfg, event, "You do not have permission to use `/schedule-day`.")
 	}
 
 	var opts payload.ScheduleDayOptions
 	if err := event.ParseOptions(&opts); err != nil {
-		return sendReply(ctx, cfg, event, "Invalid command options.")
+		return sendWarningReply(ctx, cfg, event, "Invalid command options.")
 	}
 	dates, err := dateParser.ParseDateRange(opts.Date)
 	if err != nil {
-		return sendReply(ctx, cfg, event, fmt.Sprintf("Invalid date: %v\nUse: YYYY-MM-DD, YYYY-MM-DD..YYYY-MM-DD, or week", err))
+		return sendWarningReply(ctx, cfg, event, fmt.Sprintf("Invalid date: %v\nUse: YYYY-MM-DD, YYYY-MM-DD..YYYY-MM-DD, or week", err))
 	}
 
 	if opts.Status == "" {
-		return sendReply(ctx, cfg, event, fmt.Sprintf("Day status is required. Valid values: %v", repository.ValidDayStatuses()))
+		return sendWarningReply(ctx, cfg, event, fmt.Sprintf("Day status is required. Valid values: %v", repository.ValidDayStatuses()))
 	}
 
 	var meals []string
@@ -93,10 +95,15 @@ func handleScheduleDayCommand(ctx context.Context, store *repository.Store, cfg 
 
 	schedule, err := services.SetDaySchedule(ctx, store, input)
 	if err != nil {
-		return sendReply(ctx, cfg, event, formatScheduleDayError(err))
+		return sendWarningReply(ctx, cfg, event, formatScheduleDayError(err))
 	}
 
-	return sendReply(ctx, cfg, event, formatScheduleDaySuccess(schedule))
+	if event.Source == "gchat" {
+		card, _ := gchat.ScheduleDayCard(schedule.Date, headcountreport.DisplayDayStatus(schedule.DayStatus), headcountreport.FormatMealList(schedule.AvailableMeals), schedule.Reason)
+		return sendGChatCard(ctx, cfg, event, card)
+	}
+
+	return sendDiscordMessage(ctx, cfg, event, buildDiscordScheduleDayMessage(schedule))
 }
 
 func handleBulkScheduleDayCommand(ctx context.Context, store *repository.Store, cfg *appconfig.Config, event payload.CommandEvent, dates []string, statusStr string, meals []string, reason string) error {
@@ -109,10 +116,15 @@ func handleBulkScheduleDayCommand(ctx context.Context, store *repository.Store, 
 
 	result, err := services.BulkSetDaySchedule(ctx, store, dates, input)
 	if err != nil {
-		return sendReply(ctx, cfg, event, formatBulkScheduleDayError(err))
+		return sendWarningReply(ctx, cfg, event, formatBulkScheduleDayError(err))
 	}
 
-	return sendReply(ctx, cfg, event, formatBulkScheduleDaySuccess(result, statusStr))
+	if event.Source == "gchat" {
+		card, _ := gchat.BulkScheduleDayCard(headcountreport.DisplayDayStatus(statusStr), result.SuccessDates)
+		return sendGChatCard(ctx, cfg, event, card)
+	}
+
+	return sendDiscordMessage(ctx, cfg, event, buildDiscordBulkScheduleDayMessage(result, statusStr))
 }
 
 func formatBulkScheduleDaySuccess(result *services.BulkSetDayScheduleResult, statusStr string) string {
@@ -169,4 +181,28 @@ func formatScheduleDaySuccess(schedule *repository.DaySchedule) string {
 	}
 
 	return sb.String()
+}
+
+func buildDiscordScheduleDayMessage(schedule *repository.DaySchedule) discord.Message {
+	meals := headcountreport.FormatMealList(schedule.AvailableMeals)
+	if meals == "" {
+		meals = "None"
+	}
+	fields := []discord.EmbedField{
+		{Name: "Status", Value: headcountreport.DisplayDayStatus(schedule.DayStatus), Inline: true},
+		{Name: "Meals", Value: meals, Inline: true},
+	}
+	if schedule.Reason != "" {
+		fields = append(fields, discord.EmbedField{Name: "Reason", Value: schedule.Reason})
+	}
+	return discord.EmbedMessage(discord.BrandEmbed("Schedule Updated", schedule.Date, fields))
+}
+
+func buildDiscordBulkScheduleDayMessage(result *services.BulkSetDayScheduleResult, statusStr string) discord.Message {
+	fields := []discord.EmbedField{
+		{Name: "Day status", Value: headcountreport.DisplayDayStatus(statusStr), Inline: true},
+		{Name: "Weekdays updated", Value: fmt.Sprintf("%d", len(result.SuccessDates)), Inline: true},
+		{Name: "Affected dates", Value: strings.Join(result.SuccessDates, "\n")},
+	}
+	return discord.EmbedMessage(discord.BrandEmbed("Schedule Updated", "Bulk weekday update", fields))
 }

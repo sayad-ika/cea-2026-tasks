@@ -14,6 +14,8 @@ func TestCheckPermission(t *testing.T) {
 		want    bool
 	}{
 		{"meal", "employee", true},
+		{"help", "employee", true},
+		{"help", "admin", true},
 		{"meal", "admin", true},
 		{"meal", "logistics", true},
 		{"meal", "team_lead", true},
@@ -48,6 +50,7 @@ func TestDispatch(t *testing.T) {
 		wantOK  bool
 	}{
 		{"meal", "self-fn", true},
+		{"help", "self-fn", true},
 		{"location", "self-fn", true},
 		{"status", "self-fn", true},
 		{"override", "mgmt-fn", true},
