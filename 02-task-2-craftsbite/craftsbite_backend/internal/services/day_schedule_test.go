@@ -124,9 +124,9 @@ func TestBulkSetDaySchedule_AllWeekends(t *testing.T) {
 	}
 
 	for _, d := range dates {
-		schedule, err2 := services.GetDaySchedule(context.Background(), store, d)
+		schedule, err2 := store.GetDay(context.Background(), d)
 		if err2 != nil {
-			t.Fatalf("GetDaySchedule(%s): %v", d, err2)
+			t.Fatalf("store.GetDay(%s): %v", d, err2)
 		}
 		if schedule != nil {
 			t.Errorf("expected no record for %s (weekend), but one was written", d)
@@ -165,9 +165,9 @@ func TestBulkSetDaySchedule_WeekendSkipping(t *testing.T) {
 	}
 
 	for _, weekend := range []string{sat, sun} {
-		schedule, err2 := services.GetDaySchedule(context.Background(), store, weekend)
+		schedule, err2 := store.GetDay(context.Background(), weekend)
 		if err2 != nil {
-			t.Fatalf("GetDaySchedule(%s): %v", weekend, err2)
+			t.Fatalf("store.GetDay(%s): %v", weekend, err2)
 		}
 		if schedule != nil {
 			t.Errorf("weekend date %s should not have a record, but one was written", weekend)
@@ -175,9 +175,9 @@ func TestBulkSetDaySchedule_WeekendSkipping(t *testing.T) {
 	}
 
 	for _, weekday := range []string{mon, tue} {
-		schedule, err2 := services.GetDaySchedule(context.Background(), store, weekday)
+		schedule, err2 := store.GetDay(context.Background(), weekday)
 		if err2 != nil {
-			t.Fatalf("GetDaySchedule(%s): %v", weekday, err2)
+			t.Fatalf("store.GetDay(%s): %v", weekday, err2)
 		}
 		if schedule == nil {
 			t.Errorf("weekday %s should have a record, but none was found", weekday)

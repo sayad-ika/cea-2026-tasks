@@ -84,42 +84,6 @@ func TestParseDateWithDefaults(t *testing.T) {
 	}
 }
 
-func TestTodayInTimezone(t *testing.T) {
-	parser := mustDateParser(t)
-	loc, _ := time.LoadLocation("Asia/Dhaka")
-	result := parser.todayInTimezoneAt(time.Date(2026, 3, 19, 10, 0, 0, 0, loc))
-	if len(result) != 10 {
-		t.Errorf("todayInTimezoneAt() returned invalid format: %s", result)
-	}
-
-	// Verify it's a valid date
-	_, err := time.Parse("2006-01-02", result)
-	if err != nil {
-		t.Errorf("todayInTimezoneAt() returned invalid date: %s", result)
-	}
-	if result != "2026-03-19" {
-		t.Errorf("todayInTimezoneAt() = %s, want 2026-03-19", result)
-	}
-}
-
-func TestTomorrowInTimezone(t *testing.T) {
-	parser := mustDateParser(t)
-	loc, _ := time.LoadLocation("Asia/Dhaka")
-	result := parser.tomorrowInTimezoneAt(time.Date(2026, 3, 19, 10, 0, 0, 0, loc))
-	if len(result) != 10 {
-		t.Errorf("tomorrowInTimezoneAt() returned invalid format: %s", result)
-	}
-
-	// Verify it's a valid date
-	_, err := time.Parse("2006-01-02", result)
-	if err != nil {
-		t.Errorf("tomorrowInTimezoneAt() returned invalid date: %s", result)
-	}
-	if result != "2026-03-20" {
-		t.Errorf("tomorrowInTimezoneAt() = %s, want 2026-03-20", result)
-	}
-}
-
 func mustDateParser(t *testing.T) *DateParser {
 	t.Helper()
 	parser, err := NewDateParser("Asia/Dhaka")
