@@ -434,34 +434,6 @@ func buildTeamSummaryRows(team *repository.Team, summary *services.TeamSummary) 
 	return rows
 }
 
-func formatTeamSummary(team *repository.Team, date string, summary *services.TeamSummary) string {
-	if summary.MemberCount == 0 {
-		return fmt.Sprintf("Team %s — %s has no members.", team.Name, date)
-	}
-
-	mealTypes := make([]string, 0, len(summary.MealCounts))
-	for mt := range summary.MealCounts {
-		mealTypes = append(mealTypes, mt)
-	}
-	sort.Strings(mealTypes)
-
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "Team %s — %s (%d members)\n", team.Name, date, summary.MemberCount)
-
-	if len(mealTypes) > 0 {
-		parts := make([]string, 0, len(mealTypes))
-		for _, mt := range mealTypes {
-			parts = append(parts, fmt.Sprintf("%s %d/%d", cmdutil.DisplayMealName(mt), summary.MealCounts[mt], summary.MemberCount))
-		}
-		fmt.Fprintf(&sb, "Meals:    %s\n", strings.Join(parts, "  │  "))
-	}
-
-	officeCount := summary.MemberCount - summary.WFHCount
-	fmt.Fprintf(&sb, "Location: Office %d/%d  │  WFH %d/%d", officeCount, summary.MemberCount, summary.WFHCount, summary.MemberCount)
-
-	return sb.String()
-}
-
 func buildDiscordTeamSummaryMessage(team *repository.Team, date string, summary *services.TeamSummary) discord.Message {
 	fields := []discord.EmbedField{
 		{Name: "Team", Value: team.Name, Inline: true},

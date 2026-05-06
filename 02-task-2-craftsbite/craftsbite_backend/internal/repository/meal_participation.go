@@ -11,29 +11,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
-func GetParticipation(ctx context.Context, client *dynamodb.Client, table, userID, date, mealType string) (*MealParticipation, error) {
-	out, err := client.GetItem(ctx, &dynamodb.GetItemInput{
-		TableName: aws.String(table),
-		Key: map[string]types.AttributeValue{
-			"PK": &types.AttributeValueMemberS{Value: "USER#" + userID},
-			"SK": &types.AttributeValueMemberS{Value: "MEAL#" + date + "#" + mealType},
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("repository: GetParticipation: %w", err)
-	}
-	if out.Item == nil {
-		return nil, nil
-	}
-
-	var item mealItem
-	if err := attributevalue.UnmarshalMap(out.Item, &item); err != nil {
-		return nil, fmt.Errorf("repository: GetParticipation unmarshal: %w", err)
-	}
-
-	return mealItemToParticipation(item), nil
-}
-
 func GetParticipationsByUserDate(ctx context.Context, client *dynamodb.Client, table, userID, date string) ([]MealParticipation, error) {
 	prefix := "MEAL#" + date + "#"
 	out, err := client.Query(ctx, &dynamodb.QueryInput{
