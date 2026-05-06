@@ -32,7 +32,11 @@ func handleSelfCommand(ctx context.Context, deps handlerDeps, event payload.Comm
 			return sendReply(ctx, deps.cfg, event, reply.text)
 		}
 		if event.Source == "gchat" {
-			card, _ := gchat.MealStatusCard(reply.date, reply.changedMeals, mealStatusRows(reply.statuses))
+			displayChanged := make([]string, len(reply.changedMeals))
+			for i, m := range reply.changedMeals {
+				displayChanged[i] = cmdutil.DisplayMealName(m)
+			}
+			card, _ := gchat.MealStatusCard(reply.date, displayChanged, mealStatusRows(reply.statuses))
 			return sendGChatCard(ctx, deps.cfg, event, card)
 		}
 		return sendDiscordMessage(ctx, deps.cfg, event, buildDiscordMealMessage(reply.date, reply.statuses, reply.changedMeals))
@@ -64,13 +68,17 @@ func handleStatusCommand(ctx context.Context, store *repository.Store, cfg *appc
 	if err != nil {
 		return sendErrorReply(ctx, cfg, event, "Unable to fetch location status. Please try again later.")
 	}
+	locationValue := location.Location
+	if locationValue == "" || locationValue == "not_set" {
+		locationValue = "office"
+	}
 
 	if event.Source == "gchat" {
-		card, _ := gchat.StatusCard(date, displayLocationLabel(location.Location), mealStatusRows(mealStatuses))
+		card, _ := gchat.StatusCard(date, displayLocationLabel(locationValue), mealStatusRows(mealStatuses))
 		return sendGChatCard(ctx, cfg, event, card)
 	}
 
-	return sendDiscordMessage(ctx, cfg, event, buildDiscordStatusMessage(date, location.Location, mealStatuses))
+	return sendDiscordMessage(ctx, cfg, event, buildDiscordStatusMessage(date, locationValue, mealStatuses))
 }
 
 func handleBulkLocationUpdate(ctx context.Context, store *repository.Store, cfg *appconfig.Config, cutoff *services.CutoffChecker, event payload.CommandEvent, dates []string, location string) error {

@@ -123,6 +123,7 @@ func discordCommandEvent(ctx context.Context, cfg *appconfig.Config, store *repo
 		Options:          optionsJSON,
 		InteractionToken: interaction.Token,
 		ApplicationID:    interaction.ApplicationID,
+		Source:           "discord",
 	}, nil, nil
 }
 

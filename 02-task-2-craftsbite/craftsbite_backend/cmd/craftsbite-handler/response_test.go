@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/sayad-ika/craftsbite/internal/discord"
@@ -88,5 +90,29 @@ func TestGChatNoticeTextUsesWarningCardHeader(t *testing.T) {
 	}
 	if header["imageUrl"] != "https://placehold.co/96x96/F08C00/FFFFFF.png?text=CB" {
 		t.Fatalf("imageUrl = %v, want warning placeholder", header["imageUrl"])
+	}
+}
+
+func TestSendWarningReply_DiscordUsesInteractionPayload(t *testing.T) {
+	ctx, recorder := withReplyRecorder(context.Background(), HandlerRequest{Platform: PlatformDiscord})
+	err := sendWarningReply(ctx, nil, payload.CommandEvent{Source: "discord"}, "slow down")
+	if err != nil {
+		t.Fatalf("sendWarningReply() error = %v", err)
+	}
+
+	resp := recorder.finalResponse()
+	if strings.Contains(resp.Body, "hostAppDataAction") {
+		t.Fatalf("expected discord interaction payload, got gchat envelope: %s", resp.Body)
+	}
+
+	var body RouterResponse
+	if err := json.Unmarshal([]byte(resp.Body), &body); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if body.Data == nil || len(body.Data.Embeds) != 1 {
+		t.Fatal("expected discord embed payload")
+	}
+	if body.Data.Embeds[0].Color != discord.WarningColor {
+		t.Fatalf("embed color = %d, want %d", body.Data.Embeds[0].Color, discord.WarningColor)
 	}
 }

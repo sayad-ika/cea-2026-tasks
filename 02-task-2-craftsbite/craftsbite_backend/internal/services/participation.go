@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -55,13 +56,16 @@ func GetUserMealStatus(ctx context.Context, dayRepo DayScheduleReader, pRepo Par
 	if err != nil {
 		return nil, fmt.Errorf("participation: GetUserMealStatus available meals: %w", err)
 	}
-	if len(availableMeals) == 0 {
-		return []ResolvedStatus{}, nil
-	}
 
 	records, err := pRepo.GetParticipationsByUserDate(ctx, userID, date)
 	if err != nil {
 		return nil, fmt.Errorf("participation: GetUserMealStatus records: %w", err)
+	}
+	if len(availableMeals) == 0 {
+		availableMeals = mealTypesFromRecords(records)
+	}
+	if len(availableMeals) == 0 {
+		return []ResolvedStatus{}, nil
 	}
 
 	recordByMeal := make(map[string]*repository.MealParticipation, len(records))
@@ -74,6 +78,20 @@ func GetUserMealStatus(ctx context.Context, dayRepo DayScheduleReader, pRepo Par
 		statuses = append(statuses, Resolve(schedule, availableMeals, recordByMeal[meal], meal))
 	}
 	return statuses, nil
+}
+
+func mealTypesFromRecords(records []repository.MealParticipation) []string {
+	seen := make(map[string]struct{}, len(records))
+	meals := make([]string, 0, len(records))
+	for _, record := range records {
+		if _, ok := seen[record.MealType]; ok {
+			continue
+		}
+		seen[record.MealType] = struct{}{}
+		meals = append(meals, record.MealType)
+	}
+	sort.Strings(meals)
+	return meals
 }
 
 func UpdateParticipation(ctx context.Context, dayRepo DayScheduleReader, pRepo ParticipationWriter, userID, date, mealType string, isParticipating bool, cutoff *CutoffChecker) ([]ResolvedStatus, error) {
