@@ -116,24 +116,43 @@ func UpsertDaySchedule(ctx context.Context, client *dynamodb.Client, table strin
 		return fmt.Errorf("repository: UpsertDaySchedule marshal: %w", err)
 	}
 
-	_, err = client.PutItem(ctx, &dynamodb.PutItemInput{
+	putInput := &dynamodb.PutItemInput{
 		TableName: aws.String(table),
 		Item:      av,
-	})
+	}
+	if existing != nil {
+		putInput.ConditionExpression = aws.String("#ua = :prev")
+		putInput.ExpressionAttributeNames = map[string]string{"#ua": "updated_at"}
+		putInput.ExpressionAttributeValues = map[string]types.AttributeValue{
+			":prev": &types.AttributeValueMemberS{Value: existing.UpdatedAt.UTC().Format(rfc3339)},
+		}
+	} else {
+		putInput.ConditionExpression = aws.String("attribute_not_exists(PK)")
+	}
+
+	_, err = client.PutItem(ctx, putInput)
 	if err != nil {
+		if isConditionalCheckFailed(err) {
+			return fmt.Errorf("repository: UpsertDaySchedule put: %w", ErrConcurrentModification)
+		}
 		return fmt.Errorf("repository: UpsertDaySchedule put: %w", err)
 	}
 
-	// Write audit entry
+	if err := upsertDayMeals(ctx, client, table, schedule.Date, schedule.AvailableMeals); err != nil {
+		return fmt.Errorf("repository: UpsertDaySchedule meals: %w", err)
+	}
+
+	// Write audit entry (best effort)
 	action := "CREATE"
 	oldValueJSON := ""
 	if existing != nil {
 		action = "UPDATE"
 		oldBytes, marshalErr := json.Marshal(existing)
 		if marshalErr != nil {
-			return fmt.Errorf("repository: UpsertDaySchedule marshal old value: %w", marshalErr)
+			slog.Warn("failed to marshal old day schedule for audit", "date", schedule.Date, "error", marshalErr)
+		} else {
+			oldValueJSON = string(oldBytes)
 		}
-		oldValueJSON = string(oldBytes)
 	}
 
 	newBytes, marshalErr := json.Marshal(schedule)
@@ -158,8 +177,7 @@ func UpsertDaySchedule(ctx context.Context, client *dynamodb.Client, table strin
 		slog.Warn("failed to write audit entry", "entity_type", "DAY_SCHEDULE", "date", schedule.Date, "error", auditErr)
 	}
 
-	// Also update the MEALS record for quick lookup
-	return upsertDayMeals(ctx, client, table, schedule.Date, schedule.AvailableMeals)
+	return nil
 }
 
 // upsertDayMeals updates the meals lookup record
