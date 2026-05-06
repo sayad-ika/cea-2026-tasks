@@ -34,7 +34,7 @@ func GetWorkLocation(ctx context.Context, client *dynamodb.Client, table, userID
 	return workLocationItemToRecord(item), nil
 }
 
-func UpsertWorkLocation(ctx context.Context, client *dynamodb.Client, table string, wl WorkLocation) error {
+func UpsertWorkLocation(ctx context.Context, client *dynamodb.Client, table string, wl WorkLocation, prevUpdatedAt time.Time) error {
 	now := time.Now().UTC().Format(rfc3339)
 
 	createdAt := now
@@ -64,11 +64,23 @@ func UpsertWorkLocation(ctx context.Context, client *dynamodb.Client, table stri
 		return fmt.Errorf("repository: UpsertWorkLocation marshal: %w", err)
 	}
 
-	_, err = client.PutItem(ctx, &dynamodb.PutItemInput{
+	input := &dynamodb.PutItemInput{
 		TableName: aws.String(table),
 		Item:      item,
-	})
+	}
+	if !prevUpdatedAt.IsZero() {
+		input.ConditionExpression = aws.String("#ua = :prev")
+		input.ExpressionAttributeNames = map[string]string{"#ua": "updated_at"}
+		input.ExpressionAttributeValues = map[string]types.AttributeValue{
+			":prev": &types.AttributeValueMemberS{Value: prevUpdatedAt.UTC().Format(rfc3339)},
+		}
+	}
+
+	_, err = client.PutItem(ctx, input)
 	if err != nil {
+		if isConditionalCheckFailed(err) {
+			return fmt.Errorf("repository: UpsertWorkLocation: %w", ErrConcurrentModification)
+		}
 		return fmt.Errorf("repository: UpsertWorkLocation: %w", err)
 	}
 	return nil

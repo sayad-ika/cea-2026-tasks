@@ -71,7 +71,7 @@ func TestSetLocation_Valid(t *testing.T) {
 			},
 			getByDateFn: func(_ context.Context, _ string) ([]repository.WorkLocation, error) { return nil, nil },
 		},
-		upsertFn: func(_ context.Context, _ repository.WorkLocation) error {
+		upsertFn: func(_ context.Context, _ repository.WorkLocation, _ time.Time) error {
 			upsertCalled = true
 			return nil
 		},
@@ -97,7 +97,7 @@ func TestSetLocation_PastDate(t *testing.T) {
 			getFn: func(_ context.Context, _, _ string) (*repository.WorkLocation, error) { return nil, nil },
 			getByDateFn: func(_ context.Context, _ string) ([]repository.WorkLocation, error) { return nil, nil },
 		},
-		upsertFn: func(_ context.Context, _ repository.WorkLocation) error { return nil },
+		upsertFn: func(_ context.Context, _ repository.WorkLocation, _ time.Time) error { return nil },
 	}
 
 	_, err := SetLocation(context.Background(), repo, "user-1", "2020-01-01", "office", checker)
@@ -112,7 +112,7 @@ func TestSetLocation_NilCutoff(t *testing.T) {
 			getFn: func(_ context.Context, _, _ string) (*repository.WorkLocation, error) { return nil, nil },
 			getByDateFn: func(_ context.Context, _ string) ([]repository.WorkLocation, error) { return nil, nil },
 		},
-		upsertFn: func(_ context.Context, _ repository.WorkLocation) error { return nil },
+		upsertFn: func(_ context.Context, _ repository.WorkLocation, _ time.Time) error { return nil },
 	}
 
 	_, err := SetLocation(context.Background(), repo, "user-1", "2026-04-25", "office", nil)
@@ -132,7 +132,7 @@ func TestSetLocation_TooFarAhead(t *testing.T) {
 			getFn: func(_ context.Context, _, _ string) (*repository.WorkLocation, error) { return nil, nil },
 			getByDateFn: func(_ context.Context, _ string) ([]repository.WorkLocation, error) { return nil, nil },
 		},
-		upsertFn: func(_ context.Context, _ repository.WorkLocation) error { return nil },
+		upsertFn: func(_ context.Context, _ repository.WorkLocation, _ time.Time) error { return nil },
 	}
 
 	_, err := SetLocation(context.Background(), repo, "user-1", farFuture, "office", checker)
@@ -152,7 +152,7 @@ func TestSetLocation_UpsertError(t *testing.T) {
 			getFn: func(_ context.Context, _, _ string) (*repository.WorkLocation, error) { return nil, nil },
 			getByDateFn: func(_ context.Context, _ string) ([]repository.WorkLocation, error) { return nil, nil },
 		},
-		upsertFn: func(_ context.Context, _ repository.WorkLocation) error { return errors.New("db fail") },
+		upsertFn: func(_ context.Context, _ repository.WorkLocation, _ time.Time) error { return errors.New("db fail") },
 	}
 
 	_, err := SetLocation(context.Background(), repo, "user-1", tomorrow, "office", checker)

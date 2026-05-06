@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/sayad-ika/craftsbite/internal/repository"
 )
@@ -48,11 +49,11 @@ func (m *mockParticipationReader) GetParticipationsByDate(ctx context.Context, d
 
 type mockParticipationWriter struct {
 	mockParticipationReader
-	upsertFn func(ctx context.Context, p repository.MealParticipation) error
+	upsertFn func(ctx context.Context, p repository.MealParticipation, prevUpdatedAt time.Time) error
 }
 
-func (m *mockParticipationWriter) UpsertParticipation(ctx context.Context, p repository.MealParticipation) error {
-	return m.upsertFn(ctx, p)
+func (m *mockParticipationWriter) UpsertParticipation(ctx context.Context, p repository.MealParticipation, prevUpdatedAt time.Time) error {
+	return m.upsertFn(ctx, p, prevUpdatedAt)
 }
 
 type mockLocationReader struct {
@@ -70,11 +71,11 @@ func (m *mockLocationReader) GetWorkLocationsByDate(ctx context.Context, date st
 
 type mockLocationWriter struct {
 	mockLocationReader
-	upsertFn func(ctx context.Context, wl repository.WorkLocation) error
+	upsertFn func(ctx context.Context, wl repository.WorkLocation, prevUpdatedAt time.Time) error
 }
 
-func (m *mockLocationWriter) UpsertWorkLocation(ctx context.Context, wl repository.WorkLocation) error {
-	return m.upsertFn(ctx, wl)
+func (m *mockLocationWriter) UpsertWorkLocation(ctx context.Context, wl repository.WorkLocation, prevUpdatedAt time.Time) error {
+	return m.upsertFn(ctx, wl, prevUpdatedAt)
 }
 
 type mockUserReader struct {
@@ -131,10 +132,10 @@ type noErrStore struct {
 	*mockTeamReader
 }
 
-func (n *noErrStore) UpsertDaySchedule(ctx context.Context, schedule repository.DaySchedule) error  { return nil }
-func (n *noErrStore) DeleteDaySchedule(ctx context.Context, date string) error                      { return nil }
-func (n *noErrStore) UpsertParticipation(ctx context.Context, p repository.MealParticipation) error { return nil }
-func (n *noErrStore) UpsertWorkLocation(ctx context.Context, wl repository.WorkLocation) error      { return nil }
+func (n *noErrStore) UpsertDaySchedule(ctx context.Context, schedule repository.DaySchedule) error                              { return nil }
+func (n *noErrStore) DeleteDaySchedule(ctx context.Context, date string) error                                                  { return nil }
+func (n *noErrStore) UpsertParticipation(ctx context.Context, p repository.MealParticipation, _ time.Time) error                 { return nil }
+func (n *noErrStore) UpsertWorkLocation(ctx context.Context, wl repository.WorkLocation, _ time.Time) error                      { return nil }
 
 func noErrDayReader(schedule *repository.DaySchedule, meals []string) *mockDayScheduleReader {
 	return &mockDayScheduleReader{

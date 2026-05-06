@@ -132,7 +132,7 @@ func TestUpdateParticipation_ValidOptIn(t *testing.T) {
 			},
 			getByDateFn: func(_ context.Context, _ string) ([]repository.MealParticipation, error) { return nil, nil },
 		},
-		upsertFn: func(_ context.Context, p repository.MealParticipation) error {
+		upsertFn: func(_ context.Context, p repository.MealParticipation, _ time.Time) error {
 			upserted = append(upserted, p)
 			return nil
 		},
@@ -165,7 +165,7 @@ func TestUpdateParticipation_PastDate(t *testing.T) {
 			getByUserDateFn: func(_ context.Context, _, _ string) ([]repository.MealParticipation, error) { return nil, nil },
 			getByDateFn:     func(_ context.Context, _ string) ([]repository.MealParticipation, error) { return nil, nil },
 		},
-		upsertFn: func(_ context.Context, _ repository.MealParticipation) error { return nil },
+		upsertFn: func(_ context.Context, _ repository.MealParticipation, _ time.Time) error { return nil },
 	}
 
 	_, err := UpdateParticipation(context.Background(), dayRepo, pRepo, "user-1", "2020-01-01", "lunch", true, checker)
@@ -184,7 +184,7 @@ func TestUpdateParticipation_NilCutoff(t *testing.T) {
 			getByUserDateFn: func(_ context.Context, _, _ string) ([]repository.MealParticipation, error) { return nil, nil },
 			getByDateFn:     func(_ context.Context, _ string) ([]repository.MealParticipation, error) { return nil, nil },
 		},
-		upsertFn: func(_ context.Context, _ repository.MealParticipation) error { return nil },
+		upsertFn: func(_ context.Context, _ repository.MealParticipation, _ time.Time) error { return nil },
 	}
 
 	_, err := UpdateParticipation(context.Background(), dayRepo, pRepo, "user-1", "2026-04-25", "lunch", true, nil)
@@ -210,7 +210,7 @@ func TestUpdateParticipation_DayClosed(t *testing.T) {
 			getByUserDateFn: func(_ context.Context, _, _ string) ([]repository.MealParticipation, error) { return nil, nil },
 			getByDateFn:     func(_ context.Context, _ string) ([]repository.MealParticipation, error) { return nil, nil },
 		},
-		upsertFn: func(_ context.Context, _ repository.MealParticipation) error { return nil },
+		upsertFn: func(_ context.Context, _ repository.MealParticipation, _ time.Time) error { return nil },
 	}
 
 	_, err := UpdateParticipation(context.Background(), dayRepo, pRepo, "user-1", tomorrow, "lunch", true, checker)
@@ -234,7 +234,7 @@ func TestUpdateParticipation_NoMeals(t *testing.T) {
 			getByUserDateFn: func(_ context.Context, _, _ string) ([]repository.MealParticipation, error) { return nil, nil },
 			getByDateFn:     func(_ context.Context, _ string) ([]repository.MealParticipation, error) { return nil, nil },
 		},
-		upsertFn: func(_ context.Context, _ repository.MealParticipation) error { return nil },
+		upsertFn: func(_ context.Context, _ repository.MealParticipation, _ time.Time) error { return nil },
 	}
 
 	_, err := UpdateParticipation(context.Background(), dayRepo, pRepo, "user-1", tomorrow, "lunch", true, checker)
@@ -258,7 +258,7 @@ func TestUpdateParticipation_MealUnavailable(t *testing.T) {
 			getByUserDateFn: func(_ context.Context, _, _ string) ([]repository.MealParticipation, error) { return nil, nil },
 			getByDateFn:     func(_ context.Context, _ string) ([]repository.MealParticipation, error) { return nil, nil },
 		},
-		upsertFn: func(_ context.Context, _ repository.MealParticipation) error { return nil },
+		upsertFn: func(_ context.Context, _ repository.MealParticipation, _ time.Time) error { return nil },
 	}
 
 	_, err := UpdateParticipation(context.Background(), dayRepo, pRepo, "user-1", tomorrow, "snacks", true, checker)
@@ -292,7 +292,7 @@ func TestUpdateParticipation_AllMeals(t *testing.T) {
 			},
 			getByDateFn: func(_ context.Context, _ string) ([]repository.MealParticipation, error) { return nil, nil },
 		},
-		upsertFn: func(_ context.Context, _ repository.MealParticipation) error {
+		upsertFn: func(_ context.Context, _ repository.MealParticipation, _ time.Time) error {
 			upsertCount++
 			return nil
 		},
