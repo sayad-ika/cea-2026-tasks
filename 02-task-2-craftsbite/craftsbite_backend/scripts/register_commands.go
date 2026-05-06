@@ -73,6 +73,12 @@ func commands() []slashCommand {
 				},
 				{
 					Type:        optTypeString,
+					Name:        "reason",
+					Description: "Reason for the override",
+					Required:    true,
+				},
+				{
+					Type:        optTypeString,
 					Name:        "meal",
 					Description: "Meal type (only for meal overrides; defaults to all)",
 					Required:    false,
@@ -90,12 +96,6 @@ func commands() []slashCommand {
 					Name:        "value",
 					Description: "For meal: in|out. For location: office|wfh. Omit to toggle.",
 					Required:    false,
-				},
-				{
-					Type:        optTypeString,
-					Name:        "reason",
-					Description: "Reason for the override",
-					Required:    true,
 				},
 			},
 		},
