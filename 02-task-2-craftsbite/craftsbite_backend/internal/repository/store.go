@@ -86,3 +86,7 @@ func (s *Store) GetTeamMembers(ctx context.Context, teamID string) ([]TeamMember
 func (s *Store) FindTeamsByLeadID(ctx context.Context, leadUserID string) ([]Team, error) {
 	return FindTeamsByLeadID(ctx, s.client, s.table, leadUserID)
 }
+
+func (s *Store) WriteAuditEntry(ctx context.Context, entry AuditEntry) error {
+	return WriteAuditEntry(ctx, s.client, s.table, entry)
+}

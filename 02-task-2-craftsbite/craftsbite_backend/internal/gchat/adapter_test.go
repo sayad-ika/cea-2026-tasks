@@ -161,6 +161,7 @@ func TestCommandMapping(t *testing.T) {
 		4: "headcount",
 		5: "status",
 		6: "schedule-day",
+		7: "override",
 		9: "help",
 	}
 	for id, want := range expected {
@@ -261,5 +262,149 @@ func TestToCommandEvent_HelpNoArgs(t *testing.T) {
 	}
 	if len(opts) != 0 {
 		t.Fatalf("expected no options, got %#v", opts)
+	}
+}
+
+func TestParseOverrideArgs_MealToggle(t *testing.T) {
+	opts, err := parseOverrideArgs("alice@example.com meal tomorrow lunch -- Forgot to update")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if opts["target"] != "alice@example.com" {
+		t.Fatalf("target = %v, want alice@example.com", opts["target"])
+	}
+	if opts["entry"] != "meal" {
+		t.Fatalf("entry = %v, want meal", opts["entry"])
+	}
+	if opts["meal"] != "lunch" {
+		t.Fatalf("meal = %v, want lunch", opts["meal"])
+	}
+	if opts["value"] != "" {
+		t.Fatalf("value = %v, want empty", opts["value"])
+	}
+	if opts["reason"] != "Forgot to update" {
+		t.Fatalf("reason = %v, want reason text", opts["reason"])
+	}
+}
+
+func TestParseOverrideArgs_LocationExplicitValue(t *testing.T) {
+	opts, err := parseOverrideArgs("alice@example.com location 2026-05-10 wfh -- Doctor appointment")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if opts["entry"] != "location" {
+		t.Fatalf("entry = %v, want location", opts["entry"])
+	}
+	if opts["value"] != "wfh" {
+		t.Fatalf("value = %v, want wfh", opts["value"])
+	}
+	if opts["reason"] != "Doctor appointment" {
+		t.Fatalf("reason = %v, want reason text", opts["reason"])
+	}
+}
+
+func TestParseOverrideArgs_MissingReason(t *testing.T) {
+	_, err := parseOverrideArgs("alice@example.com location tomorrow")
+	if err == nil {
+		t.Fatal("expected error for missing reason")
+	}
+}
+
+func TestParseOverrideArgs_AmbiguousMealWithoutSeparator(t *testing.T) {
+	_, err := parseOverrideArgs("alice@example.com meal tomorrow lunch Forgot to update")
+	if err == nil {
+		t.Fatal("expected ambiguity error")
+	}
+	if !strings.Contains(err.Error(), "Ambiguous override syntax") {
+		t.Fatalf("error = %q, want ambiguity guidance", err.Error())
+	}
+}
+
+func TestParseOverrideArgs_AmbiguousLocationWithoutSeparator(t *testing.T) {
+	_, err := parseOverrideArgs("alice@example.com location tomorrow office relocation needed")
+	if err == nil {
+		t.Fatal("expected ambiguity error")
+	}
+	if !strings.Contains(err.Error(), "Ambiguous override syntax") {
+		t.Fatalf("error = %q, want ambiguity guidance", err.Error())
+	}
+}
+
+func TestParseScheduleDayArgs_GovtHolidayReasonOnly(t *testing.T) {
+	opts := parseScheduleDayArgs("2026-03-26 govt_holiday Independence Day")
+	if opts["date"] != "2026-03-26" {
+		t.Fatalf("date = %v, want 2026-03-26", opts["date"])
+	}
+	if opts["status"] != "govt_holiday" {
+		t.Fatalf("status = %v, want govt_holiday", opts["status"])
+	}
+	if _, ok := opts["meals"]; ok {
+		t.Fatalf("expected no meals option, got %v", opts["meals"])
+	}
+	if opts["reason"] != "Independence Day" {
+		t.Fatalf("reason = %v, want Independence Day", opts["reason"])
+	}
+}
+
+func TestParseScheduleDayArgs_OfficeClosedReasonOnly(t *testing.T) {
+	opts := parseScheduleDayArgs("2026-03-28 office_closed Maintenance Window")
+	if opts["status"] != "office_closed" {
+		t.Fatalf("status = %v, want office_closed", opts["status"])
+	}
+	if _, ok := opts["meals"]; ok {
+		t.Fatalf("expected no meals option, got %v", opts["meals"])
+	}
+	if opts["reason"] != "Maintenance Window" {
+		t.Fatalf("reason = %v, want Maintenance Window", opts["reason"])
+	}
+}
+
+func TestParseScheduleDayArgs_CelebrationMealsAndReason(t *testing.T) {
+	opts := parseScheduleDayArgs("2026-03-27 celebration lunch,snacks Company Anniversary")
+	if opts["meals"] != "lunch,snacks" {
+		t.Fatalf("meals = %v, want lunch,snacks", opts["meals"])
+	}
+	if opts["reason"] != "Company Anniversary" {
+		t.Fatalf("reason = %v, want Company Anniversary", opts["reason"])
+	}
+}
+
+func TestParseTeamSummaryArgs_AdminTeamID(t *testing.T) {
+	opts := parseTeamSummaryArgs("tomorrow team-42")
+	if opts["team_id"] != "team-42" {
+		t.Fatalf("team_id = %v, want team-42", opts["team_id"])
+	}
+	if opts["date"] != "tomorrow" {
+		t.Fatalf("date = %v, want tomorrow", opts["date"])
+	}
+}
+
+func TestParseTeamSummaryArgs_TeamIDOnly(t *testing.T) {
+	opts := parseTeamSummaryArgs("team-42")
+	if opts["team_id"] != "team-42" {
+		t.Fatalf("team_id = %v, want team-42", opts["team_id"])
+	}
+	if opts["date"] != "" {
+		t.Fatalf("date = %v, want empty", opts["date"])
+	}
+}
+
+func TestParseTeamSummaryArgs_Empty(t *testing.T) {
+	opts := parseTeamSummaryArgs("")
+	if opts["date"] != "" {
+		t.Fatalf("date = %v, want empty", opts["date"])
+	}
+	if opts["team_id"] != "" {
+		t.Fatalf("team_id = %v, want empty", opts["team_id"])
+	}
+}
+
+func TestParseTeamSummaryArgs_DateOnly(t *testing.T) {
+	opts := parseTeamSummaryArgs("2026-05-10")
+	if opts["date"] != "2026-05-10" {
+		t.Fatalf("date = %v, want 2026-05-10", opts["date"])
+	}
+	if opts["team_id"] != "" {
+		t.Fatalf("team_id = %v, want empty", opts["team_id"])
 	}
 }

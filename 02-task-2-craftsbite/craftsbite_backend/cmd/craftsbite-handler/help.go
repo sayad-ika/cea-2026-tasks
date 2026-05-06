@@ -68,7 +68,8 @@ func teamLeadHelpSection() helpSection {
 	return helpSection{
 		Title: "Team Lead",
 		Commands: []helpCommand{
-			{Usage: "/team-summary [date]", Description: "View your team's meal and location summary."},
+			{Usage: "/team-summary [date] [team_id]", Description: "View your team's meal and location summary. Admins can also pass team_id."},
+			{Usage: "/override <target> <entry> <date> [meal] [value] <reason>", Description: "Override a team member's meal or location entry. In Google Chat, use `--` before the reason when you also pass meal or value."},
 		},
 	}
 }

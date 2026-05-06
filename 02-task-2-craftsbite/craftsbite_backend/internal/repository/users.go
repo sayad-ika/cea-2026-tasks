@@ -135,6 +135,7 @@ func GetUserByID(ctx context.Context, client *dynamodb.Client, tableName, userID
 		Email:  item.Email,
 		Name:   item.Name,
 		Role:   item.Role,
+		TeamID: item.TeamID,
 		Active: item.Active,
 	}, nil
 }

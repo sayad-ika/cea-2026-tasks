@@ -46,6 +46,60 @@ func commands() []slashCommand {
 			Description: "Show the commands available to you",
 		},
 		{
+			Name:        "override",
+			Description: "Override a team member's meal or location entry",
+			Options: []commandOption{
+				{
+					Type:        optTypeString,
+					Name:        "target",
+					Description: "Team member work email",
+					Required:    true,
+				},
+				{
+					Type:        optTypeString,
+					Name:        "entry",
+					Description: "Which entry to override",
+					Required:    true,
+					Choices: []commandChoice{
+						{Name: "Meal", Value: "meal"},
+						{Name: "Location", Value: "location"},
+					},
+				},
+				{
+					Type:        optTypeString,
+					Name:        "date",
+					Description: "Date: today, tomorrow, +N, or YYYY-MM-DD",
+					Required:    true,
+				},
+				{
+					Type:        optTypeString,
+					Name:        "meal",
+					Description: "Meal type (only for meal overrides; defaults to all)",
+					Required:    false,
+					Choices: []commandChoice{
+						{Name: "Lunch", Value: "lunch"},
+						{Name: "Snacks", Value: "snacks"},
+						{Name: "Iftar", Value: "iftar"},
+						{Name: "Event Dinner", Value: "event_dinner"},
+						{Name: "Optional Dinner", Value: "optional_dinner"},
+						{Name: "All", Value: "all"},
+					},
+				},
+				{
+					Type:        optTypeString,
+					Name:        "value",
+					Description: "For meal: in|out. For location: office|wfh. Omit to toggle.",
+					Required:    false,
+				},
+				{
+					Type:        optTypeString,
+					Name:        "reason",
+					Description: "Reason for the override",
+					Required:    true,
+				},
+			},
+		},
+		{
 			Name:        "meal",
 			Description: "Update your meal participation for a date, or toggle it if status is omitted",
 			Options: []commandOption{
@@ -76,7 +130,7 @@ func commands() []slashCommand {
 				{
 					Type:        optTypeString,
 					Name:        "date",
-					Description: "Date: tomorrow (default), today, +N, YYYY-MM-DD, YYYY-MM-DD..YYYY-MM-DD, or week",
+					Description: "Date: tomorrow (default), today, +N, or YYYY-MM-DD",
 					Required:    false,
 				},
 			},
@@ -88,7 +142,7 @@ func commands() []slashCommand {
 				{
 					Type:        optTypeString,
 					Name:        "date",
-					Description: "Date: tomorrow (default), today, +N, YYYY-MM-DD, YYYY-MM-DD..YYYY-MM-DD, or week",
+					Description: "Date: tomorrow (default), today, +N, or YYYY-MM-DD",
 					Required:    false,
 				},
 			},
@@ -122,7 +176,7 @@ func commands() []slashCommand {
 				{
 					Type:        optTypeString,
 					Name:        "date",
-					Description: "Date: tomorrow (default), today, +N, YYYY-MM-DD, YYYY-MM-DD..YYYY-MM-DD, or week",
+					Description: "Date: tomorrow (default), today, +N, or YYYY-MM-DD",
 					Required:    false,
 				},
 				{
@@ -140,7 +194,7 @@ func commands() []slashCommand {
 				{
 					Type:        optTypeString,
 					Name:        "date",
-					Description: "Date: tomorrow (default), today, +N, YYYY-MM-DD, YYYY-MM-DD..YYYY-MM-DD, or week",
+					Description: "Date: tomorrow (default), today, +N, or YYYY-MM-DD",
 					Required:    false,
 				},
 			},

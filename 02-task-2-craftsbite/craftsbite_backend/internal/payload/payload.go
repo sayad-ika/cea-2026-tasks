@@ -47,5 +47,15 @@ type ScheduleDayOptions struct {
 }
 
 type TeamSummaryOptions struct {
-	Date string `json:"date"`
+	Date   string `json:"date"`
+	TeamID string `json:"team_id"`
+}
+
+type OverrideOptions struct {
+	Target string `json:"target"`
+	Entry  string `json:"entry"`
+	Date   string `json:"date"`
+	Meal   string `json:"meal"`
+	Value  string `json:"value"`
+	Reason string `json:"reason"`
 }

@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestHelpSectionsForRole(t *testing.T) {
 	tests := []struct {
@@ -49,6 +52,9 @@ func TestBuildDiscordHelpMessage(t *testing.T) {
 	}
 	if embed.Fields[3].Name != "Admin" {
 		t.Fatalf("last section = %q, want Admin", embed.Fields[3].Name)
+	}
+	if !strings.Contains(embed.Fields[1].Value, "/override") {
+		t.Fatal("expected team lead help section to include /override")
 	}
 }
 
