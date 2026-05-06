@@ -130,14 +130,20 @@ func DayStatusLabel(status, reason string) string {
 	switch status {
 	case "", "normal":
 		label = "📅 Normal Day"
+	case "govt_holiday":
+		label = "🎉 Government Holiday"
 	case "holiday":
 		label = "🎉 Holiday"
 	case "office_closed":
 		label = "🔒 Office Closed"
+	case "celebration":
+		label = "🎊 Celebration"
 	case "event_day":
 		label = "🎪 Event Day"
 	case "wfh_day":
 		label = "🏠 WFH Day"
+	case "weekend":
+		label = "🏖 Weekend"
 	default:
 		label = "📅 " + DisplayMealName(status)
 	}
