@@ -202,3 +202,111 @@ func TestBulkSetDaySchedule_InvalidDate(t *testing.T) {
 		t.Fatalf("expected ErrInvalidDate, got: %v", err)
 	}
 }
+
+func TestBulkSetDaySchedule_RollbackRestoresPreviousSchedule(t *testing.T) {
+	state := map[string]*repository.DaySchedule{
+		"2026-04-20": {
+			Date:           "2026-04-20",
+			DayStatus:      "celebration",
+			AvailableMeals: []string{"lunch"},
+			Reason:         "Original reason",
+			CreatedBy:      "admin-0",
+		},
+	}
+
+	repo := &mockDayScheduleWriter{
+		mockDayScheduleReader: mockDayScheduleReader{
+			getDayFn: func(_ context.Context, date string) (*repository.DaySchedule, error) {
+				schedule, ok := state[date]
+				if !ok {
+					return nil, nil
+				}
+				clone := *schedule
+				clone.AvailableMeals = append([]string(nil), schedule.AvailableMeals...)
+				return &clone, nil
+			},
+			getAvailableMealsFn: func(_ context.Context, _ string) ([]string, error) { return nil, nil },
+		},
+		upsertFn: func(_ context.Context, schedule repository.DaySchedule) error {
+			if schedule.Date == "2026-04-21" {
+				return errors.New("db error")
+			}
+			clone := schedule
+			clone.AvailableMeals = append([]string(nil), schedule.AvailableMeals...)
+			state[schedule.Date] = &clone
+			return nil
+		},
+		deleteFn: func(_ context.Context, date string) error {
+			delete(state, date)
+			return nil
+		},
+	}
+
+	_, err := BulkSetDaySchedule(context.Background(), repo, []string{"2026-04-20", "2026-04-21"}, SetDayScheduleInput{
+		DayStatus:      "normal",
+		AvailableMeals: []string{"snacks"},
+		Reason:         "Updated reason",
+		SetBy:          "admin-1",
+	})
+	if err == nil {
+		t.Fatal("expected rollback error, got nil")
+	}
+
+	restored := state["2026-04-20"]
+	if restored == nil {
+		t.Fatal("expected original schedule to be restored")
+	}
+	if restored.DayStatus != "celebration" {
+		t.Fatalf("DayStatus = %q, want celebration", restored.DayStatus)
+	}
+	if len(restored.AvailableMeals) != 1 || restored.AvailableMeals[0] != "lunch" {
+		t.Fatalf("AvailableMeals = %v, want [lunch]", restored.AvailableMeals)
+	}
+	if restored.Reason != "Original reason" {
+		t.Fatalf("Reason = %q, want Original reason", restored.Reason)
+	}
+}
+
+func TestBulkSetDaySchedule_RollbackDeletesNewSchedules(t *testing.T) {
+	state := map[string]*repository.DaySchedule{}
+
+	repo := &mockDayScheduleWriter{
+		mockDayScheduleReader: mockDayScheduleReader{
+			getDayFn: func(_ context.Context, date string) (*repository.DaySchedule, error) {
+				schedule, ok := state[date]
+				if !ok {
+					return nil, nil
+				}
+				clone := *schedule
+				clone.AvailableMeals = append([]string(nil), schedule.AvailableMeals...)
+				return &clone, nil
+			},
+			getAvailableMealsFn: func(_ context.Context, _ string) ([]string, error) { return nil, nil },
+		},
+		upsertFn: func(_ context.Context, schedule repository.DaySchedule) error {
+			if schedule.Date == "2026-04-21" {
+				return errors.New("db error")
+			}
+			clone := schedule
+			clone.AvailableMeals = append([]string(nil), schedule.AvailableMeals...)
+			state[schedule.Date] = &clone
+			return nil
+		},
+		deleteFn: func(_ context.Context, date string) error {
+			delete(state, date)
+			return nil
+		},
+	}
+
+	_, err := BulkSetDaySchedule(context.Background(), repo, []string{"2026-04-20", "2026-04-21"}, SetDayScheduleInput{
+		DayStatus:      "normal",
+		AvailableMeals: []string{"snacks"},
+		SetBy:          "admin-1",
+	})
+	if err == nil {
+		t.Fatal("expected rollback error, got nil")
+	}
+	if _, ok := state["2026-04-20"]; ok {
+		t.Fatal("expected newly created schedule to be removed during rollback")
+	}
+}
