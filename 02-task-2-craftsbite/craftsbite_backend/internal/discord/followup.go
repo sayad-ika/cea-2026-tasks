@@ -11,11 +11,6 @@ import (
 
 var followupClient = &http.Client{Timeout: 5 * time.Second}
 
-func SendFollowup(applicationID, token, content string) error {
-	message := NormalizeMessage(Message{Content: content})
-	return SendFollowupMessage(applicationID, token, message)
-}
-
 func SendFollowupMessage(applicationID, token string, message Message) error {
 	url := fmt.Sprintf(
 		"https://discord.com/api/v10/webhooks/%s/%s/messages/@original",

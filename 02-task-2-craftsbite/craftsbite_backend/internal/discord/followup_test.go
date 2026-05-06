@@ -51,7 +51,7 @@ func TestSendFollowup_Non2xx(t *testing.T) {
 		w.WriteHeader(http.StatusForbidden)
 		w.Write([]byte(`{"message": "Missing Access"}`))
 	}, func() {
-		err := SendFollowup("app-id", "token-abc", "response text")
+		err := SendFollowupMessage("app-id", "token-abc", NormalizeMessage(Message{Content: "response text"}))
 		if err == nil {
 			t.Fatal("expected error for 403 response")
 		}
@@ -70,7 +70,7 @@ func TestSendFollowup_NetworkError(t *testing.T) {
 		Timeout:   followupClient.Timeout,
 	}
 
-	err := SendFollowup("", "", "")
+	err := SendFollowupMessage("", "", NormalizeMessage(Message{Content: ""}))
 	if err == nil {
 		t.Fatal("expected error from invalid URL")
 	}

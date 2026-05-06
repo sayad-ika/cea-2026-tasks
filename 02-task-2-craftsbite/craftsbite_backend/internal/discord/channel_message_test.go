@@ -34,14 +34,14 @@ func withTestServer(t *testing.T, handler http.HandlerFunc, fn func()) {
 }
 
 func TestCreateChannelMessage_EmptyToken(t *testing.T) {
-	err := CreateChannelMessage("", "123", "hello")
+	err := CreateChannelMessageObject("", "123", Message{Content: "hello"})
 	if err != nil {
 		t.Errorf("expected nil for empty token, got %v", err)
 	}
 }
 
 func TestCreateChannelMessage_EmptyChannelID(t *testing.T) {
-	err := CreateChannelMessage("token", "", "hello")
+	err := CreateChannelMessageObject("token", "", Message{Content: "hello"})
 	if err != nil {
 		t.Errorf("expected nil for empty channel ID, got %v", err)
 	}
@@ -77,7 +77,7 @@ func TestCreateChannelMessage_Non2xx(t *testing.T) {
 		w.WriteHeader(http.StatusForbidden)
 		w.Write([]byte(`{"message": "Missing Access"}`))
 	}, func() {
-		err := CreateChannelMessage("test-token", "chan123", "hello")
+		err := CreateChannelMessageObject("test-token", "chan123", NormalizeMessage(Message{Content: "hello"}))
 		if err == nil {
 			t.Fatal("expected error for 403 response")
 		}
@@ -96,7 +96,7 @@ func TestCreateChannelMessage_Truncation(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}, func() {
 		longContent := strings.Repeat("a", 2500)
-		err := CreateChannelMessage("test-token", "chan123", longContent)
+		err := CreateChannelMessageObject("test-token", "chan123", NormalizeMessage(Message{Content: longContent}))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
