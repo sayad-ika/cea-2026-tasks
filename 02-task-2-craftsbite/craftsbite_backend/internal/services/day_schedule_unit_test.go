@@ -135,22 +135,6 @@ func TestSetDaySchedule_UpsertError(t *testing.T) {
 	}
 }
 
-func TestGetDaySchedule(t *testing.T) {
-	expected := &repository.DaySchedule{Date: "2026-04-25", DayStatus: "normal"}
-	repo := &mockDayScheduleReader{
-		getDayFn:            func(_ context.Context, date string) (*repository.DaySchedule, error) { return expected, nil },
-		getAvailableMealsFn: func(_ context.Context, _ string) ([]string, error) { return nil, nil },
-	}
-
-	got, err := GetDaySchedule(context.Background(), repo, "2026-04-25")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got.Date != "2026-04-25" {
-		t.Errorf("Date = %q, want %q", got.Date, "2026-04-25")
-	}
-}
-
 func TestDeleteDaySchedule(t *testing.T) {
 	called := false
 	repo := &mockDayScheduleWriter{

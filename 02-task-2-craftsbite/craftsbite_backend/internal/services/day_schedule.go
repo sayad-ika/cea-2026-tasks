@@ -70,10 +70,6 @@ func SetDaySchedule(ctx context.Context, repo DayScheduleWriter, input SetDaySch
 	return &schedule, nil
 }
 
-func GetDaySchedule(ctx context.Context, repo DayScheduleReader, date string) (*repository.DaySchedule, error) {
-	return repo.GetDay(ctx, date)
-}
-
 func DeleteDaySchedule(ctx context.Context, repo DayScheduleWriter, date string) error {
 	return repo.DeleteDaySchedule(ctx, date)
 }

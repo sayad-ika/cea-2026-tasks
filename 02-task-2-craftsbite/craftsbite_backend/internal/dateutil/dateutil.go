@@ -74,27 +74,3 @@ func (p *DateParser) parseDateWithDefaultsAt(dateStr string, now time.Time) (str
 
 	return parsed.Format(dateFormat), nil
 }
-
-// TodayInTimezone returns today's date in the configured timezone
-func (p *DateParser) TodayInTimezone() string {
-	return p.todayInTimezoneAt(time.Now())
-}
-
-// TomorrowInTimezone returns tomorrow's date in the configured timezone
-func (p *DateParser) TomorrowInTimezone() string {
-	return p.tomorrowInTimezoneAt(time.Now())
-}
-
-func (p *DateParser) todayInTimezoneAt(now time.Time) string {
-	if p == nil || p.loc == nil {
-		return now.UTC().Format(dateFormat)
-	}
-	return now.In(p.loc).Format(dateFormat)
-}
-
-func (p *DateParser) tomorrowInTimezoneAt(now time.Time) string {
-	if p == nil || p.loc == nil {
-		return now.UTC().AddDate(0, 0, 1).Format(dateFormat)
-	}
-	return now.In(p.loc).AddDate(0, 0, 1).Format(dateFormat)
-}
