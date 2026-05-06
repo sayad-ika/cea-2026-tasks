@@ -8,7 +8,7 @@ import (
 )
 
 func TestSimpleTextCard(t *testing.T) {
-	got, err := SimpleTextCard("hello world")
+	got, err := NoticeCard(discord.DefaultNoticeTitle(discord.NoticeToneInfo), discord.DefaultNoticeSubtitle(discord.NoticeToneInfo), "hello world", discord.NoticeToneInfo)
 	if err != nil {
 		t.Fatal(err)
 	}

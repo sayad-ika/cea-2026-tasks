@@ -72,10 +72,6 @@ type HelpSection struct {
 	Commands []HelpCommand
 }
 
-func SimpleTextCard(text string) ([]byte, error) {
-	return NoticeCard(discord.DefaultNoticeTitle(discord.NoticeToneInfo), discord.DefaultNoticeSubtitle(discord.NoticeToneInfo), text, discord.NoticeToneInfo)
-}
-
 func NoticeCard(title, subtitle, text string, tone discord.NoticeTone) ([]byte, error) {
 	return buildCardResponseWithTone(
 		"response",

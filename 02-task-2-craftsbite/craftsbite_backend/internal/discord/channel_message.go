@@ -11,10 +11,6 @@ import (
 
 var channelHTTPClient = &http.Client{Timeout: 10 * time.Second}
 
-func CreateChannelMessage(botToken, channelID, content string) error {
-	return CreateChannelMessageObject(botToken, channelID, Message{Content: content})
-}
-
 func CreateChannelMessageObject(botToken, channelID string, message Message) error {
 	if botToken == "" || channelID == "" {
 		return nil

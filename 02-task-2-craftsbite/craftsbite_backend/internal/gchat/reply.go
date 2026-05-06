@@ -47,18 +47,3 @@ func CreatePrivateMessage(ctx context.Context, serviceAccountJSON, spaceName, vi
 	_, err = svc.Spaces.Messages.Create(spaceName, msg).Context(ctx).Do()
 	return err
 }
-
-func UpdateMessage(ctx context.Context, serviceAccountJSON, messageName string, body []byte) error {
-	svc, err := newChatService(ctx, chatServiceOptions(serviceAccountJSON)...)
-	if err != nil {
-		return fmt.Errorf("chat.NewService: %w", err)
-	}
-
-	msg, err := decodeMessageBody(body)
-	if err != nil {
-		return err
-	}
-
-	_, err = svc.Spaces.Messages.Update(messageName, msg).UpdateMask("cardsV2").Context(ctx).Do()
-	return err
-}
