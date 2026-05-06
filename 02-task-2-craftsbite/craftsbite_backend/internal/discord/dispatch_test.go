@@ -3,7 +3,6 @@ package discord_test
 import (
 	"testing"
 
-	"github.com/sayad-ika/craftsbite/internal/config"
 	"github.com/sayad-ika/craftsbite/internal/discord"
 )
 
@@ -37,34 +36,27 @@ func TestCheckPermission(t *testing.T) {
 	}
 }
 
-func TestDispatch(t *testing.T) {
-	cfg := &config.Config{
-		LambdaSelfFunctionName:       "self-fn",
-		LambdaManagementFunctionName: "mgmt-fn",
-		LambdaOpsFunctionName:        "ops-fn",
-	}
-
+func TestIsKnownCommand(t *testing.T) {
 	tests := []struct {
 		command string
-		wantARN string
-		wantOK  bool
+		want    bool
 	}{
-		{"meal", "self-fn", true},
-		{"help", "self-fn", true},
-		{"location", "self-fn", true},
-		{"status", "self-fn", true},
-		{"override", "mgmt-fn", true},
-		{"team-summary", "mgmt-fn", true},
-		{"headcount", "ops-fn", true},
-		{"schedule-day", "ops-fn", true},
-		{"admin", "ops-fn", true},
-		{"unknown-cmd", "", false},
+		{"meal", true},
+		{"help", true},
+		{"location", true},
+		{"status", true},
+		{"override", true},
+		{"team-summary", true},
+		{"headcount", true},
+		{"schedule-day", true},
+		{"admin", true},
+		{"unknown-cmd", false},
 	}
 
 	for _, tc := range tests {
-		arn, ok := discord.Dispatch(cfg, tc.command)
-		if ok != tc.wantOK || arn != tc.wantARN {
-			t.Errorf("Dispatch(%q) = (%q, %v), want (%q, %v)", tc.command, arn, ok, tc.wantARN, tc.wantOK)
+		got := discord.IsKnownCommand(tc.command)
+		if got != tc.want {
+			t.Errorf("IsKnownCommand(%q) = %v, want %v", tc.command, got, tc.want)
 		}
 	}
 }

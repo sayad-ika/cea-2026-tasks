@@ -60,17 +60,13 @@ func gchatCommandEvent(ctx context.Context, cfg *appconfig.Config, store *reposi
 		return payload.CommandEvent{}, &resp, nil
 	}
 
-	if _, ok := discord.Dispatch(cfg, cmdEvt.CommandName); !ok {
+	if !discord.IsKnownCommand(cmdEvt.CommandName) {
 		slog.Warn("no target function configured for command", "command", cmdEvt.CommandName)
 		resp := gchatNoticeText(fmt.Sprintf("Command `/%s` is not configured.", cmdEvt.CommandName), viewerName, discord.NoticeToneWarning)
 		return payload.CommandEvent{}, &resp, nil
 	}
 
 	return cmdEvt, nil, nil
-}
-
-func gchatText(msg, viewerName string) events.APIGatewayV2HTTPResponse {
-	return gchatNoticeText(msg, viewerName, discord.NoticeToneInfo)
 }
 
 func gchatNoticeText(msg, viewerName string, tone discord.NoticeTone) events.APIGatewayV2HTTPResponse {

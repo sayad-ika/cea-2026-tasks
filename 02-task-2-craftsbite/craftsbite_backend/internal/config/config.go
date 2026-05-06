@@ -13,9 +13,8 @@ import (
 )
 
 type Config struct {
-	DiscordApplicationID string
-	DiscordBotToken      string
-	DiscordPublicKey     string
+	DiscordBotToken  string
+	DiscordPublicKey string
 
 	AWSRegion string
 
@@ -24,10 +23,6 @@ type Config struct {
 	DynamoDBTable string
 	Timezone      string
 	CutoffTime    string
-
-	LambdaSelfFunctionName       string
-	LambdaManagementFunctionName string
-	LambdaOpsFunctionName        string
 
 	GChatServiceAccountJSON string
 
@@ -59,22 +54,18 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
-		DiscordApplicationID:         os.Getenv("DISCORD_APPLICATION_ID"),
-		AWSRegion:                    os.Getenv("AWS_REGION"),
-		DynamoDBEndpoint:             os.Getenv("DYNAMODB_ENDPOINT"),
-		DynamoDBTable:                os.Getenv("DYNAMODB_TABLE"),
-		Timezone:                     os.Getenv("TIMEZONE"),
-		CutoffTime:                   os.Getenv("CUTOFF_TIME"),
-		LambdaSelfFunctionName:       os.Getenv("LAMBDA_SELF_FUNCTION_NAME"),
-		LambdaManagementFunctionName: os.Getenv("LAMBDA_MANAGEMENT_FUNCTION_NAME"),
-		LambdaOpsFunctionName:        os.Getenv("LAMBDA_OPS_FUNCTION_NAME"),
-		GChatServiceAccountJSON:      os.Getenv("GCHAT_SERVICE_ACCOUNT_JSON"),
-		DiscordHeadcountChannelID:    os.Getenv("DISCORD_HEADCOUNT_CHANNEL_ID"),
-		GChatHeadcountSpace:          os.Getenv("GCHAT_HEADCOUNT_SPACE"),
-		RateLimitMaxTokens:           parseIntDefault(os.Getenv("RATE_LIMIT_MAX_TOKENS"), 5),
-		RateLimitRefillSeconds:       parseIntDefault(os.Getenv("RATE_LIMIT_REFILL_SECONDS"), 30),
-		DiscordBotToken:              params[paramPrefix+"DISCORD_BOT_TOKEN"],
-		DiscordPublicKey:             params[paramPrefix+"DISCORD_PUBLIC_KEY"],
+		AWSRegion:                 os.Getenv("AWS_REGION"),
+		DynamoDBEndpoint:          os.Getenv("DYNAMODB_ENDPOINT"),
+		DynamoDBTable:             os.Getenv("DYNAMODB_TABLE"),
+		Timezone:                  os.Getenv("TIMEZONE"),
+		CutoffTime:                os.Getenv("CUTOFF_TIME"),
+		GChatServiceAccountJSON:   os.Getenv("GCHAT_SERVICE_ACCOUNT_JSON"),
+		DiscordHeadcountChannelID: os.Getenv("DISCORD_HEADCOUNT_CHANNEL_ID"),
+		GChatHeadcountSpace:       os.Getenv("GCHAT_HEADCOUNT_SPACE"),
+		RateLimitMaxTokens:        parseIntDefault(os.Getenv("RATE_LIMIT_MAX_TOKENS"), 5),
+		RateLimitRefillSeconds:    parseIntDefault(os.Getenv("RATE_LIMIT_REFILL_SECONDS"), 30),
+		DiscordBotToken:           params[paramPrefix+"DISCORD_BOT_TOKEN"],
+		DiscordPublicKey:          params[paramPrefix+"DISCORD_PUBLIC_KEY"],
 	}
 
 	if cfg.AWSRegion == "" {
