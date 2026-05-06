@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 )
@@ -39,8 +40,8 @@ func (s *Store) GetParticipationsByDate(ctx context.Context, date string) ([]Mea
 	return GetParticipationsByDate(ctx, s.client, s.table, date)
 }
 
-func (s *Store) UpsertParticipation(ctx context.Context, p MealParticipation) error {
-	return UpsertParticipation(ctx, s.client, s.table, p)
+func (s *Store) UpsertParticipation(ctx context.Context, p MealParticipation, prevUpdatedAt time.Time) error {
+	return UpsertParticipation(ctx, s.client, s.table, p, prevUpdatedAt)
 }
 
 func (s *Store) GetWorkLocation(ctx context.Context, userID, date string) (*WorkLocation, error) {
@@ -51,8 +52,8 @@ func (s *Store) GetWorkLocationsByDate(ctx context.Context, date string) ([]Work
 	return GetWorkLocationsByDate(ctx, s.client, s.table, date)
 }
 
-func (s *Store) UpsertWorkLocation(ctx context.Context, wl WorkLocation) error {
-	return UpsertWorkLocation(ctx, s.client, s.table, wl)
+func (s *Store) UpsertWorkLocation(ctx context.Context, wl WorkLocation, prevUpdatedAt time.Time) error {
+	return UpsertWorkLocation(ctx, s.client, s.table, wl, prevUpdatedAt)
 }
 
 func (s *Store) GetUserByDiscordID(ctx context.Context, discordID string) (string, string, error) {

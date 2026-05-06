@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/sayad-ika/craftsbite/internal/repository"
 )
@@ -24,7 +25,7 @@ type ParticipationReader interface {
 
 type ParticipationWriter interface {
 	ParticipationReader
-	UpsertParticipation(ctx context.Context, p repository.MealParticipation) error
+	UpsertParticipation(ctx context.Context, p repository.MealParticipation, prevUpdatedAt time.Time) error
 }
 
 type LocationReader interface {
@@ -34,7 +35,7 @@ type LocationReader interface {
 
 type LocationWriter interface {
 	LocationReader
-	UpsertWorkLocation(ctx context.Context, wl repository.WorkLocation) error
+	UpsertWorkLocation(ctx context.Context, wl repository.WorkLocation, prevUpdatedAt time.Time) error
 }
 
 type UserReader interface {

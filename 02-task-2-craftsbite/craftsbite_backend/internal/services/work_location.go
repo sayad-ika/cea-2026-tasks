@@ -70,7 +70,7 @@ func SetLocation(ctx context.Context, repo LocationWriter, userID, date, locatio
 		Date:     date,
 		Location: location,
 	}
-	if err := repo.UpsertWorkLocation(ctx, wl); err != nil {
+	if err := repo.UpsertWorkLocation(ctx, wl, time.Time{}); err != nil {
 		return nil, fmt.Errorf("location: SetLocation upsert: %w", err)
 	}
 

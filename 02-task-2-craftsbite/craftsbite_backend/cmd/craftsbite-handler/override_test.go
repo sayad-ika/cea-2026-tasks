@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/sayad-ika/craftsbite/internal/dateutil"
 	"github.com/sayad-ika/craftsbite/internal/payload"
@@ -52,7 +53,7 @@ func (s *overrideTestStore) GetParticipationsByDate(ctx context.Context, date st
 	return s.participations, nil
 }
 
-func (s *overrideTestStore) UpsertParticipation(ctx context.Context, p repository.MealParticipation) error {
+func (s *overrideTestStore) UpsertParticipation(ctx context.Context, p repository.MealParticipation, _ time.Time) error {
 	s.upserts = append(s.upserts, p)
 	return nil
 }
@@ -65,7 +66,7 @@ func (s *overrideTestStore) GetWorkLocationsByDate(ctx context.Context, date str
 	return nil, nil
 }
 
-func (s *overrideTestStore) UpsertWorkLocation(ctx context.Context, wl repository.WorkLocation) error {
+func (s *overrideTestStore) UpsertWorkLocation(ctx context.Context, wl repository.WorkLocation, _ time.Time) error {
 	s.locationUpserts = append(s.locationUpserts, wl)
 	return nil
 }

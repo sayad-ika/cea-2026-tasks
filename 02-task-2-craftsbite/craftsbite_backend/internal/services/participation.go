@@ -167,7 +167,7 @@ func UpdateParticipation(ctx context.Context, dayRepo DayScheduleReader, pRepo P
 			CreatedAt:       now,
 			UpdatedAt:       now,
 		}
-		if err := pRepo.UpsertParticipation(ctx, p); err != nil {
+		if err := pRepo.UpsertParticipation(ctx, p, time.Time{}); err != nil {
 			return nil, fmt.Errorf("participation: upsert %s: %w", meal, err)
 		}
 	}

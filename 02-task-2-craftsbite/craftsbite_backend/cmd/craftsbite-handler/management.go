@@ -39,10 +39,10 @@ type overrideStore interface {
 	GetAvailableMeals(ctx context.Context, date string) ([]string, error)
 	GetParticipationsByUserDate(ctx context.Context, userID, date string) ([]repository.MealParticipation, error)
 	GetParticipationsByDate(ctx context.Context, date string) ([]repository.MealParticipation, error)
-	UpsertParticipation(ctx context.Context, p repository.MealParticipation) error
+	UpsertParticipation(ctx context.Context, p repository.MealParticipation, prevUpdatedAt time.Time) error
 	GetWorkLocation(ctx context.Context, userID, date string) (*repository.WorkLocation, error)
 	GetWorkLocationsByDate(ctx context.Context, date string) ([]repository.WorkLocation, error)
-	UpsertWorkLocation(ctx context.Context, wl repository.WorkLocation) error
+	UpsertWorkLocation(ctx context.Context, wl repository.WorkLocation, prevUpdatedAt time.Time) error
 	WriteAuditEntry(ctx context.Context, entry repository.AuditEntry) error
 }
 
@@ -232,7 +232,11 @@ func executeMealOverride(ctx context.Context, store overrideStore, event payload
 		newRecord.IsParticipating = newValue
 		newRecord.OverrideBy = event.UserID
 		newRecord.OverrideReason = opts.Reason
-		if err := store.UpsertParticipation(ctx, newRecord); err != nil {
+		prevUpdatedAt := time.Time{}
+		if existed {
+			prevUpdatedAt = existing.UpdatedAt
+		}
+		if err := store.UpsertParticipation(ctx, newRecord, prevUpdatedAt); err != nil {
 			return nil, err
 		}
 		action := "CREATE"
@@ -268,10 +272,12 @@ func executeLocationOverride(ctx context.Context, store overrideStore, event pay
 		newLocation = toggledLocationValue(currentLocation)
 	}
 	newRecord := repository.WorkLocation{UserID: target.ID, Date: date, Location: newLocation, SetBy: event.UserID, Reason: opts.Reason}
+	prevUpdatedAt := time.Time{}
 	if current != nil {
 		newRecord.CreatedAt = current.CreatedAt
+		prevUpdatedAt = current.UpdatedAt
 	}
-	if err := store.UpsertWorkLocation(ctx, newRecord); err != nil {
+	if err := store.UpsertWorkLocation(ctx, newRecord, prevUpdatedAt); err != nil {
 		return nil, err
 	}
 	action := "CREATE"

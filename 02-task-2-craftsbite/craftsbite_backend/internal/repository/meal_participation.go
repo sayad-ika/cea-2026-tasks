@@ -36,7 +36,7 @@ func GetParticipationsByUserDate(ctx context.Context, client *dynamodb.Client, t
 	return results, nil
 }
 
-func UpsertParticipation(ctx context.Context, client *dynamodb.Client, table string, p MealParticipation) error {
+func UpsertParticipation(ctx context.Context, client *dynamodb.Client, table string, p MealParticipation, prevUpdatedAt time.Time) error {
 	now := time.Now().UTC().Format(rfc3339)
 
 	createdAt := now
@@ -62,11 +62,23 @@ func UpsertParticipation(ctx context.Context, client *dynamodb.Client, table str
 		return fmt.Errorf("repository: UpsertParticipation marshal: %w", err)
 	}
 
-	_, err = client.PutItem(ctx, &dynamodb.PutItemInput{
+	input := &dynamodb.PutItemInput{
 		TableName: aws.String(table),
 		Item:      item,
-	})
+	}
+	if !prevUpdatedAt.IsZero() {
+		input.ConditionExpression = aws.String("#ua = :prev")
+		input.ExpressionAttributeNames = map[string]string{"#ua": "updated_at"}
+		input.ExpressionAttributeValues = map[string]types.AttributeValue{
+			":prev": &types.AttributeValueMemberS{Value: prevUpdatedAt.UTC().Format(rfc3339)},
+		}
+	}
+
+	_, err = client.PutItem(ctx, input)
 	if err != nil {
+		if isConditionalCheckFailed(err) {
+			return fmt.Errorf("repository: UpsertParticipation: %w", ErrConcurrentModification)
+		}
 		return fmt.Errorf("repository: UpsertParticipation: %w", err)
 	}
 	return nil
