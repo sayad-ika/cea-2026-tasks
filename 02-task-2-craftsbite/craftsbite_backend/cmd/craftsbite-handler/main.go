@@ -82,10 +82,6 @@ func immediateResponse(platform Platform, gchatResp *events.APIGatewayV2HTTPResp
 	return events.APIGatewayV2HTTPResponse{StatusCode: 200}, nil
 }
 
-func platformTextResponse(req HandlerRequest, msg string) events.APIGatewayV2HTTPResponse {
-	return platformNoticeResponse(req, msg, discord.NoticeToneInfo)
-}
-
 func platformNoticeResponse(req HandlerRequest, msg string, tone discord.NoticeTone) events.APIGatewayV2HTTPResponse {
 	if req.Platform == PlatformDiscord {
 		return discordJSON(ephemeralNotice(msg, tone))
