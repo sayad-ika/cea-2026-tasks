@@ -78,6 +78,11 @@ func DeleteDaySchedule(ctx context.Context, repo DayScheduleWriter, date string)
 	return repo.DeleteDaySchedule(ctx, date)
 }
 
+type dayScheduleSnapshot struct {
+	date     string
+	previous *repository.DaySchedule
+}
+
 func BulkSetDaySchedule(ctx context.Context, repo DayScheduleWriter, dates []string, input SetDayScheduleInput) (*BulkSetDayScheduleResult, error) {
 	var weekdays []string
 	for _, d := range dates {
@@ -95,19 +100,48 @@ func BulkSetDaySchedule(ctx context.Context, repo DayScheduleWriter, dates []str
 		return nil, ErrAllWeekend
 	}
 
-	var written []string
+	var written []dayScheduleSnapshot
 	for _, date := range weekdays {
+		previous, err := repo.GetDay(ctx, date)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read existing schedule for %s: %w", date, err)
+		}
+		snapshot := dayScheduleSnapshot{date: date, previous: cloneDaySchedule(previous)}
+
 		singleInput := input
 		singleInput.Date = date
-		_, err := SetDaySchedule(ctx, repo, singleInput)
+		_, err = SetDaySchedule(ctx, repo, singleInput)
 		if err != nil {
-			for _, prev := range written {
-				_ = repo.DeleteDaySchedule(ctx, prev)
-			}
+			rollbackDaySchedules(ctx, repo, written)
 			return nil, fmt.Errorf("failed on %s: %w", date, err)
 		}
-		written = append(written, date)
+		written = append(written, snapshot)
 	}
 
-	return &BulkSetDayScheduleResult{SuccessDates: written}, nil
+	successDates := make([]string, 0, len(written))
+	for _, snapshot := range written {
+		successDates = append(successDates, snapshot.date)
+	}
+
+	return &BulkSetDayScheduleResult{SuccessDates: successDates}, nil
+}
+
+func rollbackDaySchedules(ctx context.Context, repo DayScheduleWriter, written []dayScheduleSnapshot) {
+	for i := len(written) - 1; i >= 0; i-- {
+		snapshot := written[i]
+		if snapshot.previous == nil {
+			_ = repo.DeleteDaySchedule(ctx, snapshot.date)
+			continue
+		}
+		_ = repo.UpsertDaySchedule(ctx, *cloneDaySchedule(snapshot.previous))
+	}
+}
+
+func cloneDaySchedule(schedule *repository.DaySchedule) *repository.DaySchedule {
+	if schedule == nil {
+		return nil
+	}
+	clone := *schedule
+	clone.AvailableMeals = append([]string(nil), schedule.AvailableMeals...)
+	return &clone
 }
