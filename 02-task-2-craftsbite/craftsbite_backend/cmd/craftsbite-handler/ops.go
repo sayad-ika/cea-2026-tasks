@@ -127,16 +127,6 @@ func handleBulkScheduleDayCommand(ctx context.Context, store *repository.Store, 
 	return sendDiscordMessage(ctx, cfg, event, buildDiscordBulkScheduleDayMessage(result, statusStr))
 }
 
-func formatBulkScheduleDaySuccess(result *services.BulkSetDayScheduleResult, statusStr string) string {
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "✓ Day schedule set to **%s** for %d weekday(s):\n", headcountreport.DisplayDayStatus(statusStr), len(result.SuccessDates))
-	for _, d := range result.SuccessDates {
-		fmt.Fprintf(&sb, "  • %s\n", d)
-	}
-	sb.WriteString("_(Weekend dates in the range were automatically skipped.)_")
-	return sb.String()
-}
-
 func formatBulkScheduleDayError(err error) string {
 	switch {
 	case errors.Is(err, services.ErrAllWeekend):
@@ -162,25 +152,6 @@ func formatScheduleDayError(err error) string {
 	default:
 		return fmt.Sprintf("Failed to set day schedule: %s", errMsg)
 	}
-}
-
-func formatScheduleDaySuccess(schedule *repository.DaySchedule) string {
-	var sb strings.Builder
-
-	fmt.Fprintf(&sb, "✓ Day schedule set for %s\n\n", schedule.Date)
-	fmt.Fprintf(&sb, "**Status**: %s\n", headcountreport.DisplayDayStatus(schedule.DayStatus))
-
-	if len(schedule.AvailableMeals) > 0 {
-		fmt.Fprintf(&sb, "**Meals**: %s\n", headcountreport.FormatMealList(schedule.AvailableMeals))
-	} else {
-		fmt.Fprintf(&sb, "**Meals**: None\n")
-	}
-
-	if schedule.Reason != "" {
-		fmt.Fprintf(&sb, "**Reason**: %s", schedule.Reason)
-	}
-
-	return sb.String()
 }
 
 func buildDiscordScheduleDayMessage(schedule *repository.DaySchedule) discord.Message {

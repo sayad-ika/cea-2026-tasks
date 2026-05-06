@@ -81,13 +81,6 @@ func sendGChatCard(ctx context.Context, cfg *appconfig.Config, event payload.Com
 	return cmdutil.SendGChatCard(ctx, cfg, event, card)
 }
 
-func (r *replyRecorder) textResponse(event payload.CommandEvent, text string) events.APIGatewayV2HTTPResponse {
-	if r.req.Platform == PlatformDiscord {
-		return discordJSON(ephemeralMessage(discord.NoticeMessage(discord.DefaultNoticeTitle(discord.NoticeToneInfo), text)))
-	}
-	return gchatNoticeText(text, event.GChatViewerName, discord.NoticeToneInfo)
-}
-
 func (r *replyRecorder) finalResponse() events.APIGatewayV2HTTPResponse {
 	if r.response != nil {
 		return *r.response

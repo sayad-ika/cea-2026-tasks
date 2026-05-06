@@ -218,10 +218,6 @@ func toggleLocation(ctx context.Context, store *repository.Store, userID, date s
 	return services.SetLocation(ctx, store, userID, date, toggledLocationValue(current.Location), cutoff)
 }
 
-type dateRangeParser interface {
-	ParseDateRange(string) ([]string, error)
-}
-
 func formatMealStatusLine(statuses []services.ResolvedStatus) string {
 	if len(statuses) == 0 {
 		return "No meals configured"
@@ -467,29 +463,6 @@ func locationErrorReply(err error, date string) string {
 	}
 }
 
-func formatLocationStatus(date, location string, mealStatuses []services.ResolvedStatus) string {
-	locIcon := "🏢"
-	locLabel := "Office"
-	if location == "wfh" {
-		locIcon = "🏠"
-		locLabel = "WFH"
-	}
-
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "Updated! Status for %s:\n → %s %s", date, locIcon, locLabel)
-
-	for _, s := range mealStatuses {
-		icon := "✗"
-		if s.Status == "opted_in" {
-			icon = "✓"
-		} else if s.Status == "unavailable" {
-			icon = "—"
-		}
-		fmt.Fprintf(&sb, "  %s %s", cmdutil.DisplayMealName(s.MealType), icon)
-	}
-	return sb.String()
-}
-
 func prevDay(targetDate string) string {
 	t, err := time.Parse("2006-01-02", targetDate)
 	if err != nil {
@@ -625,36 +598,4 @@ func displayMealList(meals []string) string {
 		labels = append(labels, cmdutil.DisplayMealName(meal))
 	}
 	return strings.Join(labels, ", ")
-}
-
-func formatStatusView(date, location string, mealStatuses []services.ResolvedStatus) string {
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "Status for %s:\n", date)
-
-	locIcon := "🏢"
-	locLabel := "Office"
-	if location == "wfh" {
-		locIcon = "🏠"
-		locLabel = "WFH"
-	} else if location == "not_set" {
-		locIcon = "❓"
-		locLabel = "Not Set"
-	}
-	fmt.Fprintf(&sb, "  %s %s", locIcon, locLabel)
-
-	if len(mealStatuses) == 0 {
-		fmt.Fprintf(&sb, "\n  No meals configured")
-	} else {
-		for _, s := range mealStatuses {
-			icon := "✗"
-			if s.Status == "opted_in" {
-				icon = "✓"
-			} else if s.Status == "unavailable" {
-				icon = "—"
-			}
-			fmt.Fprintf(&sb, "  %s %s", cmdutil.DisplayMealName(s.MealType), icon)
-		}
-	}
-
-	return sb.String()
 }

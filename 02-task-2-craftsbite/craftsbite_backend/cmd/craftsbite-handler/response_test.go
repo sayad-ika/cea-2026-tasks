@@ -43,7 +43,7 @@ func TestEphemeralNoticeUsesWarningColor(t *testing.T) {
 }
 
 func TestGChatTextBuildsCardEnvelope(t *testing.T) {
-	resp := gchatText("hello world", "users/123")
+	resp := gchatNoticeText("hello world", "users/123", discord.NoticeToneInfo)
 	if resp.StatusCode != 200 {
 		t.Fatalf("StatusCode = %d, want 200", resp.StatusCode)
 	}
@@ -63,7 +63,7 @@ func TestGChatTextBuildsCardEnvelope(t *testing.T) {
 }
 
 func TestPlatformTextResponseUsesRichDiscordPayload(t *testing.T) {
-	resp := platformTextResponse(HandlerRequest{Platform: PlatformDiscord, Command: payload.CommandEvent{}}, "rate limit")
+	resp := platformNoticeResponse(HandlerRequest{Platform: PlatformDiscord, Command: payload.CommandEvent{}}, "rate limit", discord.NoticeToneInfo)
 	var body RouterResponse
 	if err := json.Unmarshal([]byte(resp.Body), &body); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)

@@ -20,10 +20,6 @@ type RouterResponse struct {
 	Data *discord.Message `json:"data,omitempty"`
 }
 
-func ephemeral(msg string) RouterResponse {
-	return ephemeralNotice(msg, discord.NoticeToneInfo)
-}
-
 func ephemeralNotice(msg string, tone discord.NoticeTone) RouterResponse {
 	return ephemeralMessage(discord.ToneMessage(discord.DefaultNoticeTitle(tone), msg, tone))
 }
