@@ -64,6 +64,36 @@ func TestGetUserMealStatus_NoMeals(t *testing.T) {
 	}
 }
 
+func TestGetUserMealStatus_NoConfiguredMealsFallsBackToUserRecords(t *testing.T) {
+	dayRepo := &mockDayScheduleReader{
+		getDayFn:            func(_ context.Context, _ string) (*repository.DaySchedule, error) { return nil, nil },
+		getAvailableMealsFn: func(_ context.Context, _ string) ([]string, error) { return nil, nil },
+	}
+	pRepo := &mockParticipationReader{
+		getByUserDateFn: func(_ context.Context, _, _ string) ([]repository.MealParticipation, error) {
+			return []repository.MealParticipation{
+				{MealType: "snacks", IsParticipating: false},
+				{MealType: "lunch", IsParticipating: true},
+			}, nil
+		},
+		getByDateFn: func(_ context.Context, _ string) ([]repository.MealParticipation, error) { return nil, nil },
+	}
+
+	statuses, err := GetUserMealStatus(context.Background(), dayRepo, pRepo, "user-1", "2026-04-25")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(statuses) != 2 {
+		t.Fatalf("expected 2 statuses from fallback records, got %d", len(statuses))
+	}
+	if statuses[0].MealType != "lunch" || statuses[0].Status != "opted_in" {
+		t.Fatalf("statuses[0] = %+v, want lunch opted_in", statuses[0])
+	}
+	if statuses[1].MealType != "snacks" || statuses[1].Status != "opted_out" {
+		t.Fatalf("statuses[1] = %+v, want snacks opted_out", statuses[1])
+	}
+}
+
 func TestGetUserMealStatus_ScheduleError(t *testing.T) {
 	dayRepo := &mockDayScheduleReader{
 		getDayFn:            func(_ context.Context, _ string) (*repository.DaySchedule, error) { return nil, errors.New("db fail") },
