@@ -124,16 +124,17 @@ func TestPostCutoff_StillAllowsFurtherDays(t *testing.T) {
 	}
 }
 
-func TestIsBeforeCutoff_InvalidTimezone(t *testing.T) {
-	_, err := NewCutoffChecker(CutoffConfig{Timezone: "NotAReal/Timezone"})
+func TestIsBeforeCutoff_NilLocation(t *testing.T) {
+	_, err := NewCutoffChecker(CutoffConfig{})
 	if err == nil {
-		t.Fatal("expected error for invalid timezone; got nil")
+		t.Fatal("expected error for nil Location; got nil")
 	}
 }
 
 func mustCutoffChecker(t *testing.T) *CutoffChecker {
 	t.Helper()
-	checker, err := NewCutoffChecker(CutoffConfig{CutoffTime: "21:00", Timezone: "Asia/Dhaka"})
+	loc := dhakaLoc(t)
+	checker, err := NewCutoffChecker(CutoffConfig{CutoffTime: "21:00", Location: loc})
 	if err != nil {
 		t.Fatalf("NewCutoffChecker() returned unexpected error: %v", err)
 	}
