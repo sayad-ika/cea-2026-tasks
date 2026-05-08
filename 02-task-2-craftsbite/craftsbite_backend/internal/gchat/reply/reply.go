@@ -1,4 +1,4 @@
-package gchat
+package reply
 
 import (
 	"context"
@@ -14,7 +14,6 @@ var newChatService = func(ctx context.Context, opts ...option.ClientOption) (*ch
 }
 
 func chatServiceOptions(serviceAccountJSON string) []option.ClientOption {
-	// Google Chat app-auth updates should request only the bot scope.
 	return []option.ClientOption{
 		option.WithAuthCredentialsJSON(option.ServiceAccount, []byte(serviceAccountJSON)),
 		option.WithScopes(chat.ChatBotScope),

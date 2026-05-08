@@ -1,4 +1,4 @@
-package gchat
+package reply
 
 import (
 	"testing"

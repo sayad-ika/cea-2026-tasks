@@ -7,13 +7,12 @@ import (
 
 const (
 	defaultCutoffTime = "21:00"
-	defaultTimezone   = "Asia/Dhaka"
 	defaultMaxDays    = 7
 )
 
 type CutoffConfig struct {
+	Location     *time.Location
 	CutoffTime   string
-	Timezone     string
 	MaxDaysAhead int
 }
 
@@ -25,13 +24,8 @@ type CutoffChecker struct {
 }
 
 func NewCutoffChecker(cfg CutoffConfig) (*CutoffChecker, error) {
-	tz := cfg.Timezone
-	if tz == "" {
-		tz = defaultTimezone
-	}
-	loc, err := time.LoadLocation(tz)
-	if err != nil {
-		return nil, fmt.Errorf("cutoff: invalid TIMEZONE %q: %w", tz, err)
+	if cfg.Location == nil {
+		return nil, fmt.Errorf("cutoff: Location is required")
 	}
 
 	cutoffStr := cfg.CutoffTime
@@ -49,7 +43,7 @@ func NewCutoffChecker(cfg CutoffConfig) (*CutoffChecker, error) {
 		maxDays = defaultMaxDays
 	}
 
-	return &CutoffChecker{loc: loc, cutoffHour: h, cutoffMin: m, maxDays: maxDays}, nil
+	return &CutoffChecker{loc: cfg.Location, cutoffHour: h, cutoffMin: m, maxDays: maxDays}, nil
 }
 
 func (c *CutoffChecker) IsBeforeCutoff(targetDate string) (bool, error) {
