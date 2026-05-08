@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-lambda-go/events"
-	"github.com/sayad-ika/craftsbite/internal/cmdutil"
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
 	"github.com/sayad-ika/craftsbite/internal/discord"
 	"github.com/sayad-ika/craftsbite/internal/gchat"
@@ -55,7 +54,7 @@ func sendNotice(ctx context.Context, cfg *appconfig.Config, event payload.Comman
 			recorder.response = &resp
 			return nil
 		}
-		return cmdutil.SendReply(ctx, cfg, event, text)
+		return fmt.Errorf("build gchat notice card: %w", err)
 	}
 	return sendGChatCard(ctx, cfg, event, card)
 }
@@ -66,7 +65,7 @@ func sendDiscordMessage(ctx context.Context, cfg *appconfig.Config, event payloa
 		recorder.response = &resp
 		return nil
 	}
-	return cmdutil.SendDiscordMessage(ctx, cfg, event, message)
+	return fmt.Errorf("no reply recorder in context")
 }
 
 func sendGChatCard(ctx context.Context, cfg *appconfig.Config, event payload.CommandEvent, card []byte) error {
@@ -78,7 +77,7 @@ func sendGChatCard(ctx context.Context, cfg *appconfig.Config, event payload.Com
 		recorder.response = &resp
 		return nil
 	}
-	return cmdutil.SendGChatCard(ctx, cfg, event, card)
+	return fmt.Errorf("no reply recorder in context")
 }
 
 func (r *replyRecorder) finalResponse() events.APIGatewayV2HTTPResponse {
