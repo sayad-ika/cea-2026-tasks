@@ -8,24 +8,15 @@ import (
 )
 
 const (
-	defaultTimezone = "Asia/Dhaka"
-	dateFormat      = "2006-01-02"
+	dateFormat = "2006-01-02"
 )
 
 type DateParser struct {
 	loc *time.Location
 }
 
-func NewDateParser(timezone string) (*DateParser, error) {
-	tz := timezone
-	if tz == "" {
-		tz = defaultTimezone
-	}
-	loc, err := time.LoadLocation(tz)
-	if err != nil {
-		return nil, fmt.Errorf("invalid TIMEZONE %q: %w", tz, err)
-	}
-	return &DateParser{loc: loc}, nil
+func NewDateParser(loc *time.Location) *DateParser {
+	return &DateParser{loc: loc}
 }
 
 // ParseDateWithDefaults parses a date string with support for shortcuts and defaults.
