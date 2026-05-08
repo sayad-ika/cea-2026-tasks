@@ -102,21 +102,14 @@ func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
 
 	cfg := appconfig.MustLoad()
-	client, err := dynamo.NewClient(cfg)
+	client := dynamo.NewClient(cfg.AwsConfig, cfg.DynamoDBEndpoint)
+	dateParser := dateutil.NewDateParser(cfg.Location)
+	cutoff, err := services.NewCutoffChecker(services.CutoffConfig{
+		Location:   cfg.Location,
+		CutoffTime: cfg.CutoffTime,
+	})
 	if err != nil {
 		log.Fatalf("craftsbite-handler: %v", err)
-	}
-	dateParser, err := dateutil.NewDateParser(cfg.Timezone)
-	if err != nil {
-		log.Fatalf("craftsbite-handler: %v", err)
-	}
-	cutoff, err := services.NewCutoffChecker(services.CutoffConfig{CutoffTime: cfg.CutoffTime, Timezone: cfg.Timezone})
-	if err != nil {
-		log.Fatalf("craftsbite-handler: %v", err)
-	}
-	tz, err := time.LoadLocation(cfg.Timezone)
-	if err != nil {
-		log.Fatalf("craftsbite-handler: invalid timezone %q: %v", cfg.Timezone, err)
 	}
 
 	deps := handlerDeps{
@@ -124,7 +117,7 @@ func main() {
 		store:      repository.NewStore(client, cfg.DynamoDBTable),
 		dateParser: dateParser,
 		cutoff:     cutoff,
-		limiter:    ratelimit.NewLimiter(client, cfg.DynamoDBTable, cfg.RateLimitMaxTokens, cfg.RateLimitRefillSeconds, tz),
+		limiter:    ratelimit.NewLimiter(client, cfg.DynamoDBTable, cfg.RateLimitMaxTokens, cfg.RateLimitRefillSeconds, cfg.Location),
 	}
 
 	const handlerTimeout = 28 * time.Second

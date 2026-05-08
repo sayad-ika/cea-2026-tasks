@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"os"
 	"sync"
@@ -14,7 +13,7 @@ import (
 	"github.com/sayad-ika/craftsbite/internal/dateutil"
 	"github.com/sayad-ika/craftsbite/internal/discord"
 	"github.com/sayad-ika/craftsbite/internal/dynamo"
-	"github.com/sayad-ika/craftsbite/internal/gchat"
+	gchatreply "github.com/sayad-ika/craftsbite/internal/gchat/reply"
 	"github.com/sayad-ika/craftsbite/internal/headcountreport"
 	"github.com/sayad-ika/craftsbite/internal/repository"
 	"github.com/sayad-ika/craftsbite/internal/services"
@@ -121,14 +120,8 @@ func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
 
 	cfg := appconfig.MustLoad()
-	client, err := dynamo.NewClient(cfg)
-	if err != nil {
-		log.Fatalf("scheduled-headcount: %v", err)
-	}
-	dateParser, err := dateutil.NewDateParser(cfg.Timezone)
-	if err != nil {
-		log.Fatalf("scheduled-headcount: %v", err)
-	}
+	client := dynamo.NewClient(cfg.AwsConfig, cfg.DynamoDBEndpoint)
+	dateParser := dateutil.NewDateParser(cfg.Location)
 	store := repository.NewStore(client, cfg.DynamoDBTable)
 
 	deps := scheduledDeps{
@@ -139,7 +132,7 @@ func main() {
 			return discord.CreateChannelMessageObject(cfg.DiscordBotToken, cfg.DiscordHeadcountChannelID, message)
 		},
 		sendGChat: func(ctx context.Context, body []byte) error {
-			return gchat.CreateSpaceMessage(ctx, cfg.GChatServiceAccountJSON, cfg.GChatHeadcountSpace, body)
+			return gchatreply.CreateSpaceMessage(ctx, cfg.GChatServiceAccountJSON, cfg.GChatHeadcountSpace, body)
 		},
 		listAudience: func(ctx context.Context, roles ...string) ([]repository.User, error) {
 			return store.ListActiveUsersByRoles(ctx, roles...)
