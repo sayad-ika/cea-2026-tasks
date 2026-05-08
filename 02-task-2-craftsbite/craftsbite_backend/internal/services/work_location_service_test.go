@@ -61,7 +61,7 @@ func TestSetLocation_Valid(t *testing.T) {
 	loc, _ := time.LoadLocation("Asia/Dhaka")
 	tomorrow := time.Now().In(loc).AddDate(0, 0, 2).Format("2006-01-02")
 
-	checker, _ := NewCutoffChecker(CutoffConfig{CutoffTime: "21:00", Timezone: "Asia/Dhaka"})
+	checker, _ := NewCutoffChecker(CutoffConfig{CutoffTime: "21:00", Location: loc})
 
 	var upsertCalled bool
 	repo := &mockLocationWriter{
@@ -90,7 +90,8 @@ func TestSetLocation_Valid(t *testing.T) {
 }
 
 func TestSetLocation_PastDate(t *testing.T) {
-	checker, _ := NewCutoffChecker(CutoffConfig{CutoffTime: "21:00", Timezone: "Asia/Dhaka"})
+	loc, _ := time.LoadLocation("Asia/Dhaka")
+	checker, _ := NewCutoffChecker(CutoffConfig{CutoffTime: "21:00", Location: loc})
 
 	repo := &mockLocationWriter{
 		mockLocationReader: mockLocationReader{
@@ -125,7 +126,7 @@ func TestSetLocation_TooFarAhead(t *testing.T) {
 	loc, _ := time.LoadLocation("Asia/Dhaka")
 	farFuture := time.Now().In(loc).AddDate(0, 0, 30).Format("2006-01-02")
 
-	checker, _ := NewCutoffChecker(CutoffConfig{CutoffTime: "21:00", Timezone: "Asia/Dhaka"})
+	checker, _ := NewCutoffChecker(CutoffConfig{CutoffTime: "21:00", Location: loc})
 
 	repo := &mockLocationWriter{
 		mockLocationReader: mockLocationReader{
@@ -145,7 +146,7 @@ func TestSetLocation_UpsertError(t *testing.T) {
 	loc, _ := time.LoadLocation("Asia/Dhaka")
 	tomorrow := time.Now().In(loc).AddDate(0, 0, 2).Format("2006-01-02")
 
-	checker, _ := NewCutoffChecker(CutoffConfig{CutoffTime: "21:00", Timezone: "Asia/Dhaka"})
+	checker, _ := NewCutoffChecker(CutoffConfig{CutoffTime: "21:00", Location: loc})
 
 	repo := &mockLocationWriter{
 		mockLocationReader: mockLocationReader{
