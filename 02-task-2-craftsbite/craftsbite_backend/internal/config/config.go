@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -17,6 +18,7 @@ type Config struct {
 	DiscordPublicKey string
 
 	AWSRegion string
+	AwsConfig aws.Config
 
 	DynamoDBEndpoint string
 
@@ -31,6 +33,8 @@ type Config struct {
 
 	RateLimitMaxTokens     int
 	RateLimitRefillSeconds int
+
+	Location *time.Location
 }
 
 const paramPrefix = "/craftsbite/"
@@ -55,6 +59,7 @@ func Load() (*Config, error) {
 
 	cfg := &Config{
 		AWSRegion:                 os.Getenv("AWS_REGION"),
+		AwsConfig:                 awsCfg,
 		DynamoDBEndpoint:          os.Getenv("DYNAMODB_ENDPOINT"),
 		DynamoDBTable:             os.Getenv("DYNAMODB_TABLE"),
 		Timezone:                  os.Getenv("TIMEZONE"),
@@ -80,6 +85,12 @@ func Load() (*Config, error) {
 	if cfg.CutoffTime == "" {
 		cfg.CutoffTime = "21:00"
 	}
+
+	loc, err := time.LoadLocation(cfg.Timezone)
+	if err != nil {
+		return nil, fmt.Errorf("invalid timezone %q: %w", cfg.Timezone, err)
+	}
+	cfg.Location = loc
 
 	var missing []string
 	if cfg.DiscordBotToken == "" {
