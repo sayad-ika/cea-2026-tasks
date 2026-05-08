@@ -114,7 +114,7 @@ func TestUpdateParticipation_ValidOptIn(t *testing.T) {
 	loc, _ := time.LoadLocation("Asia/Dhaka")
 	tomorrow := time.Now().In(loc).AddDate(0, 0, 2).Format("2006-01-02")
 
-	checker, _ := NewCutoffChecker(CutoffConfig{CutoffTime: "21:00", Timezone: "Asia/Dhaka"})
+	checker, _ := NewCutoffChecker(CutoffConfig{CutoffTime: "21:00", Location: loc})
 
 	var upserted []repository.MealParticipation
 	dayRepo := &mockDayScheduleReader{
@@ -154,7 +154,8 @@ func TestUpdateParticipation_ValidOptIn(t *testing.T) {
 }
 
 func TestUpdateParticipation_PastDate(t *testing.T) {
-	checker, _ := NewCutoffChecker(CutoffConfig{CutoffTime: "21:00", Timezone: "Asia/Dhaka"})
+	loc, _ := time.LoadLocation("Asia/Dhaka")
+	checker, _ := NewCutoffChecker(CutoffConfig{CutoffTime: "21:00", Location: loc})
 
 	dayRepo := &mockDayScheduleReader{
 		getDayFn:            func(_ context.Context, _ string) (*repository.DaySchedule, error) { return nil, nil },
@@ -197,7 +198,7 @@ func TestUpdateParticipation_DayClosed(t *testing.T) {
 	loc, _ := time.LoadLocation("Asia/Dhaka")
 	tomorrow := time.Now().In(loc).AddDate(0, 0, 2).Format("2006-01-02")
 
-	checker, _ := NewCutoffChecker(CutoffConfig{CutoffTime: "21:00", Timezone: "Asia/Dhaka"})
+	checker, _ := NewCutoffChecker(CutoffConfig{CutoffTime: "21:00", Location: loc})
 
 	dayRepo := &mockDayScheduleReader{
 		getDayFn: func(_ context.Context, _ string) (*repository.DaySchedule, error) {
@@ -223,7 +224,7 @@ func TestUpdateParticipation_NoMeals(t *testing.T) {
 	loc, _ := time.LoadLocation("Asia/Dhaka")
 	tomorrow := time.Now().In(loc).AddDate(0, 0, 2).Format("2006-01-02")
 
-	checker, _ := NewCutoffChecker(CutoffConfig{CutoffTime: "21:00", Timezone: "Asia/Dhaka"})
+	checker, _ := NewCutoffChecker(CutoffConfig{CutoffTime: "21:00", Location: loc})
 
 	dayRepo := &mockDayScheduleReader{
 		getDayFn:            func(_ context.Context, _ string) (*repository.DaySchedule, error) { return nil, nil },
@@ -247,7 +248,7 @@ func TestUpdateParticipation_MealUnavailable(t *testing.T) {
 	loc, _ := time.LoadLocation("Asia/Dhaka")
 	tomorrow := time.Now().In(loc).AddDate(0, 0, 2).Format("2006-01-02")
 
-	checker, _ := NewCutoffChecker(CutoffConfig{CutoffTime: "21:00", Timezone: "Asia/Dhaka"})
+	checker, _ := NewCutoffChecker(CutoffConfig{CutoffTime: "21:00", Location: loc})
 
 	dayRepo := &mockDayScheduleReader{
 		getDayFn:            func(_ context.Context, _ string) (*repository.DaySchedule, error) { return nil, nil },
@@ -271,7 +272,7 @@ func TestUpdateParticipation_AllMeals(t *testing.T) {
 	loc, _ := time.LoadLocation("Asia/Dhaka")
 	tomorrow := time.Now().In(loc).AddDate(0, 0, 2).Format("2006-01-02")
 
-	checker, _ := NewCutoffChecker(CutoffConfig{CutoffTime: "21:00", Timezone: "Asia/Dhaka"})
+	checker, _ := NewCutoffChecker(CutoffConfig{CutoffTime: "21:00", Location: loc})
 
 	var upsertCount int
 	dayRepo := &mockDayScheduleReader{

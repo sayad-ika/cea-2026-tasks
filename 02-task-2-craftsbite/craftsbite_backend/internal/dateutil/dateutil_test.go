@@ -86,9 +86,13 @@ func TestParseDateWithDefaults(t *testing.T) {
 
 func mustDateParser(t *testing.T) *DateParser {
 	t.Helper()
-	parser, err := NewDateParser("Asia/Dhaka")
+	loc, err := loadTestLocation()
 	if err != nil {
-		t.Fatalf("NewDateParser() returned unexpected error: %v", err)
+		t.Fatalf("load location: %v", err)
 	}
-	return parser
+	return NewDateParser(loc)
+}
+
+func loadTestLocation() (*time.Location, error) {
+	return time.LoadLocation("Asia/Dhaka")
 }

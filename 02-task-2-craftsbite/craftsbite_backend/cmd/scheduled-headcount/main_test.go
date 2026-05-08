@@ -16,11 +16,11 @@ import (
 
 func testDateParser(t *testing.T) *dateutil.DateParser {
 	t.Helper()
-	parser, err := dateutil.NewDateParser("Asia/Dhaka")
+	loc, err := time.LoadLocation("Asia/Dhaka")
 	if err != nil {
 		t.Fatalf("NewDateParser() returned unexpected error: %v", err)
 	}
-	return parser
+	return dateutil.NewDateParser(loc)
 }
 
 func TestRunScheduledHeadcount_NoMeals(t *testing.T) {

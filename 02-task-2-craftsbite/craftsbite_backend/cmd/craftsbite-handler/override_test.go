@@ -78,11 +78,11 @@ func (s *overrideTestStore) WriteAuditEntry(ctx context.Context, entry repositor
 
 func overrideDateParser(t *testing.T) *dateutil.DateParser {
 	t.Helper()
-	parser, err := dateutil.NewDateParser("Asia/Dhaka")
+	loc, err := time.LoadLocation("Asia/Dhaka")
 	if err != nil {
 		t.Fatalf("date parser: %v", err)
 	}
-	return parser
+	return dateutil.NewDateParser(loc)
 }
 
 func TestExecuteOverrideCommand_AdminMealToggle(t *testing.T) {
