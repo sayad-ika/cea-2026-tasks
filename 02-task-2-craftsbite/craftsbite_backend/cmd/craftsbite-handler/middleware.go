@@ -8,6 +8,9 @@ import (
 )
 
 func applyRateLimit(ctx context.Context, limiter *ratelimit.Limiter, event payload.CommandEvent) (bool, string, error) {
+	if event.Role == "admin" {
+		return true, "", nil
+	}
 	allowed, err := limiter.Allow(ctx, event.UserID, event.CommandName)
 	if err != nil {
 		return false, "An internal error occurred. Please try again.", err

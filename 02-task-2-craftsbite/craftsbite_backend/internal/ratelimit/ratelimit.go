@@ -102,7 +102,8 @@ func (l *Limiter) tryConsume(ctx context.Context, pk, sk string, item map[string
 	}
 
 	tokens--
-	newLastUpdated := now.Format(time.RFC3339Nano)
+	consumedRefillDuration := time.Duration(refill*l.refillSecs) * time.Second
+	newLastUpdated := last.Add(consumedRefillDuration).Format(time.RFC3339Nano)
 
 	_, err = l.client.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: aws.String(l.table),

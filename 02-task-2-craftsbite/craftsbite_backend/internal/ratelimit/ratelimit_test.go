@@ -181,3 +181,54 @@ func TestAllow_OptimisticLock_Retries(t *testing.T) {
 		t.Fatalf("expected 2 GetItem calls (1 initial + 1 retry), got %d", getCount)
 	}
 }
+
+func TestAllow_FractionalRefillCarryover(t *testing.T) {
+	// Scenario: user exhausted tokens 90s ago with refillSecs=60.
+	// refill = 90/60 = 1. After consume, lastUpdated should advance by 60s (not 90s),
+	// preserving the 30s remainder for the next calculation.
+	refillSecs := 60
+	baseTime := time.Now().UTC().Add(-90 * time.Second)
+	past := baseTime.Format(time.RFC3339Nano)
+
+	var capturedLastUpdated string
+	m := &mockDynamoClient{
+		getItemFn: func(_ context.Context, _ *dynamodb.GetItemInput, _ ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+			return &dynamodb.GetItemOutput{
+				Item: map[string]types.AttributeValue{
+					"tokens":      &types.AttributeValueMemberN{Value: "0"},
+					"lastUpdated": &types.AttributeValueMemberS{Value: past},
+				},
+			}, nil
+		},
+		putItemFn: func(_ context.Context, p *dynamodb.PutItemInput, _ ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+			capturedLastUpdated = p.Item["lastUpdated"].(*types.AttributeValueMemberS).Value
+			return &dynamodb.PutItemOutput{}, nil
+		},
+	}
+
+	lim := NewLimiter(m, "test", 5, refillSecs, time.UTC)
+
+	ok, err := lim.Allow(context.Background(), "u1", "meal")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected Allow=true (1 refill from 90s elapsed)")
+	}
+
+	// The fix: lastUpdated = baseTime + 60s, NOT time.Now()
+	expectedLastUpdated := baseTime.Add(time.Duration(1*refillSecs) * time.Second).Format(time.RFC3339Nano)
+	if capturedLastUpdated != expectedLastUpdated {
+		t.Fatalf("lastUpdated should be baseTime+60s to carry over remainder.\nwant: %s\n got: %s", expectedLastUpdated, capturedLastUpdated)
+	}
+
+	// Validate the carryover effect: the 30s remainder means that at ~30s from now,
+	// the user earns another refill. With the old bug (lastUpdated=now), they'd need
+	// to wait the full 60s again.
+	writtenLastUpdated, _ := time.Parse(time.RFC3339Nano, capturedLastUpdated)
+	now := time.Now().UTC()
+	remainingToNextRefill := now.Sub(writtenLastUpdated)
+	if remainingToNextRefill >= time.Duration(refillSecs)*time.Second {
+		t.Fatalf("carryover broken: expected <60s to next refill, got %v", remainingToNextRefill)
+	}
+}
