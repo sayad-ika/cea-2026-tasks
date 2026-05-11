@@ -22,3 +22,8 @@ dist/
 .terraform/
 *.tfstate
 *.tfstate.*
+
+.agents/
+.opencode/
+.claude/
+.codex/
