@@ -11,6 +11,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
 	"github.com/sayad-ika/craftsbite/internal/dateutil"
 	"github.com/sayad-ika/craftsbite/internal/discord"
@@ -98,11 +99,21 @@ func discordJSON(resp RouterResponse) events.APIGatewayV2HTTPResponse {
 	}
 }
 
+func prewarm(ctx context.Context, cfg *appconfig.Config, client *dynamodb.Client) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	_, _ = cfg.AwsConfig.Credentials.Retrieve(ctx)
+
+	_, _ = client.DescribeEndpoints(ctx, &dynamodb.DescribeEndpointsInput{})
+}
+
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
 
 	cfg := appconfig.MustLoad()
 	client := dynamo.NewClient(cfg.AwsConfig, cfg.DynamoDBEndpoint)
+	prewarm(context.Background(), cfg, client)
 	dateParser := dateutil.NewDateParser(cfg.Location)
 	cutoff, err := services.NewCutoffChecker(services.CutoffConfig{
 		Location:   cfg.Location,

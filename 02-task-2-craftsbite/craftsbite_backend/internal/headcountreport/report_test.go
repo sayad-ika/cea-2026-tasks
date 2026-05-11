@@ -38,31 +38,30 @@ func TestBuildDiscordMessage(t *testing.T) {
 
 	msg := BuildDiscordMessage(result)
 
-	if len(msg.Embeds) == 0 {
-		t.Fatal("expected at least one embed")
+	if len(msg.Embeds) != 1 {
+		t.Fatalf("expected 1 compact embed, got %d", len(msg.Embeds))
 	}
-	if msg.Embeds[0].Title != "Headcount Snapshot" {
-		t.Errorf("embed title = %q, want %q", msg.Embeds[0].Title, "Headcount Snapshot")
+	embed := msg.Embeds[0]
+	if embed.Title != "Daily Headcount Summary" {
+		t.Errorf("embed title = %q, want %q", embed.Title, "Daily Headcount Summary")
 	}
-	if msg.Embeds[0].Color != discord.BrandColor {
-		t.Errorf("embed color = %d, want %d", msg.Embeds[0].Color, discord.BrandColor)
+	if embed.Color != discord.BrandColor {
+		t.Errorf("embed color = %d, want %d", embed.Color, discord.BrandColor)
 	}
-	if msg.Embeds[0].Description != "2026-04-21" {
-		t.Errorf("description = %q, want date", msg.Embeds[0].Description)
+	if embed.Description != "2026-04-21" {
+		t.Errorf("description = %q, want date", embed.Description)
 	}
-	if len(msg.Embeds) < 2 {
-		t.Fatalf("expected multiple embeds, got %d", len(msg.Embeds))
+	if hasEmbedField(embed.Fields, "Engineering", "") {
+		t.Error("did not expect team-specific field in compact summary")
 	}
-	foundTeam := false
-	for _, embed := range msg.Embeds {
-		for _, field := range embed.Fields {
-			if field.Name == "Engineering" {
-				foundTeam = true
-			}
-		}
+	if !hasEmbedField(embed.Fields, "Office / WFH", "7 / 3") {
+		t.Error("expected compact Office / WFH field")
 	}
-	if !foundTeam {
-		t.Error("expected team breakdown field for Engineering")
+	if !hasEmbedField(embed.Fields, "Total headcount", "10") {
+		t.Error("expected Total headcount field")
+	}
+	if !hasEmbedField(embed.Fields, "Lunch", "6 confirmed") {
+		t.Error("expected compact meal summary field")
 	}
 }
 
@@ -81,8 +80,8 @@ func TestBuildDiscordMessage_EmptyResult(t *testing.T) {
 	if msg.Embeds[0].Description != "2026-04-21" {
 		t.Errorf("description = %q, want date", msg.Embeds[0].Description)
 	}
-	if got := len(msg.Embeds[0].Fields); got != 4 {
-		t.Errorf("expected 4 summary fields, got %d", got)
+	if got := len(msg.Embeds[0].Fields); got != 2 {
+		t.Errorf("expected 2 summary fields (Total headcount + Office / WFH), got %d", got)
 	}
 }
 
@@ -121,9 +120,18 @@ func TestBuildGChatCard(t *testing.T) {
 	if !json.Valid(card) {
 		t.Error("expected valid JSON output")
 	}
-	var raw map[string]interface{}
-	if err := json.Unmarshal(card, &raw); err != nil {
-		t.Fatalf("failed to unmarshal card: %v", err)
+	cardStr := string(card)
+	if strings.Contains(cardStr, "Design") {
+		t.Fatal("did not expect team-specific content in compact card")
+	}
+	if !strings.Contains(cardStr, "Daily Headcount Summary") {
+		t.Fatal("expected compact title")
+	}
+	if !strings.Contains(cardStr, "Office / WFH") {
+		t.Fatal("expected Office / WFH row")
+	}
+	if !strings.Contains(cardStr, "Lunch moved to Level 12") {
+		t.Fatal("expected day reason note in compact card")
 	}
 }
 
