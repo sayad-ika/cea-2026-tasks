@@ -1,31 +1,76 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  // Mock auth state - stored in React state (in-memory, not persistent)
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [token, setToken] = useState(null);
+  const [user, setUser] = useState(null);
+  const [csrfToken, setCsrfToken] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const initialised = useRef(false);
 
-  // Fake login function (no backend)
-  const login = (email, password) => {
-    // Simulate API call - accept any non-empty credentials
-    if (email && password) {
-      setIsLoggedIn(true);
-      setToken('fake-jwt-token-' + Date.now());
-      return true;
+  useEffect(() => {
+    if (initialised.current) return;
+    initialised.current = true;
+
+    fetch('/api/me', { credentials: 'include' })
+      .then((res) => {
+        if (!res.ok) throw new Error();
+        return res.json();
+      })
+      .then((data) => {
+        setIsLoggedIn(true);
+        setUser(data);
+      })
+      .catch(() => {
+        setIsLoggedIn(false);
+        setUser(null);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const login = async (email, password) => {
+    const csrfRes = await fetch('/csrf-token', { credentials: 'include' });
+    if (!csrfRes.ok) throw new Error('Failed to fetch CSRF token');
+    const { csrfToken: token } = await csrfRes.json();
+
+    const loginRes = await fetch('/login', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': token,
+      },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!loginRes.ok) {
+      const err = await loginRes.json();
+      throw new Error(err.error || 'Login failed');
     }
-    return false;
+
+    const data = await loginRes.json();
+    setIsLoggedIn(true);
+    setUser({ name: data.name });
+    setCsrfToken(data.csrfToken);
+    return true;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await fetch('/logout', {
+      method: 'POST',
+      credentials: 'include',
+    });
     setIsLoggedIn(false);
-    setToken(null);
+    setUser(null);
+    setCsrfToken(null);
   };
 
   const value = {
     isLoggedIn,
-    token,
+    user,
+    csrfToken,
+    loading,
     login,
     logout,
   };
@@ -33,7 +78,6 @@ export function AuthProvider({ children }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-// Custom hook to use auth context
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {

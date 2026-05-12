@@ -7,5 +7,11 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true,
+    proxy: {
+      '/csrf-token': 'http://localhost:8080',
+      '/login': 'http://localhost:8080',
+      '/logout': 'http://localhost:8080',
+      '/api': 'http://localhost:8080',
+    },
   },
 })

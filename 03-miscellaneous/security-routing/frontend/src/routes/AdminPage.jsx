@@ -1,14 +1,16 @@
 import { useAuth } from '../context/AuthContext';
 
 function AdminPage() {
-  const { token } = useAuth();
+  const { user, csrfToken } = useAuth();
   return (
     <div>
       <h1>👑 Admin Panel (Protected Route)</h1>
       <div style={styles.card}>
         <p>You have accessed the protected admin area because you are authenticated.</p>
         <div style={styles.infoBox}>
-          <strong>Current session token:</strong> <code>{token}</code>
+          <strong>User:</strong> {user?.name}
+          <br />
+          <strong>CSRF token (session):</strong> <code>{csrfToken || '(not exposed)'}</code>
         </div>
         <h3>Admin Actions (Demo)</h3>
         <ul>

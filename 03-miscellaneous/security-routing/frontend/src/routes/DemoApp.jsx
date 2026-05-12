@@ -3,22 +3,36 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 
 function DemoApp() {
-  const { isLoggedIn, token, login, logout } = useAuth();
-  const navigate = useNavigate(); // useNavigate for programmatic navigation
-  const [email, setEmail] = useState('demo@example.com');
+  const { isLoggedIn, user, login, logout, loading } = useAuth();
+  const navigate = useNavigate();
+  const [email, setEmail] = useState('doha@craftsmensoftware.com');
   const [password, setPassword] = useState('password123');
   const [loginError, setLoginError] = useState('');
+  const [loggingIn, setLoggingIn] = useState(false);
 
-  const handleLogin = () => {
-    const success = login(email, password);
-    if (!success) {
-      setLoginError('Please enter email and password');
-    } else {
-      setLoginError('');
-      // Programmatic navigation after login — same as useNavigate('/dashboard')
+  const handleLogin = async () => {
+    setLoginError('');
+    setLoggingIn(true);
+    try {
+      await login(email, password);
       navigate('/demo');
+    } catch (err) {
+      setLoginError(err.message || 'Login failed');
+    } finally {
+      setLoggingIn(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div>
+        <h1>🎮 Demo App: Authentication + Protected Area</h1>
+        <div style={styles.card}>
+          <p>Checking session...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -26,8 +40,12 @@ function DemoApp() {
       <div style={styles.card}>
         {!isLoggedIn ? (
           <div style={styles.loginBox}>
-            <h3>Login (Mock Auth)</h3>
-            <p>Enter any email/password to simulate login</p>
+            <h3>Login</h3>
+            <p>Use one of the test accounts:</p>
+            <ul style={{ fontSize: '0.85rem', color: '#475569' }}>
+              <li><code>doha@craftsmensoftware.com</code> / <code>password123</code></li>
+              <li><code>sayad.ibn@craftsmensoftware.com</code> / <code>letmein</code></li>
+            </ul>
             <input
               type="email"
               placeholder="Email"
@@ -41,25 +59,25 @@ function DemoApp() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               style={styles.input}
+              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
             />
-            <button onClick={handleLogin} style={styles.button}>
-              Login
+            <button onClick={handleLogin} disabled={loggingIn} style={styles.button}>
+              {loggingIn ? 'Logging in...' : 'Login'}
             </button>
-            {loginError && <p style={{ color: 'red' }}>{loginError}</p>}
+            {loginError && <p style={{ color: 'red', marginTop: '0.5rem' }}>{loginError}</p>}
           </div>
         ) : (
           <div>
             <div style={styles.loggedBox}>
               <h3>✅ You are logged in!</h3>
-              <p><strong>Mock token:</strong> {token}</p>
+              <p><strong>Name:</strong> {user?.name}</p>
               <button onClick={logout} style={styles.button}>Logout</button>
             </div>
 
             <hr />
             <h3>Dashboard (accessible to any logged-in user)</h3>
             <div style={styles.dashboard}>
-              <p>📊 Welcome to your dashboard. Here is some statistics (demo).</p>
-              <p>🔐 Your role: <strong>Trainer</strong></p>
+              <p>📊 Welcome to your dashboard, {user?.name}.</p>
             </div>
 
             <hr />
