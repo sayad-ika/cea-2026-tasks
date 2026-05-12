@@ -1,0 +1,477 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: AWS Message Processing Pipeline
+
+Parameters:
+    AdminEmail:
+        Type: String
+        Description: Admin email for SNS alerts
+
+    ProjectName:
+        Type: String
+        Default: Trainee-2026-Sayad-MessagePipeline
+
+    Environment:
+        Type: String
+        Default: dev
+
+Resources:
+    ########################################
+    # DLQ
+    ########################################
+
+    DLQ:
+        Type: AWS::SQS::Queue
+        Properties:
+            QueueName: trainee-2026-sayad-v2-message-pipeline-dlq
+
+            Tags:
+                - Key: Project
+                  Value: !Ref ProjectName
+
+                - Key: Environment
+                  Value: !Ref Environment
+
+    ########################################
+    # Primary Queue
+    ########################################
+
+    PrimaryQueue:
+        Type: AWS::SQS::Queue
+        Properties:
+            QueueName: trainee-2026-sayad-v2-message-pipeline-primary
+
+            VisibilityTimeout: 300
+
+            RedrivePolicy:
+                deadLetterTargetArn: !GetAtt DLQ.Arn
+                maxReceiveCount: 3
+
+            Tags:
+                - Key: Project
+                  Value: !Ref ProjectName
+
+                - Key: Environment
+                  Value: !Ref Environment
+
+    ########################################
+    # SNS Topic — Bad Messages
+    # Triggered by Step Functions when a
+    # message fails business validation
+    ########################################
+
+    BadMessageTopic:
+        Type: AWS::SNS::Topic
+        Properties:
+            TopicName: trainee-2026-sayad-v2-message-alerts
+
+            Subscription:
+                - Protocol: email
+                  Endpoint: !Ref AdminEmail
+
+            Tags:
+                - Key: Project
+                  Value: !Ref ProjectName
+
+                - Key: Environment
+                  Value: !Ref Environment
+
+    ########################################
+    # SNS Topic — DLQ Alerts
+    # Triggered by CloudWatch when a message
+    # exhausts all retries and lands in DLQ,
+    # indicating an infrastructure failure
+    ########################################
+
+    DLQAlertTopic:
+        Type: AWS::SNS::Topic
+        Properties:
+            TopicName: trainee-2026-sayad-v2-dlq-alerts
+
+            Subscription:
+                - Protocol: email
+                  Endpoint: !Ref AdminEmail
+
+            Tags:
+                - Key: Project
+                  Value: !Ref ProjectName
+
+                - Key: Environment
+                  Value: !Ref Environment
+
+    ########################################
+    # DynamoDB Table
+    ########################################
+
+    MessageTable:
+        Type: AWS::DynamoDB::Table
+        Properties:
+            TableName: trainee-2026-sayad-v2-async-messages
+
+            BillingMode: PAY_PER_REQUEST
+
+            AttributeDefinitions:
+                - AttributeName: PK
+                  AttributeType: S
+
+                - AttributeName: SK
+                  AttributeType: S
+
+            KeySchema:
+                - AttributeName: PK
+                  KeyType: HASH
+
+                - AttributeName: SK
+                  KeyType: RANGE
+
+            Tags:
+                - Key: Project
+                  Value: !Ref ProjectName
+
+                - Key: Environment
+                  Value: !Ref Environment
+
+    ########################################
+    # CloudWatch Log Group (State Machine)
+    ########################################
+
+    StateMachineLogGroup:
+        Type: AWS::Logs::LogGroup
+        Properties:
+            # One dedicated log group for the entire state machine
+            LogGroupName: !Sub /aws/states/trainee-2026-sayad-v2-message-processor
+
+            # Logs expire after 7 days — enough to debug, avoids runaway storage cost
+            RetentionInDays: 7
+
+    ########################################
+    # Step Functions IAM Role
+    ########################################
+
+    StepFunctionsRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: trainee-2026-sayad-v2-step-functions-role
+
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                          Service:
+                              - states.amazonaws.com
+                      Action:
+                          - sts:AssumeRole
+
+            Policies:
+                - PolicyName: StepFunctionsPermissions
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                          - Effect: Allow
+                            Action:
+                                - dynamodb:PutItem
+                            Resource: !GetAtt MessageTable.Arn
+
+                          - Effect: Allow
+                            Action:
+                                - sns:Publish
+                            Resource: !Ref BadMessageTopic
+
+                          # CloudWatch Logs delivery actions do not support resource-level
+                          # restrictions — AWS requires Resource: * for this specific set.
+                          # This is an AWS limitation, not a lazy shortcut.
+                          - Effect: Allow
+                            Action:
+                                - logs:CreateLogDelivery
+                                - logs:CreateLogGroup
+                                - logs:CreateLogStream
+                                - logs:DescribeLogGroups
+                                - logs:DescribeLogStreams
+                                - logs:DescribeResourcePolicies
+                                - logs:GetLogDelivery
+                                - logs:ListLogDeliveries
+                                - logs:PutLogEvents
+                                - logs:PutResourcePolicy
+                                - logs:UpdateLogDelivery
+                            Resource: "*"
+
+    ########################################
+    # EventBridge Pipe IAM Role
+    ########################################
+
+    EventBridgePipeRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: trainee-2026-sayad-v2-eventbridge-pipe-role
+
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                          Service:
+                              - pipes.amazonaws.com
+                      Action:
+                          - sts:AssumeRole
+
+            Policies:
+                - PolicyName: PipePermissions
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                          - Effect: Allow
+                            Action:
+                                - sqs:ReceiveMessage
+                                - sqs:DeleteMessage
+                                - sqs:GetQueueAttributes
+                            Resource: !GetAtt PrimaryQueue.Arn
+
+                          # StartSyncExecution is required for REQUEST_RESPONSE (synchronous)
+                          # invocation. StartExecution is kept for fallback compatibility.
+                          - Effect: Allow
+                            Action:
+                                - states:StartExecution
+                                - states:StartSyncExecution
+                            Resource: !GetAtt MessageProcessorStateMachine.Arn
+
+    ########################################
+    # Step Functions State Machine
+    ########################################
+
+    MessageProcessorStateMachine:
+        Type: AWS::StepFunctions::StateMachine
+        DependsOn:
+            - StateMachineLogGroup
+            - StepFunctionsRole
+        Properties:
+            StateMachineName: trainee-2026-sayad-v2-message-processor
+
+            StateMachineType: EXPRESS
+
+            RoleArn: !GetAtt StepFunctionsRole.Arn
+
+            # ALL = every execution event is logged (input, output, state transitions).
+            # IncludeExecutionData: true means the actual message payloads are logged
+            # alongside state events — essential for debugging which messages were
+            # routed where and what exact body caused a bad-message alert.
+            LoggingConfiguration:
+                Level: ALL
+                IncludeExecutionData: true
+                Destinations:
+                    - CloudWatchLogsLogGroup:
+                          LogGroupArn: !GetAtt StateMachineLogGroup.Arn
+
+            Definition:
+                Comment: Process a batch of SQS messages
+                StartAt: ProcessBatch
+
+                States:
+                    ProcessBatch:
+                        Type: Map
+                        ItemsPath: $
+                        MaxConcurrency: 5
+
+                        Iterator:
+                            StartAt: ParseMessage
+
+                            States:
+                                ParseMessage:
+                                    Type: Pass
+
+                                    Parameters:
+                                        messageId.$: $.messageId
+                                        body.$: States.StringToJson($.body)
+
+                                    Next: ValidateMessage
+
+                                ValidateMessage:
+                                    Type: Choice
+
+                                    Choices:
+                                        - And:
+                                              - Variable: $.body.type
+                                                IsPresent: true
+
+                                              - Variable: $.body.type
+                                                StringEquals: failure
+
+                                          Next: SimulatedFailure
+
+                                        - And:
+                                              - Variable: $.body.id
+                                                IsPresent: true
+
+                                              - Variable: $.body.id
+                                                IsString: true
+
+                                              - Variable: $.body.type
+                                                IsPresent: true
+
+                                              - Variable: $.body.type
+                                                IsString: true
+
+                                              - Variable: $.body.payload
+                                                IsPresent: true
+
+                                          Next: SaveToDynamoDB
+
+                                    Default: SendBadMessageAlert
+
+                                SaveToDynamoDB:
+                                    Type: Task
+                                    Resource: arn:aws:states:::dynamodb:putItem
+
+                                    Parameters:
+                                        TableName: !Ref MessageTable
+
+                                        Item:
+                                            PK:
+                                                S.$: $.body.id
+
+                                            SK:
+                                                S: MESSAGE#PIPELINE
+
+                                            type:
+                                                S.$: $.body.type
+
+                                            payload:
+                                                S.$: States.JsonToString($.body.payload)
+
+                                            source:
+                                                S: MessagePipeline
+
+                                            receivedAt:
+                                                S.$: $$.Execution.StartTime
+
+                                        ConditionExpression: attribute_not_exists(PK) AND attribute_not_exists(SK)
+
+                                    Catch:
+                                        - ErrorEquals:
+                                              - DynamoDB.ConditionalCheckFailedException
+
+                                          Next: MessageAlreadyExists
+
+                                    End: true
+
+                                MessageAlreadyExists:
+                                    Type: Pass
+                                    Result: Duplicate message ignored
+                                    End: true
+
+                                SendBadMessageAlert:
+                                    Type: Task
+                                    Resource: arn:aws:states:::sns:publish
+
+                                    Parameters:
+                                        TopicArn: !Ref BadMessageTopic
+                                        Subject: Bad Message Detected
+
+                                        Message.$: >-
+                                            States.Format('Bad message received. SQS Message ID: {}. Body: {}',
+                                            $.messageId, States.JsonToString($.body))
+
+                                    End: true
+
+                                SimulatedFailure:
+                                    Type: Fail
+                                    Error: SimulatedFailure
+                                    Cause: Explicit failure test message received
+
+                        End: true
+
+    ########################################
+    # EventBridge Pipe
+    ########################################
+
+    MessagePipe:
+        Type: AWS::Pipes::Pipe
+        # Explicit DependsOn prevents a race condition where the Pipe validates
+        # the role before IAM has fully propagated the inline policy.
+        DependsOn:
+            - EventBridgePipeRole
+            - MessageProcessorStateMachine
+        Properties:
+            Name: trainee-2026-sayad-v2-sqs-to-step-functions
+
+            RoleArn: !GetAtt EventBridgePipeRole.Arn
+
+            Source: !GetAtt PrimaryQueue.Arn
+
+            SourceParameters:
+                SqsQueueParameters:
+                    BatchSize: 5
+                    MaximumBatchingWindowInSeconds: 10
+
+            Target: !Ref MessageProcessorStateMachine
+
+            TargetParameters:
+                StepFunctionStateMachineParameters:
+                    InvocationType: REQUEST_RESPONSE
+
+            Tags:
+                Project: !Ref ProjectName
+                Environment: !Ref Environment
+
+    ########################################
+    # CloudWatch Alarm
+    ########################################
+
+    DLQAlarm:
+        Type: AWS::CloudWatch::Alarm
+        Properties:
+            AlarmName: trainee-2026-sayad-v2-dlq-has-messages
+
+            Namespace: AWS/SQS
+            MetricName: ApproximateNumberOfMessagesVisible
+
+            Dimensions:
+                - Name: QueueName
+                  Value: !GetAtt DLQ.QueueName
+
+            Statistic: Sum
+            Period: 60
+            EvaluationPeriods: 1
+            Threshold: 0
+            ComparisonOperator: GreaterThanThreshold
+
+            AlarmActions:
+                - !Ref DLQAlertTopic
+
+            Tags:
+                - Key: Project
+                  Value: !Ref ProjectName
+
+                - Key: Environment
+                  Value: !Ref Environment
+
+########################################
+# Outputs
+########################################
+
+Outputs:
+    QueueUrl:
+        Value: !Ref PrimaryQueue
+
+    QueueArn:
+        Value: !GetAtt PrimaryQueue.Arn
+
+    DLQArn:
+        Value: !GetAtt DLQ.Arn
+
+    DynamoDBTable:
+        Value: !Ref MessageTable
+
+    StateMachineArn:
+        Value: !Ref MessageProcessorStateMachine
+
+    BadMessageTopicArn:
+        Value: !Ref BadMessageTopic
+
+    DLQAlertTopicArn:
+        Value: !Ref DLQAlertTopic
+
+    PipeArn:
+        Value: !Ref MessagePipe
+
+    StateMachineLogGroup:
+        Value: !Ref StateMachineLogGroup
