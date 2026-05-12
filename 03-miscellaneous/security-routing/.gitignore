@@ -1,0 +1,9 @@
+data/
+
+.claude/
+.agents/
+.opencode/
+.idea/
+.vscode/
+.DS_Store
+*.log
