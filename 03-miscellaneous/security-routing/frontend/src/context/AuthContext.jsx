@@ -6,8 +6,22 @@ export function AuthProvider({ children }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState(null);
   const [csrfToken, setCsrfToken] = useState(null);
+  const [csrfLoading, setCsrfLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const initialised = useRef(false);
+
+  const fetchCSRFToken = async () => {
+    setCsrfLoading(true);
+    try {
+      const csrfRes = await fetch('/csrf-token', { credentials: 'include' });
+      if (!csrfRes.ok) throw new Error('Failed to fetch CSRF token');
+      const { csrfToken: token } = await csrfRes.json();
+      setCsrfToken(token);
+      return token;
+    } finally {
+      setCsrfLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (initialised.current) return;
@@ -21,18 +35,18 @@ export function AuthProvider({ children }) {
       .then((data) => {
         setIsLoggedIn(true);
         setUser(data);
+        return fetchCSRFToken();
       })
       .catch(() => {
         setIsLoggedIn(false);
         setUser(null);
+        setCsrfToken(null);
       })
       .finally(() => setLoading(false));
   }, []);
 
   const login = async (email, password) => {
-    const csrfRes = await fetch('/csrf-token', { credentials: 'include' });
-    if (!csrfRes.ok) throw new Error('Failed to fetch CSRF token');
-    const { csrfToken: token } = await csrfRes.json();
+    const token = csrfToken || (await fetchCSRFToken());
 
     const loginRes = await fetch('/login', {
       method: 'POST',
@@ -70,7 +84,9 @@ export function AuthProvider({ children }) {
     isLoggedIn,
     user,
     csrfToken,
+    csrfLoading,
     loading,
+    prepareLogin: fetchCSRFToken,
     login,
     logout,
   };

@@ -70,3 +70,8 @@ func handleMe(w http.ResponseWriter, r *http.Request) {
 	u, _ := getSession(r)
 	json200(w, map[string]any{"userId": u.ID, "name": u.Name, "email": u.Email})
 }
+
+// POST /api/csrf-test
+func handleCSRFTest(w http.ResponseWriter, r *http.Request) {
+	json200(w, map[string]string{"ok": "CSRF token accepted"})
+}

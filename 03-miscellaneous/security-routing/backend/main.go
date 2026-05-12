@@ -16,7 +16,7 @@ func main() {
 	// Protected — auth + CSRF enforced
 	api := http.NewServeMux()
 	api.HandleFunc("GET /api/me", handleMe)
-	// add more routes here: api.HandleFunc("POST /api/...", ...)
+	api.HandleFunc("POST /api/csrf-test", handleCSRFTest)
 
 	mux.Handle("/api/", withAuth(withCSRF(api)))
 
