@@ -26,6 +26,13 @@ type MealOptions struct {
 	Date   string `json:"date"`
 }
 
+type InitOptions struct {
+	Date     string   `json:"date"`
+	Action   string   `json:"action"`
+	Location string   `json:"location"`
+	Meals    []string `json:"meals"`
+}
+
 type LocationOptions struct {
 	Location string `json:"location"`
 	Date     string `json:"date"`

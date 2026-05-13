@@ -9,7 +9,7 @@ func route(ctx context.Context, deps handlerDeps, req HandlerRequest) error {
 	switch req.Platform {
 	case PlatformDiscord, PlatformGChat:
 		switch req.Command.CommandName {
-		case "help", "meal", "location", "status":
+		case "help", "init", "meal", "location", "status":
 			return handleSelfCommand(ctx, deps, req.Command)
 		case "override", "team-summary":
 			return handleManagementCommand(ctx, deps, req.Command)

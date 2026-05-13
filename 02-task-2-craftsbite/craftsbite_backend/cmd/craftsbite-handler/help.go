@@ -55,6 +55,7 @@ func personalHelpSection() helpSection {
 		Title: "Personal",
 		Commands: []helpCommand{
 			{Usage: "/help", Description: "Show the commands available to you."},
+			{Usage: "/init", Description: "Open an interactive Discord panel to update tomorrow's meals and location."},
 			{Usage: "/status [date]", Description: "View your current location and meal status."},
 			{Usage: "/meal [in|out] [meal] [date]", Description: "Set a meal choice for a date."},
 			{Usage: "/meal [meal] [date]", Description: "Toggle the current meal choice when status is omitted."},

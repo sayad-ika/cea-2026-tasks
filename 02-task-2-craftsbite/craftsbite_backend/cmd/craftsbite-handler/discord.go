@@ -14,7 +14,7 @@ import (
 	"github.com/sayad-ika/craftsbite/internal/repository"
 )
 
-// Type 1 = PONG, Type 4 = immediate message, Type 5 = deferred ("thinking").
+// Type 1 = PONG, Type 4 = immediate message, Type 5 = deferred ("thinking"), Type 7 = update message.
 type RouterResponse struct {
 	Type int              `json:"type"`
 	Data *discord.Message `json:"data,omitempty"`
@@ -33,19 +33,34 @@ func ephemeralMessage(message discord.Message) RouterResponse {
 	}
 }
 
+func updateMessage(message discord.Message) RouterResponse {
+	message.Flags = 0
+	message = discord.NormalizeMessage(message)
+	return RouterResponse{
+		Type: 7,
+		Data: &message,
+	}
+}
+
 type interactionOption struct {
 	Name  string      `json:"name"`
 	Value interface{} `json:"value"`
 }
 
+type interactionData struct {
+	Name          string              `json:"name,omitempty"`
+	Options       []interactionOption `json:"options,omitempty"`
+	CustomID      string              `json:"custom_id,omitempty"`
+	Values        []string            `json:"values,omitempty"`
+	ComponentType int                 `json:"component_type,omitempty"`
+}
+
 type interactionBody struct {
-	Type int `json:"type"`
-	Data struct {
-		Name    string              `json:"name"`
-		Options []interactionOption `json:"options"`
-	} `json:"data"`
-	Token         string `json:"token"`
-	ApplicationID string `json:"application_id"`
+	Type          int             `json:"type"`
+	Data          interactionData `json:"data"`
+	Message       discord.Message `json:"message"`
+	Token         string          `json:"token"`
+	ApplicationID string          `json:"application_id"`
 	Member        struct {
 		User struct {
 			ID string `json:"id"`
@@ -93,34 +108,60 @@ func discordCommandEvent(ctx context.Context, cfg *appconfig.Config, store *repo
 		return payload.CommandEvent{}, &resp, nil
 	}
 
-	commandName := interaction.Data.Name
-	if !knownCommand(commandName) {
-		resp := ephemeralNotice(fmt.Sprintf("Unknown command: /%s", commandName), discord.NoticeToneWarning)
+	switch interaction.Type {
+	case 2:
+		commandName := interaction.Data.Name
+		if !knownCommand(commandName) {
+			resp := ephemeralNotice(fmt.Sprintf("Unknown command: /%s", commandName), discord.NoticeToneWarning)
+			return payload.CommandEvent{}, &resp, nil
+		}
+
+		if !discord.CheckPermission(commandName, role) {
+			resp := ephemeralNotice(fmt.Sprintf("You do not have permission to use `/%s`.", commandName), discord.NoticeToneWarning)
+			return payload.CommandEvent{}, &resp, nil
+		}
+
+		optionsMap := make(map[string]interface{}, len(interaction.Data.Options))
+		for _, opt := range interaction.Data.Options {
+			optionsMap[opt.Name] = opt.Value
+		}
+
+		optionsJSON, _ := json.Marshal(optionsMap)
+
+		return payload.CommandEvent{
+			UserID:           userID,
+			Role:             role,
+			DiscordID:        discordID,
+			CommandName:      commandName,
+			Options:          optionsJSON,
+			InteractionToken: interaction.Token,
+			ApplicationID:    interaction.ApplicationID,
+			Source:           "discord",
+		}, nil, nil
+	case 3:
+		commandName, optionsJSON, err := discordComponentPayload(interaction)
+		if err != nil {
+			resp := ephemeralNotice(err.Error(), discord.NoticeToneWarning)
+			return payload.CommandEvent{}, &resp, nil
+		}
+		if !discord.CheckPermission(commandName, role) {
+			resp := ephemeralNotice(fmt.Sprintf("You do not have permission to use `/%s`.", commandName), discord.NoticeToneWarning)
+			return payload.CommandEvent{}, &resp, nil
+		}
+		return payload.CommandEvent{
+			UserID:           userID,
+			Role:             role,
+			DiscordID:        discordID,
+			CommandName:      commandName,
+			Options:          optionsJSON,
+			InteractionToken: interaction.Token,
+			ApplicationID:    interaction.ApplicationID,
+			Source:           "discord",
+		}, nil, nil
+	default:
+		resp := ephemeralNotice("This Discord interaction type is not supported yet.", discord.NoticeToneWarning)
 		return payload.CommandEvent{}, &resp, nil
 	}
-
-	if !discord.CheckPermission(commandName, role) {
-		resp := ephemeralNotice(fmt.Sprintf("You do not have permission to use `/%s`.", commandName), discord.NoticeToneWarning)
-		return payload.CommandEvent{}, &resp, nil
-	}
-
-	optionsMap := make(map[string]interface{}, len(interaction.Data.Options))
-	for _, opt := range interaction.Data.Options {
-		optionsMap[opt.Name] = opt.Value
-	}
-
-	optionsJSON, _ := json.Marshal(optionsMap)
-
-	return payload.CommandEvent{
-		UserID:           userID,
-		Role:             role,
-		DiscordID:        discordID,
-		CommandName:      commandName,
-		Options:          optionsJSON,
-		InteractionToken: interaction.Token,
-		ApplicationID:    interaction.ApplicationID,
-		Source:           "discord",
-	}, nil, nil
 }
 
 func decodeAPIGatewayBody(event events.APIGatewayV2HTTPRequest) (string, error) {
@@ -152,7 +193,7 @@ func getHeader(headers map[string]string, name string) string {
 
 func knownCommand(commandName string) bool {
 	switch commandName {
-	case "help", "meal", "location", "status", "override", "team-summary", "headcount", "schedule-day", "admin":
+	case "help", "init", "meal", "location", "status", "override", "team-summary", "headcount", "schedule-day", "admin":
 		return true
 	default:
 		return false

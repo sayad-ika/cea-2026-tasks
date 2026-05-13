@@ -6,6 +6,14 @@ const (
 	NoticeToneWarning NoticeTone = "warning"
 	NoticeToneError   NoticeTone = "error"
 
+	ComponentTypeActionRow    = 1
+	ComponentTypeButton       = 2
+	ComponentTypeStringSelect = 3
+
+	ButtonStylePrimary   = 1
+	ButtonStyleSecondary = 2
+	ButtonStyleSuccess   = 3
+
 	BrandColor = 0xF47621
 
 	SuccessColor = 0x2F9E44
@@ -19,9 +27,30 @@ const (
 type NoticeTone string
 
 type Message struct {
-	Content string  `json:"content,omitempty"`
-	Embeds  []Embed `json:"embeds,omitempty"`
-	Flags   int     `json:"flags,omitempty"`
+	Content    string      `json:"content,omitempty"`
+	Embeds     []Embed     `json:"embeds,omitempty"`
+	Components []Component `json:"components,omitempty"`
+	Flags      int         `json:"flags,omitempty"`
+}
+
+type Component struct {
+	Type        int            `json:"type"`
+	CustomID    string         `json:"custom_id,omitempty"`
+	Style       int            `json:"style,omitempty"`
+	Label       string         `json:"label,omitempty"`
+	Placeholder string         `json:"placeholder,omitempty"`
+	Options     []SelectOption `json:"options,omitempty"`
+	MinValues   *int           `json:"min_values,omitempty"`
+	MaxValues   *int           `json:"max_values,omitempty"`
+	Disabled    bool           `json:"disabled,omitempty"`
+	Components  []Component    `json:"components,omitempty"`
+}
+
+type SelectOption struct {
+	Label       string `json:"label"`
+	Value       string `json:"value"`
+	Description string `json:"description,omitempty"`
+	Default     bool   `json:"default,omitempty"`
 }
 
 type Embed struct {

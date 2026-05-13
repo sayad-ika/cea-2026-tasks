@@ -60,8 +60,12 @@ func sendNotice(ctx context.Context, cfg *appconfig.Config, event payload.Comman
 }
 
 func sendDiscordMessage(ctx context.Context, cfg *appconfig.Config, event payload.CommandEvent, message discord.Message) error {
+	return sendDiscordInteractionResponse(ctx, ephemeralMessage(message))
+}
+
+func sendDiscordInteractionResponse(ctx context.Context, response RouterResponse) error {
 	if recorder := recorderFromContext(ctx); recorder != nil {
-		resp := discordJSON(ephemeralMessage(message))
+		resp := discordJSON(response)
 		recorder.response = &resp
 		return nil
 	}
