@@ -46,6 +46,10 @@ func commands() []slashCommand {
 			Description: "Show the commands available to you",
 		},
 		{
+			Name:        "init",
+			Description: "Open the interactive meal and location setup panel",
+		},
+		{
 			Name:        "override",
 			Description: "Override a team member's meal or location entry",
 			Options: []commandOption{

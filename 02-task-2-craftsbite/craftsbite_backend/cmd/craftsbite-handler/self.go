@@ -20,6 +20,8 @@ func handleSelfCommand(ctx context.Context, deps handlerDeps, event payload.Comm
 	switch event.CommandName {
 	case "help":
 		return handleHelpCommand(ctx, deps.cfg, event)
+	case "init":
+		return handleInitCommand(ctx, deps, event)
 	case "meal":
 		reply := handleMeal(ctx, deps.store, deps.dateParser, deps.cutoff, event)
 		if !reply.rich {

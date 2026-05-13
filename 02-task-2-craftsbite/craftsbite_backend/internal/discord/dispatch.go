@@ -3,6 +3,7 @@ package discord
 // commandACL maps each command to the set of roles allowed to execute it.
 var commandACL = map[string]map[string]struct{}{
 	"help":         {"employee": {}, "team_lead": {}, "admin": {}, "logistics": {}},
+	"init":         {"employee": {}, "team_lead": {}, "admin": {}, "logistics": {}},
 	"meal":         {"employee": {}, "team_lead": {}, "admin": {}, "logistics": {}},
 	"location":     {"employee": {}, "team_lead": {}, "admin": {}, "logistics": {}},
 	"status":       {"employee": {}, "team_lead": {}, "admin": {}, "logistics": {}},
