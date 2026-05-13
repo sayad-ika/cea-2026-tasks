@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/sayad-ika/craftsbite/internal/cmdutil"
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
@@ -19,12 +20,20 @@ const (
 	initActionRefresh  = "refresh"
 	initActionLocation = "location"
 	initActionMeals    = "meals"
+	initActionDate     = "date"
 	initActionApply    = "apply"
 
-	initCustomIDPrefix = "init"
+	initActionLocationButton = "location:"
+	initActionMealButton     = "meal:"
+	initActionDateButton     = "date:"
+
+	initCustomIDPrefix = "i"
 	initCustomIDSep    = "|"
-	initPanelTitle     = "CraftsBite Quick Setup"
-	initPanelSubtitle  = "Tomorrow's setup. Changes are not saved until you click Apply."
+	initPanelTitle     = "Setup"
+	initPanelSubtitle  = "Choose dates, location, and meals. Then save."
+
+	initConfiguredDateLimit = 7
+	initConfiguredDateScan  = 15
 )
 
 type initStore interface {
@@ -37,11 +46,20 @@ type initState struct {
 	Location       string
 	Statuses       []services.ResolvedStatus
 	AvailableMeals []string
+	AvailableDates []initAvailableDate
 }
 
 type initDraft struct {
 	Location string
 	Meals    []string
+	Dates    []string
+	Anchor   string
+	Saved    bool
+}
+
+type initAvailableDate struct {
+	Date  string
+	Meals []string
 }
 
 func handleInitCommand(ctx context.Context, deps handlerDeps, event payload.CommandEvent) error {
@@ -63,34 +81,55 @@ func handleInitInteraction(ctx context.Context, cfg *appconfig.Config, store ini
 		opts.Action = initActionOpen
 	}
 
-	date, err := dateParser.ParseDateWithDefaults(opts.Date)
+	anchorDate, err := dateParser.ParseDateWithDefaults(opts.Date)
 	if err != nil {
 		return sendInitPanelError(ctx, fmt.Sprintf("Invalid init date: %v", err), opts.Action != initActionOpen)
 	}
 
+	availableDates, err := loadInitAvailableDates(ctx, store, anchorDate)
+	if err != nil {
+		return sendInitPanelError(ctx, "Unable to load upcoming meal days. Please try again shortly.", opts.Action != initActionOpen)
+	}
+	if len(availableDates) == 0 {
+		return sendInitPanelError(ctx, "No configured meal days were found in the next 15 days.", opts.Action != initActionOpen)
+	}
+
+	selectedDates := normalizeInitDates(opts.Dates, anchorDate, availableDates)
+	date := selectedDates[0]
 	state, err := loadInitState(ctx, store, event.UserID, date)
 	if err != nil {
 		return sendInitPanelError(ctx, "Unable to load your current setup. Please try again shortly.", opts.Action != initActionOpen)
 	}
+	state.AvailableDates = availableDates
+	state.AvailableMeals = commonInitMeals(availableDates, selectedDates)
 
 	savedDraft := initDraftFromState(state)
+	savedDraft.Dates = selectedDates
+	savedDraft.Anchor = anchorDate
+	savedDraft.Saved = true
 
 	switch opts.Action {
 	case initActionOpen:
 		return renderInitPanel(ctx, date, state, savedDraft, "", discord.NoticeToneInfo, false)
 	case initActionRefresh:
-		return renderInitPanel(ctx, date, state, savedDraft, "Draft discarded. Showing your saved setup.", discord.NoticeToneSuccess, true)
+		return renderInitPanel(ctx, date, state, savedDraft, "Reset to your saved setup.", discord.NoticeToneSuccess, true)
+	case initActionDate:
+		draft := normalizeInitDraft(opts, state, selectedDates, anchorDate)
+		if len(draft.Dates) == 0 {
+			draft.Dates = selectedDates
+		}
+		return renderInitPanel(ctx, draft.Dates[0], state, draft, "Dates updated. Save when ready.", discord.NoticeToneInfo, true)
 	case initActionLocation:
-		draft := normalizeInitDraft(opts, state)
+		draft := normalizeInitDraft(opts, state, selectedDates, anchorDate)
 		if draft.Location != "office" && draft.Location != "wfh" {
 			return renderInitPanel(ctx, date, state, savedDraft, "Please choose either Office or WFH.", discord.NoticeToneWarning, true)
 		}
-		return renderInitPanel(ctx, date, state, draft, fmt.Sprintf("Draft location set to %s. Click Apply to save.", displayLocationLabel(draft.Location)), discord.NoticeToneInfo, true)
+		return renderInitPanel(ctx, date, state, draft, fmt.Sprintf("Location set to %s. Save when ready.", displayLocationLabel(draft.Location)), discord.NoticeToneInfo, true)
 	case initActionMeals:
-		draft := normalizeInitDraft(opts, state)
-		return renderInitPanel(ctx, date, state, draft, "Draft meal selection updated. Click Apply to save.", discord.NoticeToneInfo, true)
+		draft := normalizeInitDraft(opts, state, selectedDates, anchorDate)
+		return renderInitPanel(ctx, date, state, draft, "Meals updated. Save when ready.", discord.NoticeToneInfo, true)
 	case initActionApply:
-		draft := normalizeInitDraft(opts, state)
+		draft := normalizeInitDraft(opts, state, selectedDates, anchorDate)
 		return applyInitDraftAndRender(ctx, store, cutoff, event.UserID, date, state, draft)
 	default:
 		return renderInitPanel(ctx, date, state, savedDraft, "This `/init` action is not supported.", discord.NoticeToneWarning, true)
@@ -98,46 +137,57 @@ func handleInitInteraction(ctx context.Context, cfg *appconfig.Config, store ini
 }
 
 func applyInitDraftAndRender(ctx context.Context, store initStore, cutoff *services.CutoffChecker, userID, date string, state initState, draft initDraft) error {
-	mealsChanged := !sameMealSelection(draft.Meals, initDraftFromState(state).Meals)
-	locationChanged := draft.Location != state.Location
+	if len(draft.Dates) == 0 {
+		draft.Dates = []string{date}
+	}
 
-	if !mealsChanged && !locationChanged {
+	if draft.Saved && !draftHasChanges(state, draft) {
 		return renderInitPanel(ctx, date, state, draft, "No changes to apply.", discord.NoticeToneInfo, true)
 	}
 
-	if mealsChanged {
-		if err := applyInitMealSelection(ctx, store, cutoff, userID, date, draft.Meals); err != nil {
-			return renderInitPanel(ctx, date, state, draft, mealErrorReply(err, date), discord.NoticeToneWarning, true)
+	failures := 0
+	for _, targetDate := range draft.Dates {
+		if err := applyInitMealSelection(ctx, store, cutoff, userID, targetDate, draft.Meals); err != nil {
+			failures++
+			continue
+		}
+		if _, err := services.SetLocation(ctx, store, userID, targetDate, draft.Location, cutoff); err != nil {
+			failures++
 		}
 	}
 
-	if locationChanged {
-		if _, err := services.SetLocation(ctx, store, userID, date, draft.Location, cutoff); err != nil {
-			if mealsChanged {
-				refreshed, loadErr := loadInitState(ctx, store, userID, date)
-				if loadErr != nil {
-					return sendInitPanelError(ctx, "Meals were saved, but the panel could not be refreshed. Please run `/init` again.", true)
-				}
-				return renderInitPanel(ctx, date, refreshed, initDraftFromState(refreshed), "Meals were saved, but location could not be updated: "+locationErrorReply(err, date), discord.NoticeToneWarning, true)
-			}
-			return renderInitPanel(ctx, date, state, draft, locationErrorReply(err, date), discord.NoticeToneWarning, true)
-		}
+	if failures == len(draft.Dates) {
+		return renderInitPanel(ctx, date, state, draft, "No selected dates could be saved. Please review cutoff and availability.", discord.NoticeToneWarning, true)
 	}
 
-	refreshed, err := loadInitState(ctx, store, userID, date)
+	refreshed, err := loadInitState(ctx, store, userID, draft.Dates[0])
 	if err != nil {
 		return sendInitPanelError(ctx, "Changes were saved, but the panel could not be refreshed. Please run `/init` again.", true)
 	}
+	refreshed.AvailableDates = state.AvailableDates
+	refreshed.AvailableMeals = commonInitMeals(state.AvailableDates, draft.Dates)
 
-	note := "Draft applied successfully."
-	if len(draft.Meals) == 0 && mealsChanged {
-		note = "Draft applied successfully. All meals are now opted out."
+	saved := len(draft.Dates) - failures
+	note := fmt.Sprintf("Saved for %d date(s).", saved)
+	if failures > 0 {
+		note = fmt.Sprintf("Saved for %d date(s). %d date(s) could not be updated.", saved, failures)
 	}
-	return renderInitPanel(ctx, date, refreshed, initDraftFromState(refreshed), note, discord.NoticeToneSuccess, true)
+	if len(draft.Meals) == 0 && failures == 0 {
+		note = "Saved. No meals selected."
+	}
+	savedDraft := initDraftFromState(refreshed)
+	savedDraft.Dates = draft.Dates
+	savedDraft.Anchor = draft.Anchor
+	savedDraft.Saved = failures == 0
+	return renderInitPanel(ctx, draft.Dates[0], refreshed, savedDraft, note, discord.NoticeToneSuccess, true)
+}
+
+func draftHasChanges(state initState, draft initDraft) bool {
+	return draft.Location != state.Location || !sameMealSelection(draft.Meals, initDraftFromState(state).Meals)
 }
 
 func renderInitPanel(ctx context.Context, date string, state initState, draft initDraft, note string, tone discord.NoticeTone, update bool) error {
-	message := buildDiscordInitMessage(date, draft.Location, draftStatuses(state, draft), state.AvailableMeals, note, tone)
+	message := buildDiscordInitMessage(date, draft.Location, draftStatuses(state, draft), state.AvailableMeals, state.AvailableDates, draft, note, tone)
 	if update {
 		return sendDiscordInteractionResponse(ctx, updateMessage(message))
 	}
@@ -176,6 +226,75 @@ func loadInitState(ctx context.Context, store initStore, userID, date string) (i
 		Statuses:       statuses,
 		AvailableMeals: availableMeals,
 	}, nil
+}
+
+func loadInitAvailableDates(ctx context.Context, store initStore, startDate string) ([]initAvailableDate, error) {
+	start, err := time.Parse("2006-01-02", startDate)
+	if err != nil {
+		return nil, err
+	}
+
+	dates := make([]initAvailableDate, 0, initConfiguredDateLimit)
+	for offset := 0; offset < initConfiguredDateScan && len(dates) < initConfiguredDateLimit; offset++ {
+		date := start.AddDate(0, 0, offset).Format("2006-01-02")
+		schedule, err := store.GetDay(ctx, date)
+		if err != nil {
+			return nil, err
+		}
+		if schedule != nil && (schedule.DayStatus == "office_closed" || schedule.DayStatus == "govt_holiday") {
+			continue
+		}
+
+		meals, err := store.GetAvailableMeals(ctx, date)
+		if err != nil {
+			return nil, err
+		}
+		if len(meals) == 0 {
+			continue
+		}
+		dates = append(dates, initAvailableDate{Date: date, Meals: meals})
+	}
+	return dates, nil
+}
+
+func commonInitMeals(availableDates []initAvailableDate, selectedDates []string) []string {
+	if len(selectedDates) == 0 {
+		return nil
+	}
+	selected := make(map[string]struct{}, len(selectedDates))
+	for _, date := range selectedDates {
+		selected[date] = struct{}{}
+	}
+
+	var common map[string]struct{}
+	var order []string
+	for _, available := range availableDates {
+		if _, ok := selected[available.Date]; !ok {
+			continue
+		}
+		mealSet := make(map[string]struct{}, len(available.Meals))
+		for _, meal := range available.Meals {
+			mealSet[meal] = struct{}{}
+		}
+		if common == nil {
+			common = mealSet
+			order = append(order, available.Meals...)
+			continue
+		}
+		for meal := range common {
+			if _, ok := mealSet[meal]; !ok {
+				delete(common, meal)
+			}
+		}
+	}
+
+	meals := make([]string, 0, len(common))
+	for _, meal := range order {
+		if _, ok := common[meal]; ok {
+			meals = append(meals, meal)
+		}
+	}
+	return meals
 }
 
 func applyInitMealSelection(ctx context.Context, store initStore, cutoff *services.CutoffChecker, userID, date string, selectedMeals []string) error {
@@ -217,38 +336,38 @@ func applyInitMealSelection(ctx context.Context, store initStore, cutoff *servic
 	return nil
 }
 
-func buildDiscordInitMessage(date, location string, statuses []services.ResolvedStatus, availableMeals []string, note string, tone discord.NoticeTone) discord.Message {
+func buildDiscordInitMessage(date, location string, statuses []services.ResolvedStatus, availableMeals []string, availableDates []initAvailableDate, draft initDraft, note string, tone discord.NoticeTone) discord.Message {
 	fields := []discord.EmbedField{
-		{Name: "Date", Value: date, Inline: true},
-		{Name: "Work location", Value: displayLocationLabel(location), Inline: true},
+		{Name: "Dates", Value: initDateSummary(draft.Dates)},
+		{Name: "Location", Value: displayLocationLabel(location), Inline: true},
 		{Name: "Meals", Value: initMealSummary(statuses)},
 	}
-	if note != "" {
-		fields = append(fields, discord.EmbedField{Name: "Update", Value: note})
-	}
 
-	embed := discord.BrandEmbed(initPanelTitle, initPanelSubtitle, fields)
+	description := initPanelDescription(date, note)
+	embed := discord.BrandEmbed(initPanelTitle, description, fields)
 	if note != "" {
-		embed = discord.ToneEmbed(initPanelTitle, initPanelSubtitle, fields, tone)
+		embed = discord.ToneEmbed(initPanelTitle, description, fields, tone)
 	}
 
 	message := discord.EmbedMessage(embed)
-	message.Components = initMessageComponents(date, location, statuses, availableMeals)
+	message.Components = initMessageComponents(date, location, statuses, availableMeals, availableDates, draft)
 	return message
 }
 
-func initMessageComponents(date, location string, statuses []services.ResolvedStatus, availableMeals []string) []discord.Component {
-	draft := initDraft{Location: location, Meals: selectedMealsFromStatuses(statuses)}
-	components := []discord.Component{{
+func initMessageComponents(date, location string, statuses []services.ResolvedStatus, availableMeals []string, availableDates []initAvailableDate, draft initDraft) []discord.Component {
+	draft.Location = location
+	draft.Meals = selectedMealsFromStatuses(statuses)
+	components := buildInitDateRows(date, availableDates, draft)
+	components = append(components, discord.Component{
 		Type:       discord.ComponentTypeActionRow,
-		Components: []discord.Component{buildInitLocationSelect(date, draft)},
-	}}
+		Components: buildInitLocationButtons(date, draft),
+	})
 
-	mealSelect := buildInitMealSelect(date, statuses, availableMeals, draft)
-	if mealSelect.Type != 0 {
+	mealButtons := buildInitMealButtons(date, statuses, availableMeals, draft)
+	if len(mealButtons) > 0 {
 		components = append(components, discord.Component{
 			Type:       discord.ComponentTypeActionRow,
-			Components: []discord.Component{mealSelect},
+			Components: mealButtons,
 		})
 	}
 
@@ -258,13 +377,13 @@ func initMessageComponents(date, location string, statuses []services.ResolvedSt
 			{
 				Type:     discord.ComponentTypeButton,
 				Style:    discord.ButtonStyleSuccess,
-				Label:    "Apply",
+				Label:    "Save",
 				CustomID: initCustomID(initActionApply, date, draft),
 			},
 			{
 				Type:     discord.ComponentTypeButton,
 				Style:    discord.ButtonStyleSecondary,
-				Label:    "Refresh",
+				Label:    "Reset",
 				CustomID: initCustomID(initActionRefresh, date, draft),
 			},
 		},
@@ -273,62 +392,100 @@ func initMessageComponents(date, location string, statuses []services.ResolvedSt
 	return components
 }
 
-func buildInitLocationSelect(date string, draft initDraft) discord.Component {
-	return discord.Component{
-		Type:        discord.ComponentTypeStringSelect,
-		CustomID:    initCustomID(initActionLocation, date, draft),
-		Placeholder: "Choose your location",
-		Options: []discord.SelectOption{
-			{Label: "Office", Value: "office", Default: draft.Location != "wfh"},
-			{Label: "WFH", Value: "wfh", Default: draft.Location == "wfh"},
-		},
-		MinValues: intPtr(1),
-		MaxValues: intPtr(1),
+func buildInitDateRows(date string, availableDates []initAvailableDate, draft initDraft) []discord.Component {
+	if len(availableDates) == 0 {
+		return nil
 	}
+	selected := make(map[string]struct{}, len(draft.Dates))
+	for _, date := range draft.Dates {
+		selected[date] = struct{}{}
+	}
+
+	buttons := make([]discord.Component, 0, len(availableDates))
+	for _, available := range availableDates {
+		style := discord.ButtonStyleSecondary
+		if _, ok := selected[available.Date]; ok {
+			style = discord.ButtonStylePrimary
+		}
+		buttons = append(buttons, discord.Component{
+			Type:     discord.ComponentTypeButton,
+			Style:    style,
+			Label:    displayInitDay(available.Date),
+			CustomID: initCustomID(initActionDateButton+available.Date, date, draft),
+		})
+	}
+
+	rows := make([]discord.Component, 0, 2)
+	for len(buttons) > 0 {
+		rowSize := len(buttons)
+		if rowSize > 5 {
+			rowSize = 5
+		}
+		rows = append(rows, discord.Component{
+			Type:       discord.ComponentTypeActionRow,
+			Components: buttons[:rowSize],
+		})
+		buttons = buttons[rowSize:]
+	}
+	return rows
 }
 
-func buildInitMealSelect(date string, statuses []services.ResolvedStatus, availableMeals []string, draft initDraft) discord.Component {
+func buildInitLocationButtons(date string, draft initDraft) []discord.Component {
+	locations := []struct {
+		label string
+		value string
+	}{
+		{label: "Office", value: "office"},
+		{label: "WFH", value: "wfh"},
+	}
+
+	buttons := make([]discord.Component, 0, len(locations))
+	for _, location := range locations {
+		style := discord.ButtonStyleSecondary
+		if draft.Location == location.value || draft.Location == "" && location.value == "office" {
+			style = discord.ButtonStylePrimary
+		}
+		buttons = append(buttons, discord.Component{
+			Type:     discord.ComponentTypeButton,
+			Style:    style,
+			Label:    location.label,
+			CustomID: initCustomID(initActionLocationButton+location.value, date, draft),
+		})
+	}
+	return buttons
+}
+
+func buildInitMealButtons(date string, statuses []services.ResolvedStatus, availableMeals []string, draft initDraft) []discord.Component {
 	if len(availableMeals) == 0 {
-		return discord.Component{}
+		return nil
 	}
 
 	statusByMeal := make(map[string]services.ResolvedStatus, len(statuses))
-	allUnavailable := len(statuses) > 0
 	for _, status := range statuses {
 		statusByMeal[status.MealType] = status
-		if status.Status != "unavailable" {
-			allUnavailable = false
-		}
 	}
 
-	options := make([]discord.SelectOption, 0, len(availableMeals))
 	selected := make(map[string]struct{}, len(draft.Meals))
 	for _, meal := range draft.Meals {
 		selected[meal] = struct{}{}
 	}
+
+	buttons := make([]discord.Component, 0, len(availableMeals))
 	for _, meal := range availableMeals {
 		status := statusByMeal[meal]
-		description := "Select meals to include before applying"
-		if status.Status == "unavailable" {
-			description = "This meal is currently unavailable"
+		style := discord.ButtonStyleSecondary
+		if _, ok := selected[meal]; ok && status.Status != "unavailable" {
+			style = discord.ButtonStylePrimary
 		}
-		options = append(options, discord.SelectOption{
-			Label:       cmdutil.DisplayMealName(meal),
-			Value:       meal,
-			Description: description,
-			Default:     initMealDefault(status, meal, selected),
+		buttons = append(buttons, discord.Component{
+			Type:     discord.ComponentTypeButton,
+			Style:    style,
+			Label:    cmdutil.DisplayMealName(meal),
+			CustomID: initCustomID(initActionMealButton+meal, date, draft),
+			Disabled: status.Status == "unavailable",
 		})
 	}
-
-	return discord.Component{
-		Type:        discord.ComponentTypeStringSelect,
-		CustomID:    initCustomID(initActionMeals, date, draft),
-		Placeholder: "Choose the meals you want included",
-		Options:     options,
-		MinValues:   intPtr(0),
-		MaxValues:   intPtr(len(options)),
-		Disabled:    allUnavailable,
-	}
+	return buttons
 }
 
 func draftStatuses(state initState, draft initDraft) []services.ResolvedStatus {
@@ -358,24 +515,74 @@ func draftStatuses(state initState, draft initDraft) []services.ResolvedStatus {
 	return statuses
 }
 
-func initMealDefault(status services.ResolvedStatus, meal string, selected map[string]struct{}) bool {
-	if status.Status == "unavailable" {
-		return false
-	}
-	_, ok := selected[meal]
-	return ok
-}
-
 func initMealSummary(statuses []services.ResolvedStatus) string {
 	if len(statuses) == 0 {
 		return "No meals configured"
 	}
 
-	lines := make([]string, 0, len(statuses))
+	included := make([]string, 0, len(statuses))
+	notIncluded := make([]string, 0, len(statuses))
+	unavailable := make([]string, 0, len(statuses))
 	for _, status := range statuses {
-		lines = append(lines, fmt.Sprintf("%s: %s", cmdutil.DisplayMealName(status.MealType), mealStatusValue(status.Status)))
+		label := cmdutil.DisplayMealName(status.MealType)
+		switch status.Status {
+		case "opted_in":
+			included = append(included, label)
+		case "unavailable":
+			unavailable = append(unavailable, label)
+		default:
+			notIncluded = append(notIncluded, label)
+		}
+	}
+
+	lines := make([]string, 0, 3)
+	if len(included) > 0 {
+		lines = append(lines, "Included: "+strings.Join(included, ", "))
+	} else {
+		lines = append(lines, "No meals selected")
+	}
+	if len(notIncluded) > 0 {
+		lines = append(lines, "Not included: "+strings.Join(notIncluded, ", "))
+	}
+	if len(unavailable) > 0 {
+		lines = append(lines, "Unavailable: "+strings.Join(unavailable, ", "))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func initPanelDescription(date, note string) string {
+	description := initPanelSubtitle + "\n" + displayInitDate(date)
+	if note != "" {
+		description = note + "\n" + description
+	}
+	return description
+}
+
+func initDateSummary(dates []string) string {
+	if len(dates) == 0 {
+		return "No dates selected"
+	}
+	labels := make([]string, 0, len(dates))
+	for _, date := range dates {
+		labels = append(labels, displayInitDate(date))
+	}
+	return strings.Join(labels, "\n")
+}
+
+func displayInitDate(date string) string {
+	t, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return date
+	}
+	return t.Format("Mon, Jan 2")
+}
+
+func displayInitDay(date string) string {
+	t, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return date
+	}
+	return t.Format("Mon 2")
 }
 
 func initDraftFromState(state initState) initDraft {
@@ -402,15 +609,47 @@ func initLocationValue(location string) string {
 	return "office"
 }
 
-func normalizeInitDraft(opts payload.InitOptions, state initState) initDraft {
+func normalizeInitDraft(opts payload.InitOptions, state initState, selectedDates []string, anchorDate string) initDraft {
 	draft := initDraftFromState(state)
+	draft.Dates = selectedDates
+	draft.Anchor = anchorDate
 	if opts.Location == "office" || opts.Location == "wfh" {
 		draft.Location = opts.Location
 	}
+	if len(opts.Dates) > 0 {
+		draft.Dates = normalizeInitDates(opts.Dates, anchorDate, state.AvailableDates)
+	}
 	if opts.Meals != nil {
-		draft.Meals = filterInitMeals(opts.Meals, state.AvailableMeals)
+		draft.Meals = filterInitMeals(opts.Meals, commonInitMeals(state.AvailableDates, draft.Dates))
 	}
 	return draft
+}
+
+func normalizeInitDates(requested []string, anchorDate string, availableDates []initAvailableDate) []string {
+	available := make(map[string]struct{}, len(availableDates))
+	for _, date := range availableDates {
+		available[date.Date] = struct{}{}
+	}
+
+	result := make([]string, 0, len(requested))
+	seen := make(map[string]struct{}, len(requested))
+	for _, date := range requested {
+		if _, ok := available[date]; !ok {
+			continue
+		}
+		if _, ok := seen[date]; ok {
+			continue
+		}
+		seen[date] = struct{}{}
+		result = append(result, date)
+	}
+	if len(result) > 0 {
+		return result
+	}
+	if _, ok := available[anchorDate]; ok {
+		return []string{anchorDate}
+	}
+	return []string{availableDates[0].Date}
 }
 
 func filterInitMeals(selected []string, availableMeals []string) []string {
@@ -464,25 +703,148 @@ func mealTypesFromStatuses(statuses []services.ResolvedStatus) []string {
 func initCustomID(action, date string, draft initDraft) string {
 	meals := "-"
 	if len(draft.Meals) > 0 {
-		meals = strings.Join(draft.Meals, ",")
+		meals = encodeInitMeals(draft.Meals)
 	}
-	return strings.Join([]string{initCustomIDPrefix, action, date, draft.Location, meals}, initCustomIDSep)
+	dates := "-"
+	if len(draft.Dates) > 0 {
+		dates = encodeInitDates(draft.Dates)
+	}
+	return strings.Join([]string{initCustomIDPrefix, encodeInitAction(action), compactInitDate(date), compactInitLocation(draft.Location), meals, dates}, initCustomIDSep)
 }
 
 func parseInitCustomID(id string) (action, date string, draft initDraft, err error) {
 	parts := strings.Split(id, initCustomIDSep)
-	if len(parts) != 5 || parts[0] != initCustomIDPrefix || parts[1] == "" || parts[2] == "" {
+	if len(parts) != 6 || parts[0] != initCustomIDPrefix || parts[1] == "" || parts[2] == "" {
 		return "", "", initDraft{}, fmt.Errorf("unrecognized init control")
 	}
-	location := parts[3]
+	location := expandInitLocation(parts[3])
 	if location != "office" && location != "wfh" {
 		return "", "", initDraft{}, fmt.Errorf("unrecognized init location draft")
 	}
 	draft = initDraft{Location: location}
 	if parts[4] != "" && parts[4] != "-" {
-		draft.Meals = strings.Split(parts[4], ",")
+		draft.Meals = decodeInitMeals(parts[4])
 	}
-	return parts[1], parts[2], draft, nil
+	if parts[5] != "" && parts[5] != "-" {
+		draft.Dates = decodeInitDates(parts[5])
+	}
+	draft.Anchor = expandInitDate(parts[2])
+	return decodeInitAction(parts[1]), draft.Anchor, draft, nil
+}
+
+func encodeInitAction(action string) string {
+	if strings.HasPrefix(action, initActionDateButton) {
+		return initActionDateButton + compactInitDate(strings.TrimPrefix(action, initActionDateButton))
+	}
+	if strings.HasPrefix(action, initActionMealButton) {
+		return initActionMealButton + compactInitMeal(strings.TrimPrefix(action, initActionMealButton))
+	}
+	return action
+}
+
+func decodeInitAction(action string) string {
+	if strings.HasPrefix(action, initActionDateButton) {
+		return initActionDateButton + expandInitDate(strings.TrimPrefix(action, initActionDateButton))
+	}
+	if strings.HasPrefix(action, initActionMealButton) {
+		return initActionMealButton + expandInitMeal(strings.TrimPrefix(action, initActionMealButton))
+	}
+	return action
+}
+
+func compactInitDate(date string) string {
+	return strings.ReplaceAll(date, "-", "")
+}
+
+func expandInitDate(date string) string {
+	if len(date) == 8 {
+		return date[:4] + "-" + date[4:6] + "-" + date[6:]
+	}
+	return date
+}
+
+func encodeInitDates(dates []string) string {
+	parts := make([]string, 0, len(dates))
+	for _, date := range dates {
+		parts = append(parts, compactInitDate(date))
+	}
+	return strings.Join(parts, "")
+}
+
+func decodeInitDates(encoded string) []string {
+	if encoded == "" {
+		return nil
+	}
+	dates := make([]string, 0, len(encoded)/8)
+	for len(encoded) >= 8 {
+		dates = append(dates, expandInitDate(encoded[:8]))
+		encoded = encoded[8:]
+	}
+	return dates
+}
+
+func compactInitLocation(location string) string {
+	if location == "wfh" {
+		return "w"
+	}
+	return "o"
+}
+
+func expandInitLocation(location string) string {
+	if location == "w" || location == "wfh" {
+		return "wfh"
+	}
+	return "office"
+}
+
+func encodeInitMeals(meals []string) string {
+	parts := make([]string, 0, len(meals))
+	for _, meal := range meals {
+		parts = append(parts, compactInitMeal(meal))
+	}
+	return strings.Join(parts, "")
+}
+
+func decodeInitMeals(encoded string) []string {
+	meals := make([]string, 0, len(encoded))
+	for _, code := range encoded {
+		meals = append(meals, expandInitMeal(string(code)))
+	}
+	return meals
+}
+
+func compactInitMeal(meal string) string {
+	switch meal {
+	case "lunch":
+		return "l"
+	case "snacks":
+		return "s"
+	case "iftar":
+		return "i"
+	case "event_dinner":
+		return "e"
+	case "optional_dinner":
+		return "o"
+	default:
+		return meal
+	}
+}
+
+func expandInitMeal(meal string) string {
+	switch meal {
+	case "l":
+		return "lunch"
+	case "s":
+		return "snacks"
+	case "i":
+		return "iftar"
+	case "e":
+		return "event_dinner"
+	case "o":
+		return "optional_dinner"
+	default:
+		return meal
+	}
 }
 
 func discordComponentPayload(interaction interactionBody) (string, json.RawMessage, error) {
@@ -490,9 +852,13 @@ func discordComponentPayload(interaction interactionBody) (string, json.RawMessa
 	if err != nil {
 		return "", nil, fmt.Errorf("This interactive control is no longer recognized. Please run `/init` again.")
 	}
+	mealAction := strings.TrimPrefix(action, initActionMealButton)
+	locationAction := strings.TrimPrefix(action, initActionLocationButton)
+	dateAction := strings.TrimPrefix(action, initActionDateButton)
 
 	opts := payload.InitOptions{
 		Date:     date,
+		Dates:    append(make([]string, 0, len(draft.Dates)), draft.Dates...),
 		Action:   action,
 		Location: draft.Location,
 		Meals:    append(make([]string, 0, len(draft.Meals)), draft.Meals...),
@@ -511,13 +877,61 @@ func discordComponentPayload(interaction interactionBody) (string, json.RawMessa
 		opts.Meals = append(make([]string, 0, len(interaction.Data.Values)), interaction.Data.Values...)
 	case initActionRefresh, initActionApply:
 	default:
-		return "", nil, fmt.Errorf("This `/init` action is not supported.")
+		if strings.HasPrefix(action, initActionDateButton) {
+			opts.Action = initActionDate
+			opts.Dates = toggleInitDate(draft.Dates, dateAction)
+		} else if strings.HasPrefix(action, initActionLocationButton) {
+			opts.Action = initActionLocation
+			opts.Location = locationAction
+		} else if strings.HasPrefix(action, initActionMealButton) {
+			opts.Action = initActionMeals
+			opts.Meals = toggleInitMeal(draft.Meals, mealAction)
+		} else {
+			return "", nil, fmt.Errorf("This `/init` action is not supported.")
+		}
 	}
 
 	raw, _ := json.Marshal(opts)
 	return "init", raw, nil
 }
 
-func intPtr(v int) *int {
-	return &v
+func toggleInitMeal(meals []string, meal string) []string {
+	if meal == "" {
+		return append([]string(nil), meals...)
+	}
+	result := make([]string, 0, len(meals)+1)
+	removed := false
+	for _, current := range meals {
+		if current == meal {
+			removed = true
+			continue
+		}
+		result = append(result, current)
+	}
+	if !removed {
+		result = append(result, meal)
+	}
+	return result
+}
+
+func toggleInitDate(dates []string, date string) []string {
+	if date == "" {
+		return append([]string(nil), dates...)
+	}
+	result := make([]string, 0, len(dates)+1)
+	removed := false
+	for _, current := range dates {
+		if current == date {
+			removed = true
+			continue
+		}
+		result = append(result, current)
+	}
+	if !removed {
+		result = append(result, date)
+	}
+	if len(result) == 0 {
+		return []string{date}
+	}
+	return result
 }

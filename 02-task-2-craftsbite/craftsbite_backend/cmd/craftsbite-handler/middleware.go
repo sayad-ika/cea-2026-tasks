@@ -16,7 +16,7 @@ func applyRateLimit(ctx context.Context, limiter *ratelimit.Limiter, event paylo
 		return false, "An internal error occurred. Please try again.", err
 	}
 	if !allowed {
-		return false, "Rate limit exceeded. Please slow down.", nil
+		return false, "Rate limit exceeded. Please slow down and try again after some time.", nil
 	}
 	return true, "", nil
 }

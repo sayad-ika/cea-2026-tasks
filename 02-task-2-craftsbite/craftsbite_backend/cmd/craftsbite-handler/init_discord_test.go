@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,23 +17,33 @@ import (
 
 type initTestStore struct {
 	day            *repository.DaySchedule
+	days           map[string]*repository.DaySchedule
 	availableMeals []string
+	mealsByDate    map[string][]string
 	participations map[string]repository.MealParticipation
 	locations      map[string]repository.WorkLocation
 }
 
 func newInitTestStore() *initTestStore {
 	return &initTestStore{
+		days:           map[string]*repository.DaySchedule{},
+		mealsByDate:    map[string][]string{},
 		participations: map[string]repository.MealParticipation{},
 		locations:      map[string]repository.WorkLocation{},
 	}
 }
 
 func (s *initTestStore) GetDay(ctx context.Context, date string) (*repository.DaySchedule, error) {
+	if day, ok := s.days[date]; ok {
+		return day, nil
+	}
 	return s.day, nil
 }
 
 func (s *initTestStore) GetAvailableMeals(ctx context.Context, date string) ([]string, error) {
+	if meals, ok := s.mealsByDate[date]; ok {
+		return append([]string(nil), meals...), nil
+	}
 	return append([]string(nil), s.availableMeals...), nil
 }
 
@@ -100,14 +111,15 @@ func initPanelMessageForTest(date string) discord.Message {
 		{MealType: "lunch", Status: "opted_in"},
 		{MealType: "snacks", Status: "opted_out"},
 	}
-	return buildDiscordInitMessage(date, "office", statuses, []string{"lunch", "snacks"}, "", discord.NoticeToneInfo)
+	availableDates := []initAvailableDate{{Date: date, Meals: []string{"lunch", "snacks"}}}
+	draft := initDraft{Location: "office", Meals: []string{"lunch"}, Dates: []string{date}, Anchor: date, Saved: true}
+	return buildDiscordInitMessage(date, "office", statuses, []string{"lunch", "snacks"}, availableDates, draft, "", discord.NoticeToneInfo)
 }
 
 func TestDiscordComponentPayload_InitLocation(t *testing.T) {
 	commandName, raw, err := discordComponentPayload(interactionBody{
 		Data: interactionData{
-			CustomID: initCustomID(initActionLocation, "2026-05-15", initDraft{Location: "office", Meals: []string{"lunch"}}),
-			Values:   []string{"wfh"},
+			CustomID: initCustomID(initActionLocationButton+"wfh", "2026-05-15", initDraft{Location: "office", Meals: []string{"lunch"}}),
 		},
 		Message: initPanelMessageForTest("2026-05-15"),
 	})
@@ -153,8 +165,7 @@ func TestDiscordComponentPayload_InitApplyPreservesEmptyMeals(t *testing.T) {
 func TestDiscordComponentPayload_InitMealsEmptySelection(t *testing.T) {
 	commandName, raw, err := discordComponentPayload(interactionBody{
 		Data: interactionData{
-			CustomID: initCustomID(initActionMeals, "2026-05-15", initDraft{Location: "office", Meals: []string{"lunch", "snacks"}}),
-			Values:   nil,
+			CustomID: initCustomID(initActionMealButton+"lunch", "2026-05-15", initDraft{Location: "office", Meals: []string{"lunch"}}),
 		},
 	})
 	if err != nil {
@@ -172,6 +183,42 @@ func TestDiscordComponentPayload_InitMealsEmptySelection(t *testing.T) {
 	}
 	if len(opts.Meals) != 0 {
 		t.Fatalf("expected no selected meals, got %#v", opts.Meals)
+	}
+}
+
+func TestDiscordComponentPayload_InitDateToggle(t *testing.T) {
+	commandName, raw, err := discordComponentPayload(interactionBody{
+		Data: interactionData{
+			CustomID: initCustomID(initActionDateButton+"2026-05-16", "2026-05-15", initDraft{Location: "office", Meals: []string{"lunch"}, Dates: []string{"2026-05-15"}}),
+		},
+	})
+	if err != nil {
+		t.Fatalf("discordComponentPayload() error = %v", err)
+	}
+	if commandName != "init" {
+		t.Fatalf("commandName = %q, want init", commandName)
+	}
+	var opts payload.InitOptions
+	if err := json.Unmarshal(raw, &opts); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if opts.Action != initActionDate {
+		t.Fatalf("action = %q, want date", opts.Action)
+	}
+	if strings.Join(opts.Dates, ",") != "2026-05-15,2026-05-16" {
+		t.Fatalf("dates = %#v", opts.Dates)
+	}
+}
+
+func TestInitCustomID_StaysWithinDiscordLimit(t *testing.T) {
+	draft := initDraft{
+		Location: "office",
+		Meals:    []string{"lunch", "snacks", "optional_dinner"},
+		Dates:    []string{"2026-05-15", "2026-05-16", "2026-05-17", "2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21"},
+	}
+	id := initCustomID(initActionDateButton+"2026-05-21", "2026-05-15", draft)
+	if len(id) > 100 {
+		t.Fatalf("custom id length = %d, want <= 100: %q", len(id), id)
 	}
 }
 
@@ -205,36 +252,100 @@ func TestHandleInitInteraction_OpenPanel(t *testing.T) {
 	if body.Data.Embeds[0].Title != initPanelTitle {
 		t.Fatalf("embed title = %q, want %q", body.Data.Embeds[0].Title, initPanelTitle)
 	}
+	if body.Data.Embeds[0].Description != "Choose dates, location, and meals. Then save.\nFri, May 15" {
+		t.Fatalf("embed description = %q", body.Data.Embeds[0].Description)
+	}
 	if body.Data.Flags != 64 {
 		t.Fatalf("flags = %d, want 64", body.Data.Flags)
 	}
-	if len(body.Data.Components) != 3 {
-		t.Fatalf("expected 3 component rows, got %d", len(body.Data.Components))
+	if len(body.Data.Components) != 5 {
+		t.Fatalf("expected 5 component rows, got %d", len(body.Data.Components))
 	}
-	locationSelect := body.Data.Components[0].Components[0]
-	if locationSelect.CustomID != initCustomID(initActionLocation, "2026-05-15", initDraft{Location: "wfh", Meals: []string{"lunch"}}) {
-		t.Fatalf("location select custom id = %q", locationSelect.CustomID)
+	dateButtons := append([]discord.Component{}, body.Data.Components[0].Components...)
+	dateButtons = append(dateButtons, body.Data.Components[1].Components...)
+	if len(dateButtons) != initConfiguredDateLimit {
+		t.Fatalf("expected %d date buttons, got %d", initConfiguredDateLimit, len(dateButtons))
 	}
-	mealSelect := body.Data.Components[1].Components[0]
-	if mealSelect.CustomID != initCustomID(initActionMeals, "2026-05-15", initDraft{Location: "wfh", Meals: []string{"lunch"}}) {
-		t.Fatalf("meal select custom id = %q", mealSelect.CustomID)
+	if dateButtons[0].Style != discord.ButtonStylePrimary {
+		t.Fatal("expected first configured date to be selected")
 	}
-	if mealSelect.MinValues == nil || *mealSelect.MinValues != 0 {
-		t.Fatalf("meal select min values = %#v, want 0", mealSelect.MinValues)
+	locationButtons := body.Data.Components[2].Components
+	if len(locationButtons) != 2 {
+		t.Fatalf("expected 2 location buttons, got %d", len(locationButtons))
 	}
-	applyButton := body.Data.Components[2].Components[0]
-	if applyButton.CustomID != initCustomID(initActionApply, "2026-05-15", initDraft{Location: "wfh", Meals: []string{"lunch"}}) {
+	if locationButtons[0].Style != discord.ButtonStyleSecondary || locationButtons[1].Style != discord.ButtonStylePrimary {
+		t.Fatalf("location button styles = %d/%d", locationButtons[0].Style, locationButtons[1].Style)
+	}
+	openDraft := initDraft{Location: "wfh", Meals: []string{"lunch"}, Dates: []string{"2026-05-15"}, Anchor: "2026-05-15", Saved: true}
+	if locationButtons[1].CustomID != initCustomID(initActionLocationButton+"wfh", "2026-05-15", openDraft) {
+		t.Fatalf("location button custom id = %q", locationButtons[1].CustomID)
+	}
+	mealButtons := body.Data.Components[3].Components
+	if len(mealButtons) != 2 {
+		t.Fatalf("expected 2 meal buttons, got %d", len(mealButtons))
+	}
+	if mealButtons[0].CustomID != initCustomID(initActionMealButton+"lunch", "2026-05-15", openDraft) {
+		t.Fatalf("meal button custom id = %q", mealButtons[0].CustomID)
+	}
+	applyButton := body.Data.Components[4].Components[0]
+	if applyButton.Label != "Save" {
+		t.Fatalf("apply button label = %q", applyButton.Label)
+	}
+	if applyButton.CustomID != initCustomID(initActionApply, "2026-05-15", openDraft) {
 		t.Fatalf("apply button custom id = %q", applyButton.CustomID)
 	}
-	refreshButton := body.Data.Components[2].Components[1]
-	if refreshButton.CustomID != initCustomID(initActionRefresh, "2026-05-15", initDraft{Location: "wfh", Meals: []string{"lunch"}}) {
+	refreshButton := body.Data.Components[4].Components[1]
+	if refreshButton.Label != "Reset" {
+		t.Fatalf("refresh button label = %q", refreshButton.Label)
+	}
+	if refreshButton.CustomID != initCustomID(initActionRefresh, "2026-05-15", openDraft) {
 		t.Fatalf("refresh button custom id = %q", refreshButton.CustomID)
 	}
-	if !mealSelect.Options[0].Default {
-		t.Fatal("expected lunch to be selected by default")
+	if mealButtons[0].Style != discord.ButtonStylePrimary {
+		t.Fatal("expected lunch button to be selected")
 	}
-	if mealSelect.Options[1].Default {
-		t.Fatal("expected snacks to be unselected by default")
+	if mealButtons[1].Style != discord.ButtonStyleSecondary {
+		t.Fatal("expected snacks button to be unselected")
+	}
+}
+
+func TestHandleInitInteraction_OpenPanelScansConfiguredMealDays(t *testing.T) {
+	store := newInitTestStore()
+	store.mealsByDate["2026-05-15"] = []string{"lunch"}
+	store.mealsByDate["2026-05-16"] = nil
+	store.days["2026-05-17"] = &repository.DaySchedule{Date: "2026-05-17", DayStatus: "office_closed"}
+	store.mealsByDate["2026-05-17"] = []string{"lunch"}
+	store.mealsByDate["2026-05-18"] = []string{"lunch"}
+	store.mealsByDate["2026-05-19"] = []string{"lunch"}
+	store.mealsByDate["2026-05-20"] = []string{"lunch"}
+	store.mealsByDate["2026-05-21"] = []string{"lunch"}
+	store.mealsByDate["2026-05-22"] = []string{"lunch"}
+	store.mealsByDate["2026-05-23"] = []string{"lunch"}
+	store.mealsByDate["2026-05-24"] = []string{"lunch"}
+
+	ctx, recorder := withReplyRecorder(context.Background(), HandlerRequest{Platform: PlatformDiscord, Raw: events.APIGatewayV2HTTPRequest{}})
+	err := handleInitInteraction(ctx, nil, store, mustInitDateParser(t), nil, payload.CommandEvent{
+		UserID:  "u1",
+		Source:  "discord",
+		Options: json.RawMessage(`{"action":"open","date":"2026-05-15"}`),
+	})
+	if err != nil {
+		t.Fatalf("handleInitInteraction() error = %v", err)
+	}
+
+	var body RouterResponse
+	if err := json.Unmarshal([]byte(recorder.finalResponse().Body), &body); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	dateButtons := append([]discord.Component{}, body.Data.Components[0].Components...)
+	dateButtons = append(dateButtons, body.Data.Components[1].Components...)
+	gotLabels := make([]string, 0, len(dateButtons))
+	for _, button := range dateButtons {
+		gotLabels = append(gotLabels, button.Label)
+	}
+	wantLabels := []string{"Fri 15", "Mon 18", "Tue 19", "Wed 20", "Thu 21", "Fri 22", "Sat 23"}
+	if strings.Join(gotLabels, ",") != strings.Join(wantLabels, ",") {
+		t.Fatalf("date labels = %#v, want %#v", gotLabels, wantLabels)
 	}
 }
 
@@ -273,8 +384,8 @@ func TestHandleInitInteraction_LocationDraftDoesNotPersistUntilApply(t *testing.
 	if body.Type != 7 {
 		t.Fatalf("response type = %d, want 7", body.Type)
 	}
-	locationSelect := body.Data.Components[0].Components[0]
-	if !locationSelect.Options[1].Default {
+	locationButtons := body.Data.Components[2].Components
+	if locationButtons[1].Style != discord.ButtonStylePrimary {
 		t.Fatal("expected draft location to switch to WFH")
 	}
 	if body.Data.Embeds[0].Color != discord.BrandColor {
@@ -319,11 +430,11 @@ func TestHandleInitInteraction_MealDraftDoesNotPersistUntilApply(t *testing.T) {
 	if body.Type != 7 {
 		t.Fatalf("response type = %d, want 7", body.Type)
 	}
-	mealSelect := body.Data.Components[1].Components[0]
-	if mealSelect.Options[0].Default {
+	mealButtons := body.Data.Components[3].Components
+	if mealButtons[0].Style != discord.ButtonStyleSecondary {
 		t.Fatal("expected lunch draft to be deselected")
 	}
-	if !mealSelect.Options[1].Default {
+	if mealButtons[1].Style != discord.ButtonStylePrimary {
 		t.Fatal("expected snacks draft to be selected")
 	}
 }
@@ -373,6 +484,49 @@ func TestHandleInitInteraction_ApplyPersistsDraft(t *testing.T) {
 	}
 }
 
+func TestHandleInitInteraction_ApplyPersistsMultipleDates(t *testing.T) {
+	store := newInitTestStore()
+	store.availableMeals = []string{"lunch", "snacks"}
+	dateParser := mustInitDateParser(t)
+
+	ctx, recorder := withReplyRecorder(context.Background(), HandlerRequest{Platform: PlatformDiscord})
+	err := handleInitInteraction(ctx, nil, store, dateParser, mustInitCutoff(t), payload.CommandEvent{
+		UserID: "u1",
+		Source: "discord",
+		Options: json.RawMessage(`{
+			"action":"apply",
+			"date":"2026-05-15",
+			"dates":["2026-05-15","2026-05-16"],
+			"location":"wfh",
+			"meals":["lunch"]
+		}`),
+	})
+	if err != nil {
+		t.Fatalf("handleInitInteraction() error = %v", err)
+	}
+
+	for _, date := range []string{"2026-05-15", "2026-05-16"} {
+		updatedLocation, _ := store.GetWorkLocation(context.Background(), "u1", date)
+		if updatedLocation == nil || updatedLocation.Location != "wfh" {
+			t.Fatalf("location for %s = %#v, want wfh", date, updatedLocation)
+		}
+		if !store.participations[initMealKey("u1", date, "lunch")].IsParticipating {
+			t.Fatalf("expected lunch to be opted in for %s", date)
+		}
+		if store.participations[initMealKey("u1", date, "snacks")].IsParticipating {
+			t.Fatalf("expected snacks to be opted out for %s", date)
+		}
+	}
+
+	var body RouterResponse
+	if err := json.Unmarshal([]byte(recorder.finalResponse().Body), &body); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if body.Data == nil || body.Data.Embeds[0].Color != discord.SuccessColor {
+		t.Fatal("expected success response after multi-date apply")
+	}
+}
+
 func TestHandleInitInteraction_ApplySupportsEmptyMealSelection(t *testing.T) {
 	store := newInitTestStore()
 	store.availableMeals = []string{"lunch", "snacks"}
@@ -405,8 +559,8 @@ func TestHandleInitInteraction_ApplySupportsEmptyMealSelection(t *testing.T) {
 	if err := json.Unmarshal([]byte(recorder.finalResponse().Body), &body); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	mealSelect := body.Data.Components[1].Components[0]
-	if mealSelect.Options[0].Default || mealSelect.Options[1].Default {
+	mealButtons := body.Data.Components[3].Components
+	if mealButtons[0].Style != discord.ButtonStyleSecondary || mealButtons[1].Style != discord.ButtonStyleSecondary {
 		t.Fatal("expected all meals to be deselected after apply")
 	}
 }
@@ -437,12 +591,12 @@ func TestHandleInitInteraction_RefreshDiscardsDraft(t *testing.T) {
 	if err := json.Unmarshal([]byte(recorder.finalResponse().Body), &body); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	locationSelect := body.Data.Components[0].Components[0]
-	if !locationSelect.Options[0].Default {
+	locationButtons := body.Data.Components[2].Components
+	if locationButtons[0].Style != discord.ButtonStylePrimary {
 		t.Fatal("expected saved office location after refresh")
 	}
-	mealSelect := body.Data.Components[1].Components[0]
-	if !mealSelect.Options[0].Default || mealSelect.Options[1].Default {
+	mealButtons := body.Data.Components[3].Components
+	if mealButtons[0].Style != discord.ButtonStylePrimary || mealButtons[1].Style != discord.ButtonStyleSecondary {
 		t.Fatal("expected saved meal selection after refresh")
 	}
 }
