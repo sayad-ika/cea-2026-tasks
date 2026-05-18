@@ -25,10 +25,8 @@ func handleGChatInitInteraction(ctx context.Context, cfg *appconfig.Config, stor
 	if opts.Action == "" {
 		opts.Action = initActionOpen
 	}
-	slog.Info("gchat init handling started", "action", opts.Action, "date_present", opts.Date != "", "dates_count", len(opts.Dates), "meals_count", len(opts.Meals), "location_present", opts.Location != "")
 
 	if opts.Action == initActionCancel {
-		slog.Info("gchat init canceled")
 		return sendReply(ctx, cfg, event, "Setup canceled.")
 	}
 	if opts.Action == initActionApply {
@@ -40,7 +38,6 @@ func handleGChatInitInteraction(ctx context.Context, cfg *appconfig.Config, stor
 		slog.Warn("gchat init date parse failed", "error", err, "date_present", opts.Date != "")
 		return sendWarningReply(ctx, cfg, event, fmt.Sprintf("Invalid init date: %v", err))
 	}
-	slog.Info("gchat init open date resolved", "anchor_date", anchorDate)
 
 	availableDates, err := loadInitAvailableDates(ctx, store, anchorDate)
 	if err != nil {
@@ -60,7 +57,6 @@ func handleGChatInitInteraction(ctx context.Context, cfg *appconfig.Config, stor
 	}
 	state.AvailableDates = availableDates
 	state.AvailableMeals = commonInitMeals(availableDates, selectedDates)
-	slog.Info("gchat init open state ready", "anchor_date", anchorDate, "available_dates_count", len(availableDates), "selected_dates_count", len(selectedDates), "available_meals_count", len(state.AvailableMeals), "current_meals_count", len(selectedMealsFromStatuses(state.Statuses)), "location", state.Location)
 
 	draft := initDraftFromState(state)
 	draft.Dates = selectedDates
@@ -71,7 +67,6 @@ func handleGChatInitInteraction(ctx context.Context, cfg *appconfig.Config, stor
 }
 
 func saveGChatInitCard(ctx context.Context, cfg *appconfig.Config, store initStore, dateParser *dateutil.DateParser, cutoff *services.CutoffChecker, event payload.CommandEvent, opts payload.InitOptions) error {
-	slog.Info("gchat init save started", "date_present", opts.Date != "", "dates_count", len(opts.Dates), "meals_count", len(opts.Meals), "location", opts.Location)
 	if len(opts.Dates) == 0 {
 		slog.Warn("gchat init save rejected: no dates")
 		return sendWarningReply(ctx, cfg, event, "Choose at least one date before saving.")
@@ -99,8 +94,8 @@ func saveGChatInitCard(ctx context.Context, cfg *appconfig.Config, store initSto
 	}
 
 	selectedMeals := filterInitMeals(opts.Meals, commonInitMeals(availableDates, targetDates))
-	slog.Info("gchat init save normalized", "anchor_date", anchorDate, "available_dates_count", len(availableDates), "target_dates_count", len(targetDates), "selected_meals_count", len(selectedMeals), "location", opts.Location)
 	failures := 0
+	savedDates := make([]string, 0, len(targetDates))
 	for _, date := range targetDates {
 		if err := applyInitMealSelection(ctx, store, cutoff, event.UserID, date, selectedMeals); err != nil {
 			slog.Warn("gchat init save meal update failed", "error", err, "date", date)
@@ -110,7 +105,9 @@ func saveGChatInitCard(ctx context.Context, cfg *appconfig.Config, store initSto
 		if _, err := services.SetLocation(ctx, store, event.UserID, date, opts.Location, cutoff); err != nil {
 			slog.Warn("gchat init save location update failed", "error", err, "date", date, "location", opts.Location)
 			failures++
+			continue
 		}
+		savedDates = append(savedDates, date)
 	}
 
 	if failures == len(targetDates) {
@@ -118,16 +115,55 @@ func saveGChatInitCard(ctx context.Context, cfg *appconfig.Config, store initSto
 		return sendWarningReply(ctx, cfg, event, "No selected dates could be saved. Please review cutoff and availability.")
 	}
 
-	saved := len(targetDates) - failures
-	note := fmt.Sprintf("Saved setup for %d date(s).", saved)
-	if failures > 0 {
-		note = fmt.Sprintf("Saved setup for %d date(s). %d date(s) could not be updated.", saved, failures)
-	}
-	if len(selectedMeals) == 0 && failures == 0 {
-		note = fmt.Sprintf("Saved location for %d date(s). No meals selected.", saved)
-	}
-	slog.Info("gchat init save completed", "saved_dates_count", saved, "failures", failures, "selected_meals_count", len(selectedMeals))
+	note := gchatInitSaveSummary(savedDates, len(targetDates), selectedMeals, opts.Location, failures)
 	return sendReply(ctx, cfg, event, note)
+}
+
+func gchatInitSaveSummary(savedDates []string, targetCount int, selectedMeals []string, location string, failures int) string {
+	saved := len(savedDates)
+	result := fmt.Sprintf("Updated %d %s.", saved, pluralize(saved, "meal day", "meal days"))
+	if failures > 0 {
+		result = fmt.Sprintf("Updated %d of %d selected %s.", saved, targetCount, pluralize(targetCount, "meal day", "meal days"))
+	}
+
+	dateLabel := "Date"
+	if len(savedDates) != 1 {
+		dateLabel = "Dates"
+	}
+	meals := "No meals included"
+	if len(selectedMeals) > 0 {
+		meals = displayMealList(selectedMeals)
+	}
+
+	lines := []string{
+		"<b>Setup saved</b>",
+		result,
+		fmt.Sprintf("<b>%s:</b> %s", dateLabel, gchatInitInlineDates(savedDates)),
+		fmt.Sprintf("<b>Work location:</b> %s", displayLocationLabel(location)),
+		fmt.Sprintf("<b>Meals included:</b> %s", meals),
+	}
+	if failures > 0 {
+		lines = append(lines, fmt.Sprintf("%d selected date(s) could not be updated.", failures))
+	}
+	return strings.Join(lines, "<br>")
+}
+
+func pluralize(count int, singular, plural string) string {
+	if count == 1 {
+		return singular
+	}
+	return plural
+}
+
+func gchatInitInlineDates(dates []string) string {
+	if len(dates) == 0 {
+		return "None"
+	}
+	labels := make([]string, 0, len(dates))
+	for _, date := range dates {
+		labels = append(labels, displayInitDate(date))
+	}
+	return strings.Join(labels, "; ")
 }
 
 func gchatInitCardInput(anchorDate string, state initState, draft initDraft) gchat.InitCardInput {
@@ -232,7 +268,6 @@ func sendGChatInitCard(ctx context.Context, cfg *appconfig.Config, event payload
 		slog.Error("gchat init card build failed", "error", err)
 		return err
 	}
-	slog.Info("gchat init card built", "dates_count", len(input.Dates), "locations_count", len(input.Locations), "meals_count", len(input.Meals), "summary_rows_count", len(input.SummaryRows), "body_len", len(body), "action_function_present", input.ActionFunction != "")
 	return sendGChatCard(ctx, cfg, event, body)
 }
 
