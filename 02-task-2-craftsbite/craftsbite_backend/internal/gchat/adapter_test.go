@@ -155,14 +155,15 @@ func TestParseHeadcountArgs_Valid(t *testing.T) {
 
 func TestCommandMapping(t *testing.T) {
 	expected := map[int64]string{
-		1: "meal",
-		2: "location",
-		3: "team-summary",
-		4: "headcount",
-		5: "status",
-		6: "schedule-day",
-		7: "override",
-		9: "help",
+		1:  "meal",
+		2:  "location",
+		3:  "team-summary",
+		4:  "headcount",
+		5:  "status",
+		6:  "schedule-day",
+		7:  "override",
+		9:  "help",
+		10: "init",
 	}
 	for id, want := range expected {
 		got, ok := gchatCommandNames[id]
@@ -173,6 +174,79 @@ func TestCommandMapping(t *testing.T) {
 		if got != want {
 			t.Errorf("command ID %d = %q, want %q", id, got, want)
 		}
+	}
+}
+
+func TestToCommandEvent_InitOpen(t *testing.T) {
+	evt := Event{
+		Chat: ChatEvent{
+			User: Sender{Name: "users/123"},
+			AppCommandPayload: &AppCommandPayload{
+				AppCommandMetadata: AppCommandMetadata{AppCommandID: 10},
+				Space:              Space{Name: "spaces/abc"},
+				Message:            &Message{ArgumentText: "tomorrow"},
+			},
+		},
+	}
+
+	ce, err := ToCommandEvent(evt, "user1", "employee")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ce.CommandName != "init" {
+		t.Fatalf("CommandName = %q, want init", ce.CommandName)
+	}
+	var opts map[string]interface{}
+	if err := json.Unmarshal(ce.Options, &opts); err != nil {
+		t.Fatalf("failed to unmarshal options: %v", err)
+	}
+	if opts["action"] != "open" || opts["date"] != "tomorrow" {
+		t.Fatalf("unexpected init options: %#v", opts)
+	}
+}
+
+func TestToCardActionCommandEvent_InitSave(t *testing.T) {
+	evt := Event{
+		Chat: ChatEvent{
+			User:                 Sender{Name: "users/123"},
+			Space:                Space{Name: "spaces/abc"},
+			ButtonClickedPayload: &ButtonClickedPayload{},
+		},
+		CommonEventObject: CommonEventObject{
+			Parameters: map[string]string{"action": InitCardFunctionSave, "date": "2026-05-15"},
+			FormInputs: map[string]FormInput{
+				"dates":    {StringInputs: &StringInputs{Value: []string{"2026-05-15", "2026-05-16"}}},
+				"location": {StringInputs: &StringInputs{Value: []string{"wfh"}}},
+				"meals":    {StringInputs: &StringInputs{Value: []string{"lunch"}}},
+			},
+		},
+	}
+
+	ce, err := ToCardActionCommandEvent(evt, "user1", "employee")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ce.CommandName != "init" || ce.Source != "gchat" {
+		t.Fatalf("unexpected command event: %+v", ce)
+	}
+	var opts struct {
+		Action   string   `json:"action"`
+		Date     string   `json:"date"`
+		Dates    []string `json:"dates"`
+		Location string   `json:"location"`
+		Meals    []string `json:"meals"`
+	}
+	if err := json.Unmarshal(ce.Options, &opts); err != nil {
+		t.Fatalf("failed to unmarshal options: %v", err)
+	}
+	if opts.Action != "apply" || opts.Date != "2026-05-15" || opts.Location != "wfh" {
+		t.Fatalf("unexpected options: %+v", opts)
+	}
+	if strings.Join(opts.Dates, ",") != "2026-05-15,2026-05-16" {
+		t.Fatalf("dates = %#v", opts.Dates)
+	}
+	if strings.Join(opts.Meals, ",") != "lunch" {
+		t.Fatalf("meals = %#v", opts.Meals)
 	}
 }
 

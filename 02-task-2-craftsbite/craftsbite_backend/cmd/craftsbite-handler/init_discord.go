@@ -22,6 +22,7 @@ const (
 	initActionMeals    = "meals"
 	initActionDate     = "date"
 	initActionApply    = "apply"
+	initActionCancel   = "cancel"
 
 	initActionLocationButton = "location:"
 	initActionMealButton     = "meal:"
@@ -67,6 +68,9 @@ func handleInitCommand(ctx context.Context, deps handlerDeps, event payload.Comm
 }
 
 func handleInitInteraction(ctx context.Context, cfg *appconfig.Config, store initStore, dateParser *dateutil.DateParser, cutoff *services.CutoffChecker, event payload.CommandEvent) error {
+	if event.Source == "gchat" {
+		return handleGChatInitInteraction(ctx, cfg, store, dateParser, cutoff, event)
+	}
 	if event.Source != "discord" {
 		return sendWarningReply(ctx, cfg, event, "`/init` is currently available only in Discord.")
 	}

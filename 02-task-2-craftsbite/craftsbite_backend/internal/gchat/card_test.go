@@ -161,3 +161,75 @@ func TestNoticeCard_WarningUsesWarningPlaceholder(t *testing.T) {
 		t.Fatalf("ImageURL = %q, want warning placeholder", card.Card.Header.ImageURL)
 	}
 }
+
+func TestInitCard(t *testing.T) {
+	card := InitCard(InitCardInput{
+		AnchorDate:     "2026-05-15",
+		ActionFunction: "https://example.com/gchat",
+		Dates: []SelectionItem{
+			{Text: "Fri, May 15", Value: "2026-05-15", Selected: true},
+		},
+		Locations: []SelectionItem{
+			{Text: "Office", Value: "office", Selected: true},
+			{Text: "WFH", Value: "wfh"},
+		},
+		Meals: []SelectionItem{
+			{Text: "Lunch", Value: "lunch", Selected: true},
+		},
+	})
+
+	if card.Header == nil || card.Header.Title != "CraftsBite Setup" {
+		t.Fatalf("header = %#v, want CraftsBite Setup", card.Header)
+	}
+	if card.FixedFooter != nil {
+		t.Fatal("card messages must not use fixedFooter")
+	}
+	buttons := card.Sections[len(card.Sections)-1].Widgets[0].ButtonList
+	if buttons == nil || len(buttons.Buttons) != 2 {
+		t.Fatalf("buttons = %#v, want Save and Cancel button list", buttons)
+	}
+	if buttons.Buttons[0].OnClick == nil || buttons.Buttons[0].OnClick.Action.Function != "https://example.com/gchat" {
+		t.Fatalf("save action = %#v", buttons.Buttons[0].OnClick)
+	}
+	if actionParameter(buttons.Buttons[0].OnClick.Action.Parameters, "action") != InitCardFunctionSave {
+		t.Fatalf("save parameters = %#v, want save action parameter", buttons.Buttons[0].OnClick.Action.Parameters)
+	}
+	if buttons.Buttons[1].OnClick == nil || buttons.Buttons[1].OnClick.Action.Function != "https://example.com/gchat" {
+		t.Fatalf("cancel action = %#v", buttons.Buttons[1].OnClick)
+	}
+	if len(card.Sections) < 4 {
+		t.Fatalf("sections = %d, want at least 4", len(card.Sections))
+	}
+	if card.Sections[1].Widgets[0].SelectionInput == nil || card.Sections[1].Widgets[0].SelectionInput.Type != "CHECK_BOX" {
+		t.Fatalf("date selection input = %#v", card.Sections[1].Widgets[0].SelectionInput)
+	}
+}
+
+func actionParameter(params []ActionParameter, key string) string {
+	for _, param := range params {
+		if param.Key == key {
+			return param.Value
+		}
+	}
+	return ""
+}
+
+func TestInitCardResponse(t *testing.T) {
+	body, err := InitCardResponse(InitCardInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var resp CardResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.CardsV2) != 1 {
+		t.Fatalf("cardsV2 = %d, want 1", len(resp.CardsV2))
+	}
+	if resp.CardsV2[0].CardID != "init-setup" {
+		t.Fatalf("cardID = %q, want init-setup", resp.CardsV2[0].CardID)
+	}
+	if resp.CardsV2[0].Card.FixedFooter != nil {
+		t.Fatal("init card response must be a card message, not a dialog card")
+	}
+}
