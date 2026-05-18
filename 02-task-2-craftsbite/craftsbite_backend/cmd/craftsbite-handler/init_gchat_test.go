@@ -105,9 +105,57 @@ func TestHandleGChatInitInteraction_SavePersistsMultipleDates(t *testing.T) {
 		}
 	}
 
-	gchatCreatedCards(t, recorder.finalResponse().Body)
-	if !strings.Contains(recorder.finalResponse().Body, "Saved setup for 2 date(s).") {
-		t.Fatalf("response body = %s, want save confirmation", recorder.finalResponse().Body)
+	cards := gchatCreatedCards(t, recorder.finalResponse().Body)
+	summary := gchatCardText(&cards[0].Card)
+	for _, want := range []string{
+		"Setup saved",
+		"Updated 2 meal days.",
+		"Dates:",
+		displayInitDate(dates[0]),
+		displayInitDate(dates[1]),
+		"Work location:</b> WFH",
+		"Meals included:</b> Snacks",
+	} {
+		if !strings.Contains(summary, want) {
+			t.Fatalf("summary = %q, want %q", summary, want)
+		}
+	}
+}
+
+func TestHandleGChatInitInteraction_SaveSummarizesNoMeals(t *testing.T) {
+	store := newInitTestStore()
+	store.availableMeals = []string{"lunch", "snacks"}
+	dateParser := mustInitDateParser(t)
+	date := nextInitTestDates(t, dateParser, 1)[0]
+
+	ctx, recorder := withReplyRecorder(context.Background(), HandlerRequest{Platform: PlatformGChat})
+	err := handleGChatInitInteraction(ctx, nil, store, dateParser, mustInitCutoff(t), payload.CommandEvent{
+		UserID: "u1",
+		Source: "gchat",
+		Options: json.RawMessage(`{
+			"action":"apply",
+			"date":"` + date + `",
+			"dates":["` + date + `"],
+			"location":"office",
+			"meals":[]
+		}`),
+	})
+	if err != nil {
+		t.Fatalf("handleGChatInitInteraction() error = %v", err)
+	}
+
+	cards := gchatCreatedCards(t, recorder.finalResponse().Body)
+	summary := gchatCardText(&cards[0].Card)
+	for _, want := range []string{
+		"Setup saved",
+		"Updated 1 meal day.",
+		"Date:</b> " + displayInitDate(date),
+		"Work location:</b> Office",
+		"Meals included:</b> No meals included",
+	} {
+		if !strings.Contains(summary, want) {
+			t.Fatalf("summary = %q, want %q", summary, want)
+		}
 	}
 }
 
@@ -197,4 +245,22 @@ func gchatActionParameter(params []gchat.ActionParameter, key string) string {
 		}
 	}
 	return ""
+}
+
+func gchatCardText(card *gchat.CardV2) string {
+	if card == nil {
+		return ""
+	}
+	parts := []string{}
+	for _, section := range card.Sections {
+		for _, widget := range section.Widgets {
+			if widget.TextParagraph != nil {
+				parts = append(parts, widget.TextParagraph.Text)
+			}
+			if widget.DecoratedText != nil {
+				parts = append(parts, widget.DecoratedText.Text)
+			}
+		}
+	}
+	return strings.Join(parts, "\n")
 }

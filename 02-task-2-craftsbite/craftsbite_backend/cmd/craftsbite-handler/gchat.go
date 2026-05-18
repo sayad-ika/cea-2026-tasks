@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"sort"
 
 	"github.com/aws/aws-lambda-go/events"
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
@@ -27,46 +26,18 @@ func gchatCommandEvent(ctx context.Context, cfg *appconfig.Config, store *reposi
 		}
 		body = string(decoded)
 	}
-	rawKeys := gchatRawTopLevelKeys(body)
 
 	var evt gchat.Event
 	if err := json.Unmarshal([]byte(body), &evt); err != nil {
-		slog.Error("gchat request unmarshal failed", "error", err, "path", gchatRequestPath(req), "body_len", len(body), "top_level_keys", rawKeys)
+		slog.Error("gchat request unmarshal failed", "error", err, "path", gchatRequestPath(req), "body_len", len(body))
 		resp := events.APIGatewayV2HTTPResponse{StatusCode: 400}
 		return payload.CommandEvent{}, &resp, nil
-	}
-	slog.Info("gchat request received",
-		"path", gchatRequestPath(req),
-		"base64", req.IsBase64Encoded,
-		"body_len", len(body),
-		"top_level_keys", rawKeys,
-		"has_chat_user", evt.Chat.User.Name != "",
-		"has_chat_user_email", evt.Chat.User.Email != "",
-		"has_app_command_payload", evt.Chat.AppCommandPayload != nil,
-		"has_button_clicked_payload", evt.Chat.ButtonClickedPayload != nil,
-		"common_invoked_function", evt.CommonEventObject.InvokedFunction,
-		"common_parameter_keys", gchatStringMapKeys(evt.CommonEventObject.Parameters),
-		"common_form_input_keys", gchatFormInputKeys(evt.CommonEventObject.FormInputs),
-	)
-	if evt.Chat.AppCommandPayload != nil {
-		slog.Info("gchat app command payload",
-			"command_id", int64(evt.Chat.AppCommandPayload.AppCommandMetadata.AppCommandID),
-			"command_type", evt.Chat.AppCommandPayload.AppCommandMetadata.AppCommandType,
-			"space_present", evt.Chat.AppCommandPayload.Space.Name != "",
-			"message_present", evt.Chat.AppCommandPayload.Message != nil,
-		)
-	}
-	if evt.Chat.ButtonClickedPayload != nil {
-		slog.Info("gchat button payload",
-			"is_dialog_event", evt.Chat.ButtonClickedPayload.IsDialogEvent,
-			"dialog_event_type", evt.Chat.ButtonClickedPayload.DialogEventType,
-		)
 	}
 
 	viewerName := evt.Chat.User.Name
 	isButtonEvent := evt.Chat.ButtonClickedPayload != nil
 	if evt.Chat.AppCommandPayload == nil && !isButtonEvent {
-		slog.Warn("gchat unsupported event shape", "top_level_keys", rawKeys, "has_common_event_object", evt.CommonEventObject.InvokedFunction != "" || len(evt.CommonEventObject.Parameters) > 0 || len(evt.CommonEventObject.FormInputs) > 0)
+		slog.Warn("gchat unsupported event shape", "has_common_event_object", evt.CommonEventObject.InvokedFunction != "" || len(evt.CommonEventObject.Parameters) > 0 || len(evt.CommonEventObject.FormInputs) > 0)
 		resp := gchatNoticeText("Only slash commands and card actions are supported.", viewerName, discord.NoticeToneWarning)
 		return payload.CommandEvent{}, &resp, nil
 	}
@@ -81,7 +52,6 @@ func gchatCommandEvent(ctx context.Context, cfg *appconfig.Config, store *reposi
 		resp := gchatNoticeText("Your Google Chat account is not linked to CraftsBite. Contact your admin.", viewerName, discord.NoticeToneWarning)
 		return payload.CommandEvent{}, &resp, nil
 	}
-	slog.Info("gchat identity resolved", "role", role, "viewer_present", viewerName != "")
 
 	var cmdEvt payload.CommandEvent
 	if isButtonEvent {
@@ -94,14 +64,12 @@ func gchatCommandEvent(ctx context.Context, cfg *appconfig.Config, store *reposi
 		resp := gchatNoticeText(err.Error(), viewerName, discord.NoticeToneWarning)
 		return payload.CommandEvent{}, &resp, nil
 	}
-	slog.Info("gchat command normalized", "command", cmdEvt.CommandName, "is_button_event", isButtonEvent, "options_len", len(cmdEvt.Options), "space_present", cmdEvt.GChatSpaceName != "", "viewer_present", cmdEvt.GChatViewerName != "")
 
 	if !discord.CheckPermission(cmdEvt.CommandName, role) {
 		slog.Warn("gchat permission denied", "command", cmdEvt.CommandName, "role", role)
 		resp := gchatNoticeText(fmt.Sprintf("You do not have permission to use `/%s`.", cmdEvt.CommandName), viewerName, discord.NoticeToneWarning)
 		return payload.CommandEvent{}, &resp, nil
 	}
-	slog.Info("gchat permission granted", "command", cmdEvt.CommandName, "role", role)
 
 	if !discord.IsKnownCommand(cmdEvt.CommandName) {
 		slog.Warn("no target function configured for command", "command", cmdEvt.CommandName)
@@ -117,37 +85,6 @@ func gchatRequestPath(req events.APIGatewayV2HTTPRequest) string {
 		return req.RawPath
 	}
 	return req.RequestContext.HTTP.Path
-}
-
-func gchatRawTopLevelKeys(body string) []string {
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(body), &raw); err != nil {
-		return nil
-	}
-	keys := make([]string, 0, len(raw))
-	for key := range raw {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
-}
-
-func gchatStringMapKeys(values map[string]string) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
-}
-
-func gchatFormInputKeys(values map[string]gchat.FormInput) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 func gchatNoticeText(msg, viewerName string, tone discord.NoticeTone) events.APIGatewayV2HTTPResponse {

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"sort"
 	"strings"
 
 	"github.com/sayad-ika/craftsbite/internal/payload"
@@ -35,7 +34,6 @@ func ToCommandEvent(evt Event, internalUserID, role string) (payload.CommandEven
 		slog.Warn("gchat unknown command id", "command_id", commandID, "command_type", p.AppCommandMetadata.AppCommandType)
 		return payload.CommandEvent{}, fmt.Errorf("unknown command ID %d", commandID)
 	}
-	slog.Info("gchat slash command mapping", "command_id", commandID, "command_type", p.AppCommandMetadata.AppCommandType, "command", commandName, "has_message", p.Message != nil)
 
 	var argText string
 	var msgName string
@@ -79,7 +77,6 @@ func ToCommandEvent(evt Event, internalUserID, role string) (payload.CommandEven
 	}
 
 	optsJSON, _ := json.Marshal(opts)
-	slog.Info("gchat slash command options parsed", "command", commandName, "command_id", commandID, "options_keys", gchatInterfaceMapKeys(opts), "options_len", len(optsJSON))
 
 	return payload.CommandEvent{
 		UserID:           internalUserID,
@@ -96,10 +93,9 @@ func ToCommandEvent(evt Event, internalUserID, role string) (payload.CommandEven
 func ToCardActionCommandEvent(evt Event, internalUserID, role string) (payload.CommandEvent, error) {
 	action := dialogAction(evt.CommonEventObject)
 	if action == "" {
-		slog.Warn("gchat card action missing", "parameter_keys", gchatStringMapKeys(evt.CommonEventObject.Parameters), "form_input_keys", gchatFormInputMapKeys(evt.CommonEventObject.FormInputs), "invoked_function", evt.CommonEventObject.InvokedFunction)
+		slog.Warn("gchat card action missing", "invoked_function", evt.CommonEventObject.InvokedFunction)
 		return payload.CommandEvent{}, fmt.Errorf("card action is missing")
 	}
-	slog.Info("gchat card action received", "action", action, "parameter_keys", gchatStringMapKeys(evt.CommonEventObject.Parameters), "form_input_keys", gchatFormInputMapKeys(evt.CommonEventObject.FormInputs), "is_dialog_event", evt.Chat.ButtonClickedPayload != nil && evt.Chat.ButtonClickedPayload.IsDialogEvent)
 
 	var opts map[string]interface{}
 	switch action {
@@ -113,7 +109,6 @@ func ToCardActionCommandEvent(evt Event, internalUserID, role string) (payload.C
 	}
 
 	optsJSON, _ := json.Marshal(opts)
-	slog.Info("gchat card action options parsed", "action", action, "options_keys", gchatInterfaceMapKeys(opts), "options_len", len(optsJSON))
 	return payload.CommandEvent{
 		UserID:          internalUserID,
 		Role:            role,
@@ -177,33 +172,6 @@ func firstFormStringValue(inputs map[string]FormInput, name string) string {
 		return ""
 	}
 	return values[0]
-}
-
-func gchatInterfaceMapKeys(values map[string]interface{}) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
-}
-
-func gchatStringMapKeys(values map[string]string) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
-}
-
-func gchatFormInputMapKeys(values map[string]FormInput) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 func parseMealArgs(raw string) (map[string]interface{}, error) {
