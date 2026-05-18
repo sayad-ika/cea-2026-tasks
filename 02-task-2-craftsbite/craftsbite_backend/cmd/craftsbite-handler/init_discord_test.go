@@ -488,6 +488,7 @@ func TestHandleInitInteraction_ApplyPersistsMultipleDates(t *testing.T) {
 	store := newInitTestStore()
 	store.availableMeals = []string{"lunch", "snacks"}
 	dateParser := mustInitDateParser(t)
+	dates := nextInitTestDates(t, dateParser, 2)
 
 	ctx, recorder := withReplyRecorder(context.Background(), HandlerRequest{Platform: PlatformDiscord})
 	err := handleInitInteraction(ctx, nil, store, dateParser, mustInitCutoff(t), payload.CommandEvent{
@@ -495,8 +496,8 @@ func TestHandleInitInteraction_ApplyPersistsMultipleDates(t *testing.T) {
 		Source: "discord",
 		Options: json.RawMessage(`{
 			"action":"apply",
-			"date":"2026-05-15",
-			"dates":["2026-05-15","2026-05-16"],
+			"date":"` + dates[0] + `",
+			"dates":["` + dates[0] + `","` + dates[1] + `"],
 			"location":"wfh",
 			"meals":["lunch"]
 		}`),
@@ -505,7 +506,7 @@ func TestHandleInitInteraction_ApplyPersistsMultipleDates(t *testing.T) {
 		t.Fatalf("handleInitInteraction() error = %v", err)
 	}
 
-	for _, date := range []string{"2026-05-15", "2026-05-16"} {
+	for _, date := range dates {
 		updatedLocation, _ := store.GetWorkLocation(context.Background(), "u1", date)
 		if updatedLocation == nil || updatedLocation.Location != "wfh" {
 			t.Fatalf("location for %s = %#v, want wfh", date, updatedLocation)

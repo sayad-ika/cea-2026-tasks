@@ -9,6 +9,14 @@ import (
 	"github.com/sayad-ika/craftsbite/internal/discord"
 )
 
+const (
+	InitCardFunctionSave   = "init_save"
+	InitCardFunctionCancel = "init_cancel"
+
+	selectionTypeCheckbox = "CHECK_BOX"
+	selectionTypeRadio    = "RADIO_BUTTON"
+)
+
 type CardResponse struct {
 	CardsV2 []CardV2Wrapper `json:"cardsV2"`
 }
@@ -19,8 +27,10 @@ type CardV2Wrapper struct {
 }
 
 type CardV2 struct {
-	Header   *CardHeader   `json:"header,omitempty"`
-	Sections []CardSection `json:"sections"`
+	Header              *CardHeader      `json:"header,omitempty"`
+	Sections            []CardSection    `json:"sections"`
+	SectionDividerStyle string           `json:"sectionDividerStyle,omitempty"`
+	FixedFooter         *CardFixedFooter `json:"fixedFooter,omitempty"`
 }
 
 type CardHeader struct {
@@ -32,12 +42,16 @@ type CardHeader struct {
 }
 
 type CardSection struct {
+	Header  string       `json:"header,omitempty"`
 	Widgets []CardWidget `json:"widgets"`
 }
 
 type CardWidget struct {
-	TextParagraph *TextParagraph `json:"textParagraph,omitempty"`
-	DecoratedText *DecoratedText `json:"decoratedText,omitempty"`
+	TextParagraph  *TextParagraph  `json:"textParagraph,omitempty"`
+	DecoratedText  *DecoratedText  `json:"decoratedText,omitempty"`
+	SelectionInput *SelectionInput `json:"selectionInput,omitempty"`
+	ButtonList     *ButtonList     `json:"buttonList,omitempty"`
+	Divider        *Divider        `json:"divider,omitempty"`
 }
 
 type TextParagraph struct {
@@ -45,8 +59,83 @@ type TextParagraph struct {
 }
 
 type DecoratedText struct {
-	TopLabel string `json:"topLabel"`
+	TopLabel    string `json:"topLabel"`
+	Text        string `json:"text"`
+	BottomLabel string `json:"bottomLabel,omitempty"`
+	StartIcon   *Icon  `json:"startIcon,omitempty"`
+}
+
+type SelectionInput struct {
+	Name  string          `json:"name"`
+	Label string          `json:"label,omitempty"`
+	Type  string          `json:"type"`
+	Items []SelectionItem `json:"items"`
+}
+
+type SelectionItem struct {
 	Text     string `json:"text"`
+	Value    string `json:"value"`
+	Selected bool   `json:"selected,omitempty"`
+}
+
+type ButtonList struct {
+	Buttons []Button `json:"buttons"`
+}
+
+type Button struct {
+	Text    string   `json:"text"`
+	Color   *Color   `json:"color,omitempty"`
+	OnClick *OnClick `json:"onClick,omitempty"`
+	Type    string   `json:"type,omitempty"`
+	AltText string   `json:"altText,omitempty"`
+}
+
+type OnClick struct {
+	Action *Action `json:"action,omitempty"`
+}
+
+type Action struct {
+	Function        string            `json:"function,omitempty"`
+	Parameters      []ActionParameter `json:"parameters,omitempty"`
+	Interaction     string            `json:"interaction,omitempty"`
+	LoadIndicator   string            `json:"loadIndicator,omitempty"`
+	PersistValues   bool              `json:"persistValues,omitempty"`
+	RequiredWidgets []string          `json:"requiredWidgets,omitempty"`
+}
+
+type ActionParameter struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type Color struct {
+	Red   float64 `json:"red"`
+	Green float64 `json:"green"`
+	Blue  float64 `json:"blue"`
+}
+
+type Divider struct{}
+
+type Icon struct {
+	KnownIcon string `json:"knownIcon,omitempty"`
+	AltText   string `json:"altText,omitempty"`
+}
+
+type CardFixedFooter struct {
+	PrimaryButton   *Button `json:"primaryButton,omitempty"`
+	SecondaryButton *Button `json:"secondaryButton,omitempty"`
+}
+
+type InitCardInput struct {
+	Title          string
+	Subtitle       string
+	Intro          string
+	AnchorDate     string
+	ActionFunction string
+	Dates          []SelectionItem
+	Locations      []SelectionItem
+	Meals          []SelectionItem
+	SummaryRows    []TeamRow
 }
 
 type TeamRow struct {
@@ -80,6 +169,93 @@ func NoticeCard(title, subtitle, text string, tone discord.NoticeTone) ([]byte, 
 		[]CardSection{textSection(text)},
 		tone,
 	)
+}
+
+func InitCardResponse(input InitCardInput) ([]byte, error) {
+	return json.Marshal(CardResponse{
+		CardsV2: []CardV2Wrapper{{CardID: "init-setup", Card: InitCard(input)}},
+	})
+}
+
+func InitCard(input InitCardInput) CardV2 {
+	if input.Title == "" {
+		input.Title = "CraftsBite Setup"
+	}
+	if input.Subtitle == "" {
+		input.Subtitle = "Dates, location, and meals"
+	}
+	if input.Intro == "" {
+		input.Intro = "Pick upcoming meal days, choose your work location, and select the meals to include."
+	}
+	saveFunction := input.ActionFunction
+	cancelFunction := input.ActionFunction
+	if saveFunction == "" {
+		saveFunction = InitCardFunctionSave
+	}
+	if cancelFunction == "" {
+		cancelFunction = InitCardFunctionCancel
+	}
+
+	sections := []CardSection{
+		{
+			Widgets: []CardWidget{{TextParagraph: &TextParagraph{Text: paragraphText(input.Intro)}}},
+		},
+		{
+			Header: "Dates",
+			Widgets: []CardWidget{{SelectionInput: &SelectionInput{
+				Name:  "dates",
+				Label: "Meal days",
+				Type:  selectionTypeCheckbox,
+				Items: input.Dates,
+			}}},
+		},
+		{
+			Header: "Work Location",
+			Widgets: []CardWidget{{SelectionInput: &SelectionInput{
+				Name:  "location",
+				Label: "Where will you work?",
+				Type:  selectionTypeRadio,
+				Items: input.Locations,
+			}}},
+		},
+		{
+			Header: "Meals",
+			Widgets: []CardWidget{{SelectionInput: &SelectionInput{
+				Name:  "meals",
+				Label: "Include meals",
+				Type:  selectionTypeCheckbox,
+				Items: input.Meals,
+			}}},
+		},
+	}
+	if len(input.SummaryRows) > 0 {
+		sections = append(sections, CardSection{Header: "Preview", Widgets: rowWidgets(input.SummaryRows)})
+	}
+	sections = append(sections, CardSection{Widgets: []CardWidget{{ButtonList: &ButtonList{Buttons: []Button{
+		{
+			Text:  "Save",
+			Color: &Color{Red: 0.18, Green: 0.62, Blue: 0.27},
+			OnClick: &OnClick{Action: &Action{
+				Function:      saveFunction,
+				Parameters:    initCardActionParameters(InitCardFunctionSave, input.AnchorDate),
+				LoadIndicator: "SPINNER",
+			}},
+		},
+		{
+			Text: "Cancel",
+			OnClick: &OnClick{Action: &Action{
+				Function:      cancelFunction,
+				Parameters:    initCardActionParameters(InitCardFunctionCancel, input.AnchorDate),
+				LoadIndicator: "NONE",
+			}},
+		},
+	}}}}})
+
+	return CardV2{
+		Header:              brandedHeader(input.Title, input.Subtitle, discord.NoticeToneInfo),
+		Sections:            sections,
+		SectionDividerStyle: "SOLID_DIVIDER",
+	}
 }
 
 func LocationCard(location, date, mealStatus string) ([]byte, error) {
@@ -260,6 +436,10 @@ func textSection(text string) CardSection {
 }
 
 func rowsSection(rows []TeamRow) CardSection {
+	return CardSection{Widgets: rowWidgets(rows)}
+}
+
+func rowWidgets(rows []TeamRow) []CardWidget {
 	widgets := make([]CardWidget, 0, len(rows))
 	for _, row := range rows {
 		widgets = append(widgets, CardWidget{
@@ -269,7 +449,14 @@ func rowsSection(rows []TeamRow) CardSection {
 			},
 		})
 	}
-	return CardSection{Widgets: widgets}
+	return widgets
+}
+
+func initCardActionParameters(action, anchorDate string) []ActionParameter {
+	return []ActionParameter{
+		{Key: "action", Value: action},
+		{Key: "date", Value: anchorDate},
+	}
 }
 
 func paragraphText(text string) string {

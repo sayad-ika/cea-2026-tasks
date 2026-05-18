@@ -2,13 +2,16 @@ package gchat
 
 // Event is the top-level payload for Google Chat App Commands API events.
 type Event struct {
-	Chat ChatEvent `json:"chat"`
+	Chat              ChatEvent         `json:"chat"`
+	CommonEventObject CommonEventObject `json:"commonEventObject,omitempty"`
 }
 
 type ChatEvent struct {
-	User              Sender             `json:"user"`
-	EventTime         string             `json:"eventTime"`
-	AppCommandPayload *AppCommandPayload `json:"appCommandPayload,omitempty"`
+	User                 Sender                `json:"user"`
+	Space                Space                 `json:"space,omitempty"`
+	EventTime            string                `json:"eventTime"`
+	AppCommandPayload    *AppCommandPayload    `json:"appCommandPayload,omitempty"`
+	ButtonClickedPayload *ButtonClickedPayload `json:"buttonClickedPayload,omitempty"`
 }
 
 type AppCommandPayload struct {
@@ -45,4 +48,28 @@ type Space struct {
 
 type SlashCommand struct {
 	CommandID float64 `json:"commandId"`
+}
+
+type ButtonClickedPayload struct {
+	IsDialogEvent   bool   `json:"isDialogEvent"`
+	DialogEventType string `json:"dialogEventType"`
+}
+
+type CommonEventObject struct {
+	InvokedFunction string               `json:"invokedFunction,omitempty"`
+	Parameters      map[string]string    `json:"parameters,omitempty"`
+	FormInputs      map[string]FormInput `json:"formInputs,omitempty"`
+}
+
+type FormInput struct {
+	StringInputs *StringInputs `json:"stringInputs,omitempty"`
+	DateInput    *DateInput    `json:"dateInput,omitempty"`
+}
+
+type StringInputs struct {
+	Value []string `json:"value,omitempty"`
+}
+
+type DateInput struct {
+	MsSinceEpoch int64 `json:"msSinceEpoch,omitempty"`
 }
