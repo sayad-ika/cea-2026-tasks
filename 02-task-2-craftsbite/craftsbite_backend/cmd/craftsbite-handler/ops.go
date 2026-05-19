@@ -24,6 +24,8 @@ func handleOpsCommand(ctx context.Context, deps handlerDeps, event payload.Comma
 		return handleScheduleDayCommand(ctx, deps.store, deps.cfg, deps.dateParser, event)
 	case "admin":
 		return sendReply(ctx, deps.cfg, event, "This feature is coming soon.")
+	case "admin-init":
+		return handleAdminInitCommand(ctx, deps.store, deps.cfg, deps.dateParser, event)
 	default:
 		return sendWarningReply(ctx, deps.cfg, event, fmt.Sprintf("Unknown command: /%s", event.CommandName))
 	}

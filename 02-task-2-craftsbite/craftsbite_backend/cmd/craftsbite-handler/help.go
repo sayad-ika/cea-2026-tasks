@@ -26,7 +26,7 @@ type helpSection struct {
 }
 
 func handleHelpCommand(ctx context.Context, cfg *appconfig.Config, event payload.CommandEvent) error {
-	sections := helpSectionsForRole(event.Role)
+	sections := helpSectionsForRoleForSource(event.Role, event.Source)
 	if event.Source == "gchat" {
 		card, err := gchat.HelpCard(helpTitle, helpSubtitle, toGChatHelpSections(sections))
 		if err != nil {
@@ -38,6 +38,10 @@ func handleHelpCommand(ctx context.Context, cfg *appconfig.Config, event payload
 }
 
 func helpSectionsForRole(role string) []helpSection {
+	return helpSectionsForRoleForSource(role, "")
+}
+
+func helpSectionsForRoleForSource(role, source string) []helpSection {
 	sections := []helpSection{personalHelpSection()}
 	switch role {
 	case "team_lead":
@@ -45,7 +49,7 @@ func helpSectionsForRole(role string) []helpSection {
 	case "logistics":
 		sections = append(sections, operationsHelpSection())
 	case "admin":
-		sections = append(sections, teamLeadHelpSection(), operationsHelpSection(), adminHelpSection())
+		sections = append(sections, teamLeadHelpSection(), operationsHelpSection(), adminHelpSection(source))
 	}
 	return sections
 }
@@ -84,13 +88,17 @@ func operationsHelpSection() helpSection {
 	}
 }
 
-func adminHelpSection() helpSection {
-	return helpSection{
+func adminHelpSection(source string) helpSection {
+	section := helpSection{
 		Title: "Admin",
 		Commands: []helpCommand{
 			{Usage: "/schedule-day <date> <status> [meals] [reason]", Description: "Configure the day schedule, meals, and optional note."},
 		},
 	}
+	if source == "gchat" {
+		section.Commands = append(section.Commands, helpCommand{Usage: "/admin-init [date]", Description: "Open an interactive admin panel for schedule setup."})
+	}
+	return section
 }
 
 func buildDiscordHelpMessage(sections []helpSection) discord.Message {

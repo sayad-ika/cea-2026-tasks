@@ -13,7 +13,7 @@ func route(ctx context.Context, deps handlerDeps, req HandlerRequest) error {
 			return handleSelfCommand(ctx, deps, req.Command)
 		case "override", "team-summary":
 			return handleManagementCommand(ctx, deps, req.Command)
-		case "headcount", "schedule-day", "admin":
+		case "headcount", "schedule-day", "admin", "admin-init":
 			return handleOpsCommand(ctx, deps, req.Command)
 		default:
 			return sendWarningReply(ctx, deps.cfg, req.Command, fmt.Sprintf("Unknown command: /%s", req.Command.CommandName))

@@ -35,8 +35,8 @@ func gchatCommandEvent(ctx context.Context, cfg *appconfig.Config, store *reposi
 	}
 
 	viewerName := evt.Chat.User.Name
-	isButtonEvent := evt.Chat.ButtonClickedPayload != nil
-	if evt.Chat.AppCommandPayload == nil && !isButtonEvent {
+	isCardActionEvent := evt.Chat.ButtonClickedPayload != nil || evt.CommonEventObject.InvokedFunction != "" || len(evt.CommonEventObject.Parameters) > 0 || len(evt.CommonEventObject.FormInputs) > 0
+	if evt.Chat.AppCommandPayload == nil && !isCardActionEvent {
 		slog.Warn("gchat unsupported event shape", "has_common_event_object", evt.CommonEventObject.InvokedFunction != "" || len(evt.CommonEventObject.Parameters) > 0 || len(evt.CommonEventObject.FormInputs) > 0)
 		resp := gchatNoticeText("Only slash commands and card actions are supported.", viewerName, discord.NoticeToneWarning)
 		return payload.CommandEvent{}, &resp, nil
@@ -54,13 +54,13 @@ func gchatCommandEvent(ctx context.Context, cfg *appconfig.Config, store *reposi
 	}
 
 	var cmdEvt payload.CommandEvent
-	if isButtonEvent {
+	if isCardActionEvent {
 		cmdEvt, err = gchat.ToCardActionCommandEvent(evt, userID, role)
 	} else {
 		cmdEvt, err = gchat.ToCommandEvent(evt, userID, role)
 	}
 	if err != nil {
-		slog.Warn("gchat command normalization failed", "error", err, "is_button_event", isButtonEvent)
+		slog.Warn("gchat command normalization failed", "error", err, "is_card_action_event", isCardActionEvent)
 		resp := gchatNoticeText(err.Error(), viewerName, discord.NoticeToneWarning)
 		return payload.CommandEvent{}, &resp, nil
 	}
