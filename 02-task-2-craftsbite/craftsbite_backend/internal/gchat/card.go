@@ -12,6 +12,7 @@ import (
 const (
 	InitCardFunctionSave   = "init_save"
 	InitCardFunctionCancel = "init_cancel"
+	InitCardFunctionEdit   = "init_edit"
 
 	selectionTypeCheckbox = "CHECK_BOX"
 	selectionTypeRadio    = "RADIO_BUTTON"
@@ -130,12 +131,23 @@ type InitCardInput struct {
 	Title          string
 	Subtitle       string
 	Intro          string
+	Note           string
 	AnchorDate     string
 	ActionFunction string
 	Dates          []SelectionItem
 	Locations      []SelectionItem
 	Meals          []SelectionItem
 	SummaryRows    []TeamRow
+}
+
+type InitSaveConfirmationInput struct {
+	Title          string
+	Subtitle       string
+	Summary        string
+	EditButtonText string
+	AnchorDate     string
+	ActionFunction string
+	Tone           discord.NoticeTone
 }
 
 type TeamRow struct {
@@ -177,6 +189,12 @@ func InitCardResponse(input InitCardInput) ([]byte, error) {
 	})
 }
 
+func InitSaveConfirmationCardResponse(input InitSaveConfirmationInput) ([]byte, error) {
+	return json.Marshal(CardResponse{
+		CardsV2: []CardV2Wrapper{{CardID: "init-saved", Card: InitSaveConfirmationCard(input)}},
+	})
+}
+
 func InitCard(input InitCardInput) CardV2 {
 	if input.Title == "" {
 		input.Title = "CraftsBite Setup"
@@ -196,7 +214,13 @@ func InitCard(input InitCardInput) CardV2 {
 		cancelFunction = InitCardFunctionCancel
 	}
 
-	sections := []CardSection{
+	sections := []CardSection{}
+	if input.Note != "" {
+		sections = append(sections, CardSection{
+			Widgets: []CardWidget{{TextParagraph: &TextParagraph{Text: paragraphText(input.Note)}}},
+		})
+	}
+	sections = append(sections, []CardSection{
 		{
 			Widgets: []CardWidget{{TextParagraph: &TextParagraph{Text: paragraphText(input.Intro)}}},
 		},
@@ -227,7 +251,7 @@ func InitCard(input InitCardInput) CardV2 {
 				Items: input.Meals,
 			}}},
 		},
-	}
+	}...)
 	if len(input.SummaryRows) > 0 {
 		sections = append(sections, CardSection{Header: "Preview", Widgets: rowWidgets(input.SummaryRows)})
 	}
@@ -255,6 +279,45 @@ func InitCard(input InitCardInput) CardV2 {
 		Header:              brandedHeader(input.Title, input.Subtitle, discord.NoticeToneInfo),
 		Sections:            sections,
 		SectionDividerStyle: "SOLID_DIVIDER",
+	}
+}
+
+func InitSaveConfirmationCard(input InitSaveConfirmationInput) CardV2 {
+	if input.Title == "" {
+		input.Title = "Setup saved"
+	}
+	if input.Subtitle == "" {
+		input.Subtitle = "Your meal setup was updated"
+	}
+	if input.Summary == "" {
+		input.Summary = "Your setup was saved."
+	}
+	if input.EditButtonText == "" {
+		input.EditButtonText = "Edit setup"
+	}
+	if input.Tone == "" {
+		input.Tone = discord.NoticeToneSuccess
+	}
+	actionFunction := input.ActionFunction
+	if actionFunction == "" {
+		actionFunction = InitCardFunctionEdit
+	}
+
+	return CardV2{
+		Header: brandedHeader(input.Title, input.Subtitle, input.Tone),
+		Sections: []CardSection{
+			textSection(input.Summary),
+			{Widgets: []CardWidget{{ButtonList: &ButtonList{Buttons: []Button{
+				{
+					Text: input.EditButtonText,
+					OnClick: &OnClick{Action: &Action{
+						Function:      actionFunction,
+						Parameters:    initCardActionParameters(InitCardFunctionEdit, input.AnchorDate),
+						LoadIndicator: "SPINNER",
+					}},
+				},
+			}}}}},
+		},
 	}
 }
 

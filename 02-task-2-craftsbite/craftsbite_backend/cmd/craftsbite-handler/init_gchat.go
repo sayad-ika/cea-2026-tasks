@@ -10,6 +10,7 @@ import (
 	"github.com/sayad-ika/craftsbite/internal/cmdutil"
 	appconfig "github.com/sayad-ika/craftsbite/internal/config"
 	"github.com/sayad-ika/craftsbite/internal/dateutil"
+	"github.com/sayad-ika/craftsbite/internal/discord"
 	"github.com/sayad-ika/craftsbite/internal/gchat"
 	"github.com/sayad-ika/craftsbite/internal/payload"
 	"github.com/sayad-ika/craftsbite/internal/services"
@@ -27,7 +28,7 @@ func handleGChatInitInteraction(ctx context.Context, cfg *appconfig.Config, stor
 	}
 
 	if opts.Action == initActionCancel {
-		return sendReply(ctx, cfg, event, "Setup canceled.")
+		return sendGChatInitCanceledCard(ctx, cfg, dateParser, event, opts)
 	}
 	if opts.Action == initActionApply {
 		return saveGChatInitCard(ctx, cfg, store, dateParser, cutoff, event, opts)
@@ -63,17 +64,17 @@ func handleGChatInitInteraction(ctx context.Context, cfg *appconfig.Config, stor
 	draft.Anchor = anchorDate
 	draft.Saved = true
 
-	return sendGChatInitCard(ctx, cfg, event, gchatInitCardInput(anchorDate, state, draft))
+	return sendGChatInitCard(ctx, cfg, event, gchatInitCardInput(anchorDate, state, draft, ""))
 }
 
 func saveGChatInitCard(ctx context.Context, cfg *appconfig.Config, store initStore, dateParser *dateutil.DateParser, cutoff *services.CutoffChecker, event payload.CommandEvent, opts payload.InitOptions) error {
 	if len(opts.Dates) == 0 {
 		slog.Warn("gchat init save rejected: no dates")
-		return sendWarningReply(ctx, cfg, event, "Choose at least one date before saving.")
+		return sendGChatInitValidationCard(ctx, cfg, store, dateParser, event, opts, "<b>Review needed</b><br>Choose at least one meal day before saving.")
 	}
 	if opts.Location != "office" && opts.Location != "wfh" {
 		slog.Warn("gchat init save rejected: invalid location", "location", opts.Location)
-		return sendWarningReply(ctx, cfg, event, "Choose either Office or WFH before saving.")
+		return sendGChatInitValidationCard(ctx, cfg, store, dateParser, event, opts, "<b>Review needed</b><br>Choose either Office or WFH before saving.")
 	}
 
 	anchorDate, err := dateParser.ParseDateWithDefaults(opts.Date)
@@ -90,7 +91,7 @@ func saveGChatInitCard(ctx context.Context, cfg *appconfig.Config, store initSto
 	targetDates := filterRequestedInitDates(opts.Dates, availableDates)
 	if len(targetDates) == 0 {
 		slog.Warn("gchat init save rejected: no available requested dates", "requested_dates_count", len(opts.Dates), "available_dates_count", len(availableDates), "anchor_date", anchorDate)
-		return sendWarningReply(ctx, cfg, event, "Choose at least one available date before saving.")
+		return sendGChatInitValidationCard(ctx, cfg, store, dateParser, event, opts, "<b>Review needed</b><br>Choose at least one available meal day before saving.")
 	}
 
 	selectedMeals := filterInitMeals(opts.Meals, commonInitMeals(availableDates, targetDates))
@@ -112,11 +113,63 @@ func saveGChatInitCard(ctx context.Context, cfg *appconfig.Config, store initSto
 
 	if failures == len(targetDates) {
 		slog.Warn("gchat init save all targets failed", "target_dates_count", len(targetDates), "failures", failures)
-		return sendWarningReply(ctx, cfg, event, "No selected dates could be saved. Please review cutoff and availability.")
+		return sendGChatInitResultCard(ctx, cfg, event, anchorDate, gchatInitSaveFailureSummary(), gchat.InitSaveConfirmationInput{
+			Title:          "Setup not saved",
+			Subtitle:       "No selected dates were updated",
+			EditButtonText: "Edit setup",
+			Tone:           discord.NoticeToneWarning,
+		})
 	}
 
 	note := gchatInitSaveSummary(savedDates, len(targetDates), selectedMeals, opts.Location, failures)
-	return sendReply(ctx, cfg, event, note)
+	return sendGChatInitSavedCard(ctx, cfg, event, anchorDate, note)
+}
+
+func sendGChatInitValidationCard(ctx context.Context, cfg *appconfig.Config, store initStore, dateParser *dateutil.DateParser, event payload.CommandEvent, opts payload.InitOptions, note string) error {
+	anchorDate, err := dateParser.ParseDateWithDefaults(opts.Date)
+	if err != nil {
+		slog.Warn("gchat init validation date parse failed", "error", err, "date_present", opts.Date != "")
+		return sendWarningReply(ctx, cfg, event, fmt.Sprintf("Invalid init date: %v", err))
+	}
+
+	availableDates, err := loadInitAvailableDates(ctx, store, anchorDate)
+	if err != nil {
+		slog.Error("gchat init validation available dates load failed", "error", err, "anchor_date", anchorDate)
+		return sendWarningReply(ctx, cfg, event, "Unable to load upcoming meal days. Please try again shortly.")
+	}
+	if len(availableDates) == 0 {
+		slog.Warn("gchat init validation no available dates", "anchor_date", anchorDate)
+		return sendWarningReply(ctx, cfg, event, "No configured meal days were found in the next 15 days.")
+	}
+
+	selectedDates := filterRequestedInitDates(opts.Dates, availableDates)
+	stateDate := availableDates[0].Date
+	if len(selectedDates) > 0 {
+		stateDate = selectedDates[0]
+	}
+	state, err := loadInitState(ctx, store, event.UserID, stateDate)
+	if err != nil {
+		slog.Error("gchat init validation state load failed", "error", err, "anchor_date", anchorDate)
+		return sendWarningReply(ctx, cfg, event, "Unable to load your current setup. Please try again shortly.")
+	}
+	state.AvailableDates = availableDates
+	mealDates := selectedDates
+	if len(mealDates) == 0 {
+		mealDates = []string{stateDate}
+	}
+	state.AvailableMeals = commonInitMeals(availableDates, mealDates)
+
+	draft := initDraft{
+		Location: opts.Location,
+		Meals:    filterInitMeals(opts.Meals, state.AvailableMeals),
+		Dates:    selectedDates,
+		Anchor:   anchorDate,
+	}
+	return sendGChatInitCardUpdate(ctx, cfg, event, gchatInitCardInput(anchorDate, state, draft, note))
+}
+
+func gchatInitSaveFailureSummary() string {
+	return "<b>Setup not saved</b><br>No selected dates could be updated.<br>Please review cutoff and availability, then try again."
 }
 
 func gchatInitSaveSummary(savedDates []string, targetCount int, selectedMeals []string, location string, failures int) string {
@@ -166,18 +219,20 @@ func gchatInitInlineDates(dates []string) string {
 	return strings.Join(labels, "; ")
 }
 
-func gchatInitCardInput(anchorDate string, state initState, draft initDraft) gchat.InitCardInput {
+func gchatInitCardInput(anchorDate string, state initState, draft initDraft, note string) gchat.InitCardInput {
 	return gchat.InitCardInput{
 		Title:      "CraftsBite Setup",
 		Subtitle:   "Minimal setup for upcoming meal days",
 		Intro:      "<b>Set it once.</b><br>Choose dates, your work location, and the meals you want included.",
+		Note:       note,
 		AnchorDate: anchorDate,
 		Dates:      gchatInitDateItems(state.AvailableDates, draft.Dates),
 		Locations:  gchatInitLocationItems(draft.Location),
 		Meals:      gchatInitMealItems(state.AvailableMeals, draft.Meals),
 		SummaryRows: []gchat.TeamRow{
-			{Label: "Current location", Value: displayLocationLabel(draft.Location)},
-			{Label: "Selected meals", Value: gchatInitMealSummary(draft.Meals)},
+			{Label: "Selected dates", Value: initDateSummary(draft.Dates)},
+			{Label: "Will save location", Value: displayLocationLabel(draft.Location)},
+			{Label: "Meals included", Value: gchatInitMealSummary(draft.Meals)},
 		},
 	}
 }
@@ -220,7 +275,7 @@ func gchatInitMealItems(availableMeals []string, selectedMeals []string) []gchat
 
 func gchatInitMealSummary(meals []string) string {
 	if len(meals) == 0 {
-		return "No meals selected"
+		return "No meals included"
 	}
 	return displayMealList(meals)
 }
@@ -269,6 +324,49 @@ func sendGChatInitCard(ctx context.Context, cfg *appconfig.Config, event payload
 		return err
 	}
 	return sendGChatCard(ctx, cfg, event, body)
+}
+
+func sendGChatInitCardUpdate(ctx context.Context, cfg *appconfig.Config, event payload.CommandEvent, input gchat.InitCardInput) error {
+	if input.ActionFunction == "" {
+		input.ActionFunction = gchatActionFunctionFromContext(ctx)
+	}
+	body, err := gchat.InitCardResponse(input)
+	if err != nil {
+		slog.Error("gchat init card build failed", "error", err)
+		return err
+	}
+	return sendGChatCardUpdate(ctx, cfg, event, body)
+
+}
+
+func sendGChatInitSavedCard(ctx context.Context, cfg *appconfig.Config, event payload.CommandEvent, anchorDate, summary string) error {
+	return sendGChatInitResultCard(ctx, cfg, event, anchorDate, summary, gchat.InitSaveConfirmationInput{})
+}
+
+func sendGChatInitCanceledCard(ctx context.Context, cfg *appconfig.Config, dateParser *dateutil.DateParser, event payload.CommandEvent, opts payload.InitOptions) error {
+	anchorDate, err := dateParser.ParseDateWithDefaults(opts.Date)
+	if err != nil {
+		slog.Warn("gchat init cancel date parse failed", "error", err, "date_present", opts.Date != "")
+		return sendWarningReply(ctx, cfg, event, fmt.Sprintf("Invalid init date: %v", err))
+	}
+	return sendGChatInitResultCard(ctx, cfg, event, anchorDate, "<b>Setup canceled</b><br>No changes were saved.", gchat.InitSaveConfirmationInput{
+		Title:          "Setup canceled",
+		Subtitle:       "No changes were saved",
+		EditButtonText: "Open setup",
+		Tone:           discord.NoticeToneInfo,
+	})
+}
+
+func sendGChatInitResultCard(ctx context.Context, cfg *appconfig.Config, event payload.CommandEvent, anchorDate, summary string, input gchat.InitSaveConfirmationInput) error {
+	input.Summary = summary
+	input.AnchorDate = anchorDate
+	input.ActionFunction = gchatActionFunctionFromContext(ctx)
+	body, err := gchat.InitSaveConfirmationCardResponse(input)
+	if err != nil {
+		slog.Error("gchat init saved card build failed", "error", err)
+		return err
+	}
+	return sendGChatCardUpdate(ctx, cfg, event, body)
 }
 
 func gchatActionFunctionFromContext(ctx context.Context) string {

@@ -250,6 +250,37 @@ func TestToCardActionCommandEvent_InitSave(t *testing.T) {
 	}
 }
 
+func TestToCardActionCommandEvent_InitEdit(t *testing.T) {
+	evt := Event{
+		Chat: ChatEvent{
+			User:                 Sender{Name: "users/123"},
+			Space:                Space{Name: "spaces/abc"},
+			ButtonClickedPayload: &ButtonClickedPayload{},
+		},
+		CommonEventObject: CommonEventObject{
+			Parameters: map[string]string{"action": InitCardFunctionEdit, "date": "2026-05-15"},
+		},
+	}
+
+	ce, err := ToCardActionCommandEvent(evt, "user1", "employee")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ce.CommandName != "init" || ce.Source != "gchat" {
+		t.Fatalf("unexpected command event: %+v", ce)
+	}
+	var opts struct {
+		Action string `json:"action"`
+		Date   string `json:"date"`
+	}
+	if err := json.Unmarshal(ce.Options, &opts); err != nil {
+		t.Fatalf("failed to unmarshal options: %v", err)
+	}
+	if opts.Action != "open" || opts.Date != "2026-05-15" {
+		t.Fatalf("unexpected options: %+v", opts)
+	}
+}
+
 func TestToCommandEvent_NilPayload(t *testing.T) {
 	evt := Event{Chat: ChatEvent{}}
 	_, err := ToCommandEvent(evt, "user1", "member")

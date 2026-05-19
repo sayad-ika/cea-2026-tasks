@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/sayad-ika/craftsbite/internal/discord"
+	"github.com/sayad-ika/craftsbite/internal/gchat"
 	"github.com/sayad-ika/craftsbite/internal/payload"
 )
 
@@ -90,6 +91,30 @@ func TestGChatNoticeTextUsesWarningCardHeader(t *testing.T) {
 	}
 	if header["imageUrl"] != "https://placehold.co/96x96/F08C00/FFFFFF.png?text=CB" {
 		t.Fatalf("imageUrl = %v, want warning placeholder", header["imageUrl"])
+	}
+}
+
+func TestGChatCardUpdateResponseBuildsUpdateEnvelope(t *testing.T) {
+	card, err := gchat.NoticeCard("Updated", "Done", "saved", discord.NoticeToneSuccess)
+	if err != nil {
+		t.Fatalf("NoticeCard() error = %v", err)
+	}
+	resp, err := gchatCardUpdateResponse(card, "users/123")
+	if err != nil {
+		t.Fatalf("gchatCardUpdateResponse() error = %v", err)
+	}
+
+	var body map[string]interface{}
+	if err := json.Unmarshal([]byte(resp.Body), &body); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	message := body["hostAppDataAction"].(map[string]interface{})["chatDataAction"].(map[string]interface{})["updateMessageAction"].(map[string]interface{})["message"].(map[string]interface{})
+	if _, ok := message["cardsV2"].([]interface{}); !ok {
+		t.Fatal("expected cardsV2 payload")
+	}
+	viewer := message["privateMessageViewer"].(map[string]interface{})
+	if viewer["name"] != "users/123" {
+		t.Fatalf("viewer name = %v, want users/123", viewer["name"])
 	}
 }
 

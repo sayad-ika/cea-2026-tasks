@@ -74,7 +74,19 @@ func sendDiscordInteractionResponse(ctx context.Context, response RouterResponse
 
 func sendGChatCard(ctx context.Context, cfg *appconfig.Config, event payload.CommandEvent, card []byte) error {
 	if recorder := recorderFromContext(ctx); recorder != nil {
-		resp, err := gchatCardResponse(card, event.GChatViewerName)
+		resp, err := gchatCardActionResponse(card, event.GChatViewerName, "createMessageAction")
+		if err != nil {
+			return err
+		}
+		recorder.response = &resp
+		return nil
+	}
+	return fmt.Errorf("no reply recorder in context")
+}
+
+func sendGChatCardUpdate(ctx context.Context, cfg *appconfig.Config, event payload.CommandEvent, card []byte) error {
+	if recorder := recorderFromContext(ctx); recorder != nil {
+		resp, err := gchatCardActionResponse(card, event.GChatViewerName, "updateMessageAction")
 		if err != nil {
 			return err
 		}
@@ -104,6 +116,14 @@ func (r *replyRecorder) finalResponse() events.APIGatewayV2HTTPResponse {
 }
 
 func gchatCardResponse(card []byte, viewerName string) (events.APIGatewayV2HTTPResponse, error) {
+	return gchatCardActionResponse(card, viewerName, "createMessageAction")
+}
+
+func gchatCardUpdateResponse(card []byte, viewerName string) (events.APIGatewayV2HTTPResponse, error) {
+	return gchatCardActionResponse(card, viewerName, "updateMessageAction")
+}
+
+func gchatCardActionResponse(card []byte, viewerName, action string) (events.APIGatewayV2HTTPResponse, error) {
 	var message map[string]interface{}
 	if err := json.Unmarshal(card, &message); err != nil {
 		return events.APIGatewayV2HTTPResponse{}, fmt.Errorf("decode gchat card: %w", err)
@@ -115,7 +135,7 @@ func gchatCardResponse(card []byte, viewerName string) (events.APIGatewayV2HTTPR
 	body, _ := json.Marshal(map[string]interface{}{
 		"hostAppDataAction": map[string]interface{}{
 			"chatDataAction": map[string]interface{}{
-				"createMessageAction": map[string]interface{}{
+				action: map[string]interface{}{
 					"message": message,
 				},
 			},
