@@ -105,7 +105,14 @@ func TestHandleGChatInitInteraction_SavePersistsMultipleDates(t *testing.T) {
 		}
 	}
 
-	cards := gchatCreatedCards(t, recorder.finalResponse().Body)
+	cards := gchatUpdatedCards(t, recorder.finalResponse().Body)
+	editButton := gchatFirstButton(&cards[0].Card, "Edit setup")
+	if editButton == nil || editButton.OnClick == nil {
+		t.Fatalf("confirmation card missing Edit setup button: %#v", cards[0].Card)
+	}
+	if gchatActionParameter(editButton.OnClick.Action.Parameters, "action") != gchat.InitCardFunctionEdit {
+		t.Fatalf("edit parameters = %#v, want edit action", editButton.OnClick.Action.Parameters)
+	}
 	summary := gchatCardText(&cards[0].Card)
 	for _, want := range []string{
 		"Setup saved",
@@ -144,7 +151,7 @@ func TestHandleGChatInitInteraction_SaveSummarizesNoMeals(t *testing.T) {
 		t.Fatalf("handleGChatInitInteraction() error = %v", err)
 	}
 
-	cards := gchatCreatedCards(t, recorder.finalResponse().Body)
+	cards := gchatUpdatedCards(t, recorder.finalResponse().Body)
 	summary := gchatCardText(&cards[0].Card)
 	for _, want := range []string{
 		"Setup saved",
@@ -156,6 +163,40 @@ func TestHandleGChatInitInteraction_SaveSummarizesNoMeals(t *testing.T) {
 		if !strings.Contains(summary, want) {
 			t.Fatalf("summary = %q, want %q", summary, want)
 		}
+	}
+}
+
+func TestHandleGChatInitInteraction_CancelUpdatesCard(t *testing.T) {
+	store := newInitTestStore()
+	store.availableMeals = []string{"lunch", "snacks"}
+	dateParser := mustInitDateParser(t)
+	date := nextInitTestDates(t, dateParser, 1)[0]
+
+	ctx, recorder := withReplyRecorder(context.Background(), HandlerRequest{Platform: PlatformGChat})
+	err := handleGChatInitInteraction(ctx, nil, store, dateParser, mustInitCutoff(t), payload.CommandEvent{
+		UserID:  "u1",
+		Source:  "gchat",
+		Options: json.RawMessage(`{"action":"cancel","date":"` + date + `"}`),
+	})
+	if err != nil {
+		t.Fatalf("handleGChatInitInteraction() error = %v", err)
+	}
+
+	cards := gchatUpdatedCards(t, recorder.finalResponse().Body)
+	card := &cards[0].Card
+	if card.Header == nil || card.Header.Title != "Setup canceled" {
+		t.Fatalf("header = %#v, want canceled card", card.Header)
+	}
+	summary := gchatCardText(card)
+	if !strings.Contains(summary, "No changes were saved.") {
+		t.Fatalf("summary = %q, want cancel summary", summary)
+	}
+	button := gchatFirstButton(card, "Open setup")
+	if button == nil || button.OnClick == nil {
+		t.Fatalf("canceled card missing Open setup button: %#v", card)
+	}
+	if gchatActionParameter(button.OnClick.Action.Parameters, "action") != gchat.InitCardFunctionEdit {
+		t.Fatalf("open setup parameters = %#v, want edit action", button.OnClick.Action.Parameters)
 	}
 }
 
@@ -178,9 +219,20 @@ func TestHandleGChatInitInteraction_SaveRequiresDateSelection(t *testing.T) {
 		t.Fatalf("expected no writes, got locations=%#v participations=%#v", store.locations, store.participations)
 	}
 
-	gchatCreatedCards(t, recorder.finalResponse().Body)
-	if !strings.Contains(recorder.finalResponse().Body, "at least one date") {
-		t.Fatalf("response body = %s, want validation message", recorder.finalResponse().Body)
+	cards := gchatUpdatedCards(t, recorder.finalResponse().Body)
+	card := &cards[0].Card
+	if card.Header == nil || card.Header.Title != "CraftsBite Setup" {
+		t.Fatalf("header = %#v, want setup card", card.Header)
+	}
+	summary := gchatCardText(card)
+	for _, want := range []string{
+		"Review needed",
+		"Choose at least one meal day before saving.",
+		"No dates selected",
+	} {
+		if !strings.Contains(summary, want) {
+			t.Fatalf("summary = %q, want %q", summary, want)
+		}
 	}
 }
 
@@ -216,24 +268,49 @@ func gchatSelectionInput(card *gchat.CardV2, name string) *gchat.SelectionInput 
 }
 
 func gchatCreatedCards(t *testing.T, body string) []gchat.CardV2Wrapper {
+	return gchatCardsFromAction(t, body, "createMessageAction")
+}
+
+func gchatUpdatedCards(t *testing.T, body string) []gchat.CardV2Wrapper {
+	return gchatCardsFromAction(t, body, "updateMessageAction")
+}
+
+func gchatCardsFromAction(t *testing.T, body, action string) []gchat.CardV2Wrapper {
 	t.Helper()
-	var envelope struct {
-		HostAppDataAction struct {
-			ChatDataAction struct {
-				CreateMessageAction struct {
-					Message struct {
-						CardsV2 []gchat.CardV2Wrapper `json:"cardsV2"`
-					} `json:"message"`
-				} `json:"createMessageAction"`
-			} `json:"chatDataAction"`
-		} `json:"hostAppDataAction"`
-	}
+	var envelope map[string]interface{}
 	if err := json.Unmarshal([]byte(body), &envelope); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	cards := envelope.HostAppDataAction.ChatDataAction.CreateMessageAction.Message.CardsV2
+	hostAction, ok := envelope["hostAppDataAction"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("response body = %s, want hostAppDataAction", body)
+	}
+	chatAction, ok := hostAction["chatDataAction"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("response body = %s, want chatDataAction", body)
+	}
+	actionBody, ok := chatAction[action].(map[string]interface{})
+	if !ok {
+		t.Fatalf("response body = %s, want %s", body, action)
+	}
+	message, ok := actionBody["message"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("response body = %s, want %s.message", body, action)
+	}
+	rawCards, ok := message["cardsV2"]
+	if !ok {
+		t.Fatalf("response body = %s, want %s.message.cardsV2", body, action)
+	}
+	cardsJSON, err := json.Marshal(rawCards)
+	if err != nil {
+		t.Fatalf("json.Marshal(cardsV2) error = %v", err)
+	}
+	var cards []gchat.CardV2Wrapper
+	if err := json.Unmarshal(cardsJSON, &cards); err != nil {
+		t.Fatalf("json.Unmarshal(cardsV2) error = %v", err)
+	}
 	if len(cards) == 0 {
-		t.Fatalf("response body = %s, want createMessageAction.message.cardsV2", body)
+		t.Fatalf("response body = %s, want %s.message.cardsV2", body, action)
 	}
 	return cards
 }
@@ -263,4 +340,24 @@ func gchatCardText(card *gchat.CardV2) string {
 		}
 	}
 	return strings.Join(parts, "\n")
+}
+
+func gchatFirstButton(card *gchat.CardV2, text string) *gchat.Button {
+	if card == nil {
+		return nil
+	}
+	for _, section := range card.Sections {
+		for _, widget := range section.Widgets {
+			if widget.ButtonList == nil {
+				continue
+			}
+			for i := range widget.ButtonList.Buttons {
+				button := &widget.ButtonList.Buttons[i]
+				if button.Text == text {
+					return button
+				}
+			}
+		}
+	}
+	return nil
 }

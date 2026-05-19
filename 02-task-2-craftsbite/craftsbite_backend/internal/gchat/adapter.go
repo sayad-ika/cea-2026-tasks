@@ -102,7 +102,9 @@ func ToCardActionCommandEvent(evt Event, internalUserID, role string) (payload.C
 	case InitCardFunctionSave:
 		opts = initCardOptions(evt.CommonEventObject)
 	case InitCardFunctionCancel:
-		opts = map[string]interface{}{"action": "cancel"}
+		opts = map[string]interface{}{"action": "cancel", "date": cardActionDate(evt.CommonEventObject)}
+	case InitCardFunctionEdit:
+		opts = map[string]interface{}{"action": "open", "date": cardActionDate(evt.CommonEventObject)}
 	default:
 		slog.Warn("gchat unsupported card action", "action", action)
 		return payload.CommandEvent{}, fmt.Errorf("unsupported card action %q", action)
@@ -130,17 +132,20 @@ func dialogAction(common CommonEventObject) string {
 }
 
 func initCardOptions(common CommonEventObject) map[string]interface{} {
-	date := ""
-	if common.Parameters != nil {
-		date = common.Parameters["date"]
-	}
 	return map[string]interface{}{
 		"action":   "apply",
-		"date":     date,
+		"date":     cardActionDate(common),
 		"dates":    formStringValues(common.FormInputs, "dates"),
 		"location": firstFormStringValue(common.FormInputs, "location"),
 		"meals":    formStringValues(common.FormInputs, "meals"),
 	}
+}
+
+func cardActionDate(common CommonEventObject) string {
+	if common.Parameters == nil {
+		return ""
+	}
+	return common.Parameters["date"]
 }
 
 func formStringValues(inputs map[string]FormInput, name string) []string {
