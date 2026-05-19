@@ -12,6 +12,7 @@ var commandACL = map[string]map[string]struct{}{
 	"headcount":    {"admin": {}, "logistics": {}},
 	"schedule-day": {"admin": {}},
 	"admin":        {"admin": {}},
+	"admin-init":   {"admin": {}},
 }
 
 // CheckPermission returns true if the given role is allowed to execute the command.

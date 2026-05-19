@@ -14,8 +14,15 @@ const (
 	InitCardFunctionCancel = "init_cancel"
 	InitCardFunctionEdit   = "init_edit"
 
+	AdminInitFunctionScheduleSave   = "admin_init_schedule_save"
+	AdminInitFunctionScheduleCancel = "admin_init_schedule_cancel"
+	AdminInitFunctionScheduleEdit   = "admin_init_schedule_edit"
+	AdminInitFunctionRangeToggle    = "admin_init_range_toggle"
+
 	selectionTypeCheckbox = "CHECK_BOX"
 	selectionTypeRadio    = "RADIO_BUTTON"
+	textInputSingleLine   = "SINGLE_LINE"
+	textInputMultipleLine = "MULTIPLE_LINE"
 )
 
 type CardResponse struct {
@@ -51,6 +58,7 @@ type CardWidget struct {
 	TextParagraph  *TextParagraph  `json:"textParagraph,omitempty"`
 	DecoratedText  *DecoratedText  `json:"decoratedText,omitempty"`
 	SelectionInput *SelectionInput `json:"selectionInput,omitempty"`
+	TextInput      *TextInput      `json:"textInput,omitempty"`
 	ButtonList     *ButtonList     `json:"buttonList,omitempty"`
 	Divider        *Divider        `json:"divider,omitempty"`
 }
@@ -67,16 +75,25 @@ type DecoratedText struct {
 }
 
 type SelectionInput struct {
-	Name  string          `json:"name"`
-	Label string          `json:"label,omitempty"`
-	Type  string          `json:"type"`
-	Items []SelectionItem `json:"items"`
+	Name           string          `json:"name"`
+	Label          string          `json:"label,omitempty"`
+	Type           string          `json:"type"`
+	Items          []SelectionItem `json:"items"`
+	OnChangeAction *Action         `json:"onChangeAction,omitempty"`
 }
 
 type SelectionItem struct {
 	Text     string `json:"text"`
 	Value    string `json:"value"`
 	Selected bool   `json:"selected,omitempty"`
+}
+
+type TextInput struct {
+	Name     string `json:"name"`
+	Label    string `json:"label,omitempty"`
+	Type     string `json:"type,omitempty"`
+	HintText string `json:"hintText,omitempty"`
+	Value    string `json:"value,omitempty"`
 }
 
 type ButtonList struct {
@@ -150,6 +167,33 @@ type InitSaveConfirmationInput struct {
 	Tone           discord.NoticeTone
 }
 
+type AdminInitScheduleCardInput struct {
+	Title          string
+	Subtitle       string
+	Intro          string
+	Note           string
+	Date           string
+	EndDate        string
+	UseRange       bool
+	Reason         string
+	ActionFunction string
+	Statuses       []SelectionItem
+	Meals          []SelectionItem
+	SummaryRows    []TeamRow
+}
+
+type AdminInitScheduleConfirmationInput struct {
+	Title          string
+	Subtitle       string
+	Summary        string
+	EditButtonText string
+	Date           string
+	EndDate        string
+	UseRange       bool
+	ActionFunction string
+	Tone           discord.NoticeTone
+}
+
 type TeamRow struct {
 	Label string
 	Value string
@@ -192,6 +236,18 @@ func InitCardResponse(input InitCardInput) ([]byte, error) {
 func InitSaveConfirmationCardResponse(input InitSaveConfirmationInput) ([]byte, error) {
 	return json.Marshal(CardResponse{
 		CardsV2: []CardV2Wrapper{{CardID: "init-saved", Card: InitSaveConfirmationCard(input)}},
+	})
+}
+
+func AdminInitScheduleCardResponse(input AdminInitScheduleCardInput) ([]byte, error) {
+	return json.Marshal(CardResponse{
+		CardsV2: []CardV2Wrapper{{CardID: "admin-init-schedule", Card: AdminInitScheduleCard(input)}},
+	})
+}
+
+func AdminInitScheduleConfirmationCardResponse(input AdminInitScheduleConfirmationInput) ([]byte, error) {
+	return json.Marshal(CardResponse{
+		CardsV2: []CardV2Wrapper{{CardID: "admin-init-result", Card: AdminInitScheduleConfirmationCard(input)}},
 	})
 }
 
@@ -313,6 +369,132 @@ func InitSaveConfirmationCard(input InitSaveConfirmationInput) CardV2 {
 					OnClick: &OnClick{Action: &Action{
 						Function:      actionFunction,
 						Parameters:    initCardActionParameters(InitCardFunctionEdit, input.AnchorDate),
+						LoadIndicator: "SPINNER",
+					}},
+				},
+			}}}}},
+		},
+	}
+}
+
+func AdminInitScheduleCard(input AdminInitScheduleCardInput) CardV2 {
+	if input.Title == "" {
+		input.Title = "Admin Setup"
+	}
+	if input.Subtitle == "" {
+		input.Subtitle = "Schedule a meal day"
+	}
+	if input.Intro == "" {
+		input.Intro = "Configure the day status, available meals, and optional note for one date."
+	}
+	saveFunction := input.ActionFunction
+	cancelFunction := input.ActionFunction
+	rangeToggleFunction := input.ActionFunction
+	if saveFunction == "" {
+		saveFunction = AdminInitFunctionScheduleSave
+	}
+	if cancelFunction == "" {
+		cancelFunction = AdminInitFunctionScheduleCancel
+	}
+	if rangeToggleFunction == "" {
+		rangeToggleFunction = AdminInitFunctionRangeToggle
+	}
+
+	sections := []CardSection{}
+	if input.Note != "" {
+		sections = append(sections, CardSection{Widgets: []CardWidget{{TextParagraph: &TextParagraph{Text: paragraphText(input.Note)}}}})
+	}
+	dateLabel := "Schedule date"
+	if input.UseRange {
+		dateLabel = "Start date"
+	}
+	dateWidgets := []CardWidget{
+		{TextInput: &TextInput{Name: "date", Label: dateLabel, Type: textInputSingleLine, HintText: "YYYY-MM-DD, today, tomorrow, or +N", Value: input.Date}},
+		{SelectionInput: &SelectionInput{
+			Name:  "date_range",
+			Label: "Range",
+			Type:  selectionTypeCheckbox,
+			Items: []SelectionItem{{Text: "Use date range", Value: "true", Selected: input.UseRange}},
+			OnChangeAction: &Action{
+				Function:      rangeToggleFunction,
+				Parameters:    adminInitScheduleActionParameters(AdminInitFunctionRangeToggle, input.Date, input.EndDate, input.UseRange),
+				LoadIndicator: "NONE",
+				PersistValues: true,
+			},
+		}},
+	}
+	if input.UseRange {
+		dateWidgets = append(dateWidgets, CardWidget{TextInput: &TextInput{Name: "end_date", Label: "End date", Type: textInputSingleLine, HintText: "YYYY-MM-DD, today, tomorrow, or +N", Value: input.EndDate}})
+	}
+
+	sections = append(sections, []CardSection{
+		{Widgets: []CardWidget{{TextParagraph: &TextParagraph{Text: paragraphText(input.Intro)}}}},
+		{Header: "Date", Widgets: dateWidgets},
+		{Header: "Day Status", Widgets: []CardWidget{{SelectionInput: &SelectionInput{Name: "status", Label: "What kind of day is this?", Type: selectionTypeRadio, Items: input.Statuses}}}},
+		{Header: "Meals", Widgets: []CardWidget{{SelectionInput: &SelectionInput{Name: "meals", Label: "Available meals", Type: selectionTypeCheckbox, Items: input.Meals}}}},
+		{Header: "Reason", Widgets: []CardWidget{{TextInput: &TextInput{Name: "reason", Label: "Optional note", Type: textInputMultipleLine, HintText: "Reason or context for this schedule", Value: input.Reason}}}},
+	}...)
+	if len(input.SummaryRows) > 0 {
+		sections = append(sections, CardSection{Header: "Preview", Widgets: rowWidgets(input.SummaryRows)})
+	}
+	sections = append(sections, CardSection{Widgets: []CardWidget{{ButtonList: &ButtonList{Buttons: []Button{
+		{
+			Text:  "Save schedule",
+			Color: &Color{Red: 0.18, Green: 0.62, Blue: 0.27},
+			OnClick: &OnClick{Action: &Action{
+				Function:      saveFunction,
+				Parameters:    adminInitScheduleActionParameters(AdminInitFunctionScheduleSave, input.Date, input.EndDate, input.UseRange),
+				LoadIndicator: "SPINNER",
+			}},
+		},
+		{
+			Text: "Cancel",
+			OnClick: &OnClick{Action: &Action{
+				Function:      cancelFunction,
+				Parameters:    adminInitScheduleActionParameters(AdminInitFunctionScheduleCancel, input.Date, input.EndDate, input.UseRange),
+				LoadIndicator: "NONE",
+			}},
+		},
+	}}}}})
+
+	return CardV2{
+		Header:              brandedHeader(input.Title, input.Subtitle, discord.NoticeToneInfo),
+		Sections:            sections,
+		SectionDividerStyle: "SOLID_DIVIDER",
+	}
+}
+
+func AdminInitScheduleConfirmationCard(input AdminInitScheduleConfirmationInput) CardV2 {
+	if input.Title == "" {
+		input.Title = "Schedule updated"
+	}
+	if input.Subtitle == "" {
+		input.Subtitle = input.Date
+	}
+	if input.Summary == "" {
+		input.Summary = "The day schedule was updated."
+	}
+	if input.EditButtonText == "" {
+		input.EditButtonText = "Edit schedule"
+	}
+	if input.Tone == "" {
+		input.Tone = discord.NoticeToneSuccess
+	}
+	actionFunction := input.ActionFunction
+	if actionFunction == "" {
+		actionFunction = AdminInitFunctionScheduleEdit
+	}
+
+	return CardV2{
+		Header: brandedHeader(input.Title, input.Subtitle, input.Tone),
+		Sections: []CardSection{
+			textSection(input.Summary),
+			{Widgets: []CardWidget{{ButtonList: &ButtonList{Buttons: []Button{
+				{
+					Text: input.EditButtonText,
+					OnClick: &OnClick{Action: &Action{
+						Function:      actionFunction,
+						Parameters:    adminInitScheduleActionParameters(AdminInitFunctionScheduleEdit, input.Date, input.EndDate, input.UseRange),
 						LoadIndicator: "SPINNER",
 					}},
 				},
@@ -520,6 +702,24 @@ func initCardActionParameters(action, anchorDate string) []ActionParameter {
 		{Key: "action", Value: action},
 		{Key: "date", Value: anchorDate},
 	}
+}
+
+func adminInitActionParameters(action, date string) []ActionParameter {
+	return []ActionParameter{
+		{Key: "action", Value: action},
+		{Key: "date", Value: date},
+	}
+}
+
+func adminInitScheduleActionParameters(action, date, endDate string, useRange bool) []ActionParameter {
+	params := adminInitActionParameters(action, date)
+	if endDate != "" {
+		params = append(params, ActionParameter{Key: "end_date", Value: endDate})
+	}
+	if useRange {
+		params = append(params, ActionParameter{Key: "use_range", Value: "true"})
+	}
+	return params
 }
 
 func paragraphText(text string) string {

@@ -54,6 +54,16 @@ type ScheduleDayOptions struct {
 	Reason string `json:"reason"`
 }
 
+type AdminInitOptions struct {
+	Action   string   `json:"action"`
+	Date     string   `json:"date"`
+	EndDate  string   `json:"end_date"`
+	UseRange bool     `json:"use_range"`
+	Status   string   `json:"status"`
+	Meals    []string `json:"meals"`
+	Reason   string   `json:"reason"`
+}
+
 type TeamSummaryOptions struct {
 	Date   string `json:"date"`
 	TeamID string `json:"team_id"`

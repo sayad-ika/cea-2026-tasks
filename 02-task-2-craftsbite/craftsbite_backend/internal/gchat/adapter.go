@@ -20,6 +20,7 @@ var gchatCommandNames = map[int64]string{
 	7:  "override",
 	9:  "help",
 	10: "init",
+	11: "admin-init",
 }
 
 func ToCommandEvent(evt Event, internalUserID, role string) (payload.CommandEvent, error) {
@@ -49,6 +50,9 @@ func ToCommandEvent(evt Event, internalUserID, role string) (payload.CommandEven
 	case 9:
 		opts = map[string]interface{}{}
 	case 10:
+		opts = parseDateArg(argText)
+		opts["action"] = "open"
+	case 11:
 		opts = parseDateArg(argText)
 		opts["action"] = "open"
 	case 7:
@@ -105,6 +109,14 @@ func ToCardActionCommandEvent(evt Event, internalUserID, role string) (payload.C
 		opts = map[string]interface{}{"action": "cancel", "date": cardActionDate(evt.CommonEventObject)}
 	case InitCardFunctionEdit:
 		opts = map[string]interface{}{"action": "open", "date": cardActionDate(evt.CommonEventObject)}
+	case AdminInitFunctionScheduleSave:
+		opts = adminInitScheduleOptions(evt.CommonEventObject)
+	case AdminInitFunctionScheduleCancel:
+		opts = map[string]interface{}{"action": "schedule_cancel", "date": cardActionDate(evt.CommonEventObject), "end_date": cardActionParameter(evt.CommonEventObject, "end_date"), "use_range": cardActionParameter(evt.CommonEventObject, "use_range") == "true"}
+	case AdminInitFunctionScheduleEdit:
+		opts = adminInitScheduleEditOptions(evt.CommonEventObject)
+	case AdminInitFunctionRangeToggle:
+		opts = adminInitScheduleRangeToggleOptions(evt.CommonEventObject)
 	default:
 		slog.Warn("gchat unsupported card action", "action", action)
 		return payload.CommandEvent{}, fmt.Errorf("unsupported card action %q", action)
@@ -114,12 +126,21 @@ func ToCardActionCommandEvent(evt Event, internalUserID, role string) (payload.C
 	return payload.CommandEvent{
 		UserID:          internalUserID,
 		Role:            role,
-		CommandName:     "init",
+		CommandName:     cardActionCommandName(action),
 		Options:         optsJSON,
 		Source:          "gchat",
 		GChatSpaceName:  evt.Chat.Space.Name,
 		GChatViewerName: evt.Chat.User.Name,
 	}, nil
+}
+
+func cardActionCommandName(action string) string {
+	switch action {
+	case AdminInitFunctionScheduleSave, AdminInitFunctionScheduleCancel, AdminInitFunctionScheduleEdit, AdminInitFunctionRangeToggle:
+		return "admin-init"
+	default:
+		return "init"
+	}
 }
 
 func dialogAction(common CommonEventObject) string {
@@ -141,11 +162,80 @@ func initCardOptions(common CommonEventObject) map[string]interface{} {
 	}
 }
 
+func adminInitScheduleOptions(common CommonEventObject) map[string]interface{} {
+	date := firstFormStringValue(common.FormInputs, "date")
+	if date == "" {
+		date = cardActionDate(common)
+	}
+	return map[string]interface{}{
+		"action":    "schedule_apply",
+		"date":      date,
+		"end_date":  adminInitScheduleEndDate(common),
+		"use_range": adminInitUseRange(common),
+		"status":    firstFormStringValue(common.FormInputs, "status"),
+		"meals":     formStringValues(common.FormInputs, "meals"),
+		"reason":    firstFormStringValue(common.FormInputs, "reason"),
+	}
+}
+
+func adminInitScheduleRangeToggleOptions(common CommonEventObject) map[string]interface{} {
+	date := firstFormStringValue(common.FormInputs, "date")
+	if date == "" {
+		date = cardActionDate(common)
+	}
+	return map[string]interface{}{
+		"action":    "schedule_range_toggle",
+		"date":      date,
+		"end_date":  adminInitScheduleEndDate(common),
+		"use_range": adminInitUseRange(common),
+		"status":    firstFormStringValue(common.FormInputs, "status"),
+		"meals":     formStringValues(common.FormInputs, "meals"),
+		"reason":    firstFormStringValue(common.FormInputs, "reason"),
+	}
+}
+
+func adminInitScheduleEditOptions(common CommonEventObject) map[string]interface{} {
+	return map[string]interface{}{
+		"action":    "schedule_edit",
+		"date":      cardActionDate(common),
+		"end_date":  cardActionParameter(common, "end_date"),
+		"use_range": cardActionParameter(common, "use_range") == "true",
+	}
+}
+
+func adminInitScheduleEndDate(common CommonEventObject) string {
+	if endDate := firstFormStringValue(common.FormInputs, "end_date"); endDate != "" {
+		return endDate
+	}
+	return cardActionParameter(common, "end_date")
+}
+
+func adminInitUseRange(common CommonEventObject) bool {
+	if common.FormInputs != nil {
+		for _, value := range formStringValues(common.FormInputs, "date_range") {
+			if value == "true" {
+				return true
+			}
+		}
+		return false
+	}
+	for _, value := range formStringValues(common.FormInputs, "date_range") {
+		if value == "true" {
+			return true
+		}
+	}
+	return cardActionParameter(common, "use_range") == "true"
+}
+
 func cardActionDate(common CommonEventObject) string {
+	return cardActionParameter(common, "date")
+}
+
+func cardActionParameter(common CommonEventObject, key string) string {
 	if common.Parameters == nil {
 		return ""
 	}
-	return common.Parameters["date"]
+	return common.Parameters[key]
 }
 
 func formStringValues(inputs map[string]FormInput, name string) []string {
