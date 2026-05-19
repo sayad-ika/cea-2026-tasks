@@ -24,6 +24,8 @@ func TestCheckPermission(t *testing.T) {
 		{"headcount", "team_lead", false},
 		{"schedule-day", "admin", true},
 		{"schedule-day", "employee", false},
+		{"admin-init", "admin", true},
+		{"admin-init", "team_lead", false},
 		{"unknown-cmd", "admin", false},
 		{"meal", "", false},
 	}
@@ -50,6 +52,7 @@ func TestIsKnownCommand(t *testing.T) {
 		{"headcount", true},
 		{"schedule-day", true},
 		{"admin", true},
+		{"admin-init", true},
 		{"unknown-cmd", false},
 	}
 

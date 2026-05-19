@@ -56,6 +56,20 @@ func TestBuildDiscordHelpMessage(t *testing.T) {
 	if !strings.Contains(embed.Fields[1].Value, "/override") {
 		t.Fatal("expected team lead help section to include /override")
 	}
+	if strings.Contains(embed.Fields[3].Value, "/admin-init") {
+		t.Fatal("discord admin help must not include gchat-only /admin-init")
+	}
+}
+
+func TestGChatAdminHelpIncludesAdminInit(t *testing.T) {
+	sections := helpSectionsForRoleForSource("admin", "gchat")
+	admin := sections[len(sections)-1]
+	if admin.Title != "Admin" {
+		t.Fatalf("last section = %q, want Admin", admin.Title)
+	}
+	if !strings.Contains(discordHelpSectionText(admin), "/admin-init") {
+		t.Fatal("expected gchat admin help section to include /admin-init")
+	}
 }
 
 func hasHelpSection(sections []helpSection, title string) bool {

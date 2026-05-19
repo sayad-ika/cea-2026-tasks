@@ -164,6 +164,7 @@ func TestCommandMapping(t *testing.T) {
 		7:  "override",
 		9:  "help",
 		10: "init",
+		11: "admin-init",
 	}
 	for id, want := range expected {
 		got, ok := gchatCommandNames[id]
@@ -174,6 +175,34 @@ func TestCommandMapping(t *testing.T) {
 		if got != want {
 			t.Errorf("command ID %d = %q, want %q", id, got, want)
 		}
+	}
+}
+
+func TestToCommandEvent_AdminInitOpen(t *testing.T) {
+	evt := Event{
+		Chat: ChatEvent{
+			User: Sender{Name: "users/123"},
+			AppCommandPayload: &AppCommandPayload{
+				AppCommandMetadata: AppCommandMetadata{AppCommandID: 11},
+				Space:              Space{Name: "spaces/abc"},
+				Message:            &Message{ArgumentText: "2026-05-20"},
+			},
+		},
+	}
+
+	ce, err := ToCommandEvent(evt, "user1", "admin")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ce.CommandName != "admin-init" || ce.Source != "gchat" {
+		t.Fatalf("unexpected command event: %+v", ce)
+	}
+	var opts map[string]interface{}
+	if err := json.Unmarshal(ce.Options, &opts); err != nil {
+		t.Fatalf("failed to unmarshal options: %v", err)
+	}
+	if opts["action"] != "open" || opts["date"] != "2026-05-20" {
+		t.Fatalf("unexpected admin-init options: %#v", opts)
 	}
 }
 
@@ -278,6 +307,124 @@ func TestToCardActionCommandEvent_InitEdit(t *testing.T) {
 	}
 	if opts.Action != "open" || opts.Date != "2026-05-15" {
 		t.Fatalf("unexpected options: %+v", opts)
+	}
+}
+
+func TestToCardActionCommandEvent_AdminInitScheduleSave(t *testing.T) {
+	evt := Event{
+		Chat: ChatEvent{
+			User:                 Sender{Name: "users/123"},
+			Space:                Space{Name: "spaces/abc"},
+			ButtonClickedPayload: &ButtonClickedPayload{},
+		},
+		CommonEventObject: CommonEventObject{
+			Parameters: map[string]string{"action": AdminInitFunctionScheduleSave, "date": "2026-05-20"},
+			FormInputs: map[string]FormInput{
+				"date":   {StringInputs: &StringInputs{Value: []string{"2026-05-21"}}},
+				"status": {StringInputs: &StringInputs{Value: []string{"celebration"}}},
+				"meals":  {StringInputs: &StringInputs{Value: []string{"lunch", "snacks"}}},
+				"reason": {StringInputs: &StringInputs{Value: []string{"Company event"}}},
+			},
+		},
+	}
+
+	ce, err := ToCardActionCommandEvent(evt, "user1", "admin")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ce.CommandName != "admin-init" || ce.Source != "gchat" {
+		t.Fatalf("unexpected command event: %+v", ce)
+	}
+	var opts struct {
+		Action string   `json:"action"`
+		Date   string   `json:"date"`
+		Status string   `json:"status"`
+		Meals  []string `json:"meals"`
+		Reason string   `json:"reason"`
+	}
+	if err := json.Unmarshal(ce.Options, &opts); err != nil {
+		t.Fatalf("failed to unmarshal options: %v", err)
+	}
+	if opts.Action != "schedule_apply" || opts.Date != "2026-05-21" || opts.Status != "celebration" || opts.Reason != "Company event" {
+		t.Fatalf("unexpected options: %+v", opts)
+	}
+	if strings.Join(opts.Meals, ",") != "lunch,snacks" {
+		t.Fatalf("meals = %#v", opts.Meals)
+	}
+}
+
+func TestToCardActionCommandEvent_AdminInitRangeToggle(t *testing.T) {
+	evt := Event{
+		Chat: ChatEvent{
+			User:  Sender{Name: "users/123"},
+			Space: Space{Name: "spaces/abc"},
+		},
+		CommonEventObject: CommonEventObject{
+			Parameters: map[string]string{"action": AdminInitFunctionRangeToggle, "date": "2026-05-20"},
+			FormInputs: map[string]FormInput{
+				"date":       {StringInputs: &StringInputs{Value: []string{"2026-05-21"}}},
+				"end_date":   {StringInputs: &StringInputs{Value: []string{"2026-05-25"}}},
+				"date_range": {StringInputs: &StringInputs{Value: []string{"true"}}},
+				"status":     {StringInputs: &StringInputs{Value: []string{"normal"}}},
+				"meals":      {StringInputs: &StringInputs{Value: []string{"lunch"}}},
+				"reason":     {StringInputs: &StringInputs{Value: []string{"Range ops"}}},
+			},
+		},
+	}
+
+	ce, err := ToCardActionCommandEvent(evt, "user1", "admin")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ce.CommandName != "admin-init" || ce.Source != "gchat" {
+		t.Fatalf("unexpected command event: %+v", ce)
+	}
+	var opts struct {
+		Action   string   `json:"action"`
+		Date     string   `json:"date"`
+		EndDate  string   `json:"end_date"`
+		UseRange bool     `json:"use_range"`
+		Status   string   `json:"status"`
+		Meals    []string `json:"meals"`
+		Reason   string   `json:"reason"`
+	}
+	if err := json.Unmarshal(ce.Options, &opts); err != nil {
+		t.Fatalf("failed to unmarshal options: %v", err)
+	}
+	if opts.Action != "schedule_range_toggle" || opts.Date != "2026-05-21" || opts.EndDate != "2026-05-25" || !opts.UseRange || opts.Status != "normal" || opts.Reason != "Range ops" {
+		t.Fatalf("unexpected options: %+v", opts)
+	}
+	if strings.Join(opts.Meals, ",") != "lunch" {
+		t.Fatalf("meals = %#v", opts.Meals)
+	}
+}
+
+func TestToCardActionCommandEvent_AdminInitRangeToggleUncheckedIgnoresParameterState(t *testing.T) {
+	evt := Event{
+		Chat: ChatEvent{
+			User:  Sender{Name: "users/123"},
+			Space: Space{Name: "spaces/abc"},
+		},
+		CommonEventObject: CommonEventObject{
+			Parameters: map[string]string{"action": AdminInitFunctionRangeToggle, "date": "2026-05-20", "use_range": "true"},
+			FormInputs: map[string]FormInput{
+				"date": {StringInputs: &StringInputs{Value: []string{"2026-05-21"}}},
+			},
+		},
+	}
+
+	ce, err := ToCardActionCommandEvent(evt, "user1", "admin")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var opts struct {
+		UseRange bool `json:"use_range"`
+	}
+	if err := json.Unmarshal(ce.Options, &opts); err != nil {
+		t.Fatalf("failed to unmarshal options: %v", err)
+	}
+	if opts.UseRange {
+		t.Fatalf("use_range = true, want false when checkbox is absent from form inputs")
 	}
 }
 
