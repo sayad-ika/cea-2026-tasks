@@ -214,15 +214,10 @@ func adminInitUseRange(common CommonEventObject) bool {
 	if common.FormInputs != nil {
 		for _, value := range formStringValues(common.FormInputs, "date_range") {
 			if value == "true" {
-				return true
+				return false
 			}
 		}
-		return false
-	}
-	for _, value := range formStringValues(common.FormInputs, "date_range") {
-		if value == "true" {
-			return true
-		}
+		return true
 	}
 	return cardActionParameter(common, "use_range") == "true"
 }

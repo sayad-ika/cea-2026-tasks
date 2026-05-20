@@ -412,9 +412,9 @@ func AdminInitScheduleCard(input AdminInitScheduleCardInput) CardV2 {
 		{TextInput: &TextInput{Name: "date", Label: dateLabel, Type: textInputSingleLine, HintText: "YYYY-MM-DD, today, tomorrow, or +N", Value: input.Date}},
 		{SelectionInput: &SelectionInput{
 			Name:  "date_range",
-			Label: "Range",
+			Label: "Mode",
 			Type:  selectionTypeCheckbox,
-			Items: []SelectionItem{{Text: "Use date range", Value: "true", Selected: input.UseRange}},
+			Items: []SelectionItem{{Text: "Mark a single date", Value: "true", Selected: !input.UseRange}},
 			OnChangeAction: &Action{
 				Function:      rangeToggleFunction,
 				Parameters:    adminInitScheduleActionParameters(AdminInitFunctionRangeToggle, input.Date, input.EndDate, input.UseRange),

@@ -80,7 +80,10 @@ func openGChatAdminInitScheduleCard(ctx context.Context, cfg *appconfig.Config, 
 	}
 
 	draft := adminInitDraftFromSchedule(date, schedule)
-	draft.UseRange = opts.UseRange
+	draft.UseRange = true
+	if update {
+		draft.UseRange = opts.UseRange
+	}
 	draft.EndDate = strings.TrimSpace(opts.EndDate)
 	input := gchatAdminInitScheduleCardInput(draft, "")
 	if update {
@@ -256,7 +259,7 @@ func gchatAdminInitScheduleCardInput(draft adminInitScheduleDraft, note string) 
 	return gchat.AdminInitScheduleCardInput{
 		Title:       "Admin Setup",
 		Subtitle:    "Schedule a meal day",
-		Intro:       "Configure one day at a time. Use `/schedule-day` for ranges until bulk setup is added here.",
+		Intro:       "Configure a weekday date range by default. Select `Mark a single date` to update only one day.",
 		Note:        note,
 		Date:        draft.Date,
 		EndDate:     draft.EndDate,
