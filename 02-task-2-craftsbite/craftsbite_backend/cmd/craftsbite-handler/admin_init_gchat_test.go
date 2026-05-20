@@ -73,15 +73,15 @@ func TestHandleAdminInitCommand_OpenCreatesScheduleCard(t *testing.T) {
 		t.Fatalf("header = %#v, want Admin Setup", card.Header)
 	}
 	dateInput := gchatTextInput(card, "date")
-	if dateInput == nil || dateInput.Value != date || dateInput.Label != "Schedule date" || dateInput.Type != "SINGLE_LINE" {
+	if dateInput == nil || dateInput.Value != date || dateInput.Label != "Start date" || dateInput.Type != "SINGLE_LINE" {
 		t.Fatalf("date input = %#v, want %s", dateInput, date)
 	}
-	if endInput := gchatTextInput(card, "end_date"); endInput != nil {
-		t.Fatalf("end date input = %#v, want hidden by default", endInput)
+	if endInput := gchatTextInput(card, "end_date"); endInput == nil || endInput.Label != "End date" {
+		t.Fatalf("end date input = %#v, want visible by default", endInput)
 	}
 	rangeInput := gchatSelectionInput(card, "date_range")
-	if rangeInput == nil || gchatSelectionSelected(rangeInput, "true") {
-		t.Fatalf("date range input = %#v, want unchecked", rangeInput)
+	if rangeInput == nil || rangeInput.Label != "Mode" || len(rangeInput.Items) != 1 || rangeInput.Items[0].Text != "Mark a single date" || gchatSelectionSelected(rangeInput, "true") {
+		t.Fatalf("date range input = %#v, want unchecked Mark a single date", rangeInput)
 	}
 	reasonInput := gchatTextInput(card, "reason")
 	if reasonInput == nil || reasonInput.Value != "Company event" || reasonInput.Type != "MULTIPLE_LINE" {
@@ -100,7 +100,7 @@ func TestHandleAdminInitCommand_OpenCreatesScheduleCard(t *testing.T) {
 	}
 }
 
-func TestHandleAdminInitCommand_RangeToggleUpdatesCard(t *testing.T) {
+func TestHandleAdminInitCommand_SingleDateToggleUpdatesCard(t *testing.T) {
 	store := newAdminInitTestStore()
 	dateParser := mustInitDateParser(t)
 	start, end, _ := nextAdminInitWeekdayRange(t, dateParser, 2)
@@ -110,7 +110,7 @@ func TestHandleAdminInitCommand_RangeToggleUpdatesCard(t *testing.T) {
 		UserID:  "admin1",
 		Role:    "admin",
 		Source:  "gchat",
-		Options: json.RawMessage(`{"action":"schedule_range_toggle","date":"` + start + `","end_date":"` + end + `","use_range":true,"status":"normal","meals":["lunch"],"reason":"Range ops"}`),
+		Options: json.RawMessage(`{"action":"schedule_range_toggle","date":"` + start + `","end_date":"` + end + `","use_range":false,"status":"normal","meals":["lunch"],"reason":"Single date ops"}`),
 	})
 	if err != nil {
 		t.Fatalf("handleAdminInitCommand() error = %v", err)
@@ -119,20 +119,19 @@ func TestHandleAdminInitCommand_RangeToggleUpdatesCard(t *testing.T) {
 	cards := gchatUpdatedCards(t, recorder.finalResponse().Body)
 	card := &cards[0].Card
 	dateInput := gchatTextInput(card, "date")
-	if dateInput == nil || dateInput.Label != "Start date" || dateInput.Value != start {
-		t.Fatalf("date input = %#v, want Start date %s", dateInput, start)
+	if dateInput == nil || dateInput.Label != "Schedule date" || dateInput.Value != start {
+		t.Fatalf("date input = %#v, want Schedule date %s", dateInput, start)
 	}
-	endInput := gchatTextInput(card, "end_date")
-	if endInput == nil || endInput.Label != "End date" || endInput.Value != end {
-		t.Fatalf("end date input = %#v, want End date %s", endInput, end)
+	if endInput := gchatTextInput(card, "end_date"); endInput != nil {
+		t.Fatalf("end date input = %#v, want hidden for single date", endInput)
 	}
 	if rangeInput := gchatSelectionInput(card, "date_range"); rangeInput == nil || !gchatSelectionSelected(rangeInput, "true") {
-		t.Fatalf("date range input = %#v, want checked", rangeInput)
+		t.Fatalf("date range input = %#v, want Mark a single date checked", rangeInput)
 	}
 	if statusInput := gchatSelectionInput(card, "status"); statusInput == nil || !gchatSelectionSelected(statusInput, "normal") {
 		t.Fatalf("status input = %#v, want normal selected", statusInput)
 	}
-	if !strings.Contains(gchatCardText(card), "Range ops") {
+	if !strings.Contains(gchatCardText(card), "Single date ops") {
 		t.Fatalf("card text = %q, want preserved reason", gchatCardText(card))
 	}
 }

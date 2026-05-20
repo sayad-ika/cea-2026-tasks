@@ -320,10 +320,11 @@ func TestToCardActionCommandEvent_AdminInitScheduleSave(t *testing.T) {
 		CommonEventObject: CommonEventObject{
 			Parameters: map[string]string{"action": AdminInitFunctionScheduleSave, "date": "2026-05-20"},
 			FormInputs: map[string]FormInput{
-				"date":   {StringInputs: &StringInputs{Value: []string{"2026-05-21"}}},
-				"status": {StringInputs: &StringInputs{Value: []string{"celebration"}}},
-				"meals":  {StringInputs: &StringInputs{Value: []string{"lunch", "snacks"}}},
-				"reason": {StringInputs: &StringInputs{Value: []string{"Company event"}}},
+				"date":       {StringInputs: &StringInputs{Value: []string{"2026-05-21"}}},
+				"date_range": {StringInputs: &StringInputs{Value: []string{"true"}}},
+				"status":     {StringInputs: &StringInputs{Value: []string{"celebration"}}},
+				"meals":      {StringInputs: &StringInputs{Value: []string{"lunch", "snacks"}}},
+				"reason":     {StringInputs: &StringInputs{Value: []string{"Company event"}}},
 			},
 		},
 	}
@@ -336,16 +337,17 @@ func TestToCardActionCommandEvent_AdminInitScheduleSave(t *testing.T) {
 		t.Fatalf("unexpected command event: %+v", ce)
 	}
 	var opts struct {
-		Action string   `json:"action"`
-		Date   string   `json:"date"`
-		Status string   `json:"status"`
-		Meals  []string `json:"meals"`
-		Reason string   `json:"reason"`
+		Action   string   `json:"action"`
+		Date     string   `json:"date"`
+		UseRange bool     `json:"use_range"`
+		Status   string   `json:"status"`
+		Meals    []string `json:"meals"`
+		Reason   string   `json:"reason"`
 	}
 	if err := json.Unmarshal(ce.Options, &opts); err != nil {
 		t.Fatalf("failed to unmarshal options: %v", err)
 	}
-	if opts.Action != "schedule_apply" || opts.Date != "2026-05-21" || opts.Status != "celebration" || opts.Reason != "Company event" {
+	if opts.Action != "schedule_apply" || opts.Date != "2026-05-21" || opts.UseRange || opts.Status != "celebration" || opts.Reason != "Company event" {
 		t.Fatalf("unexpected options: %+v", opts)
 	}
 	if strings.Join(opts.Meals, ",") != "lunch,snacks" {
@@ -353,7 +355,7 @@ func TestToCardActionCommandEvent_AdminInitScheduleSave(t *testing.T) {
 	}
 }
 
-func TestToCardActionCommandEvent_AdminInitRangeToggle(t *testing.T) {
+func TestToCardActionCommandEvent_AdminInitSingleDateToggle(t *testing.T) {
 	evt := Event{
 		Chat: ChatEvent{
 			User:  Sender{Name: "users/123"},
@@ -391,7 +393,7 @@ func TestToCardActionCommandEvent_AdminInitRangeToggle(t *testing.T) {
 	if err := json.Unmarshal(ce.Options, &opts); err != nil {
 		t.Fatalf("failed to unmarshal options: %v", err)
 	}
-	if opts.Action != "schedule_range_toggle" || opts.Date != "2026-05-21" || opts.EndDate != "2026-05-25" || !opts.UseRange || opts.Status != "normal" || opts.Reason != "Range ops" {
+	if opts.Action != "schedule_range_toggle" || opts.Date != "2026-05-21" || opts.EndDate != "2026-05-25" || opts.UseRange || opts.Status != "normal" || opts.Reason != "Range ops" {
 		t.Fatalf("unexpected options: %+v", opts)
 	}
 	if strings.Join(opts.Meals, ",") != "lunch" {
@@ -399,7 +401,7 @@ func TestToCardActionCommandEvent_AdminInitRangeToggle(t *testing.T) {
 	}
 }
 
-func TestToCardActionCommandEvent_AdminInitRangeToggleUncheckedIgnoresParameterState(t *testing.T) {
+func TestToCardActionCommandEvent_AdminInitRangeToggleUncheckedUsesRangeMode(t *testing.T) {
 	evt := Event{
 		Chat: ChatEvent{
 			User:  Sender{Name: "users/123"},
@@ -423,8 +425,8 @@ func TestToCardActionCommandEvent_AdminInitRangeToggleUncheckedIgnoresParameterS
 	if err := json.Unmarshal(ce.Options, &opts); err != nil {
 		t.Fatalf("failed to unmarshal options: %v", err)
 	}
-	if opts.UseRange {
-		t.Fatalf("use_range = true, want false when checkbox is absent from form inputs")
+	if !opts.UseRange {
+		t.Fatalf("use_range = false, want true when Mark a single date is absent from form inputs")
 	}
 }
 
