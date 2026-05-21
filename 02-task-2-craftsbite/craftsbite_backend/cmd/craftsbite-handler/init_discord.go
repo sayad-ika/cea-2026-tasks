@@ -852,6 +852,11 @@ func expandInitMeal(meal string) string {
 }
 
 func discordComponentPayload(interaction interactionBody) (string, json.RawMessage, error) {
+	if strings.HasPrefix(interaction.Data.CustomID, adminInitDiscordCustomIDPrefix+adminInitDiscordCustomIDSep) {
+		raw, err := discordAdminInitComponentPayload(interaction)
+		return "admin-init", raw, err
+	}
+
 	action, date, draft, err := parseInitCustomID(interaction.Data.CustomID)
 	if err != nil {
 		return "", nil, fmt.Errorf("This interactive control is no longer recognized. Please run `/init` again.")

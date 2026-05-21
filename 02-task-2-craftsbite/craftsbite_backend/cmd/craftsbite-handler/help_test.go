@@ -72,6 +72,17 @@ func TestGChatAdminHelpIncludesAdminInit(t *testing.T) {
 	}
 }
 
+func TestDiscordAdminHelpIncludesAdminInit(t *testing.T) {
+	sections := helpSectionsForRoleForSource("admin", "discord")
+	admin := sections[len(sections)-1]
+	if admin.Title != "Admin" {
+		t.Fatalf("last section = %q, want Admin", admin.Title)
+	}
+	if !strings.Contains(discordHelpSectionText(admin), "/admin-init") {
+		t.Fatal("expected discord admin help section to include /admin-init")
+	}
+}
+
 func hasHelpSection(sections []helpSection, title string) bool {
 	for _, section := range sections {
 		if section.Title == title {

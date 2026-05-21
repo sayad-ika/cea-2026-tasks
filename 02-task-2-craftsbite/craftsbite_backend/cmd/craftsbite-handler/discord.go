@@ -53,6 +53,7 @@ type interactionData struct {
 	CustomID      string              `json:"custom_id,omitempty"`
 	Values        []string            `json:"values,omitempty"`
 	ComponentType int                 `json:"component_type,omitempty"`
+	Components    []discord.Component `json:"components,omitempty"`
 }
 
 type interactionBody struct {
@@ -138,7 +139,7 @@ func discordCommandEvent(ctx context.Context, cfg *appconfig.Config, store *repo
 			ApplicationID:    interaction.ApplicationID,
 			Source:           "discord",
 		}, nil, nil
-	case 3:
+	case 3, 5:
 		commandName, optionsJSON, err := discordComponentPayload(interaction)
 		if err != nil {
 			resp := ephemeralNotice(err.Error(), discord.NoticeToneWarning)
@@ -193,7 +194,7 @@ func getHeader(headers map[string]string, name string) string {
 
 func knownCommand(commandName string) bool {
 	switch commandName {
-	case "help", "init", "meal", "location", "status", "override", "team-summary", "headcount", "schedule-day", "admin":
+	case "help", "init", "meal", "location", "status", "override", "team-summary", "headcount", "schedule-day", "admin", "admin-init":
 		return true
 	default:
 		return false

@@ -39,8 +39,11 @@ func handleAdminInitCommand(ctx context.Context, store services.DayScheduleWrite
 	if event.Role != "admin" {
 		return sendWarningReply(ctx, cfg, event, "You do not have permission to use `/admin-init`.")
 	}
+	if event.Source == "discord" {
+		return handleDiscordAdminInitInteraction(ctx, cfg, store, dateParser, event)
+	}
 	if event.Source != "gchat" {
-		return sendWarningReply(ctx, cfg, event, "`/admin-init` is currently available in Google Chat. Use `/schedule-day` for direct schedule updates.")
+		return sendWarningReply(ctx, cfg, event, "`/admin-init` is currently available in Google Chat and Discord.")
 	}
 
 	var opts payload.AdminInitOptions
