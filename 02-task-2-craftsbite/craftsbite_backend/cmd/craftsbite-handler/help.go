@@ -95,7 +95,7 @@ func adminHelpSection(source string) helpSection {
 			{Usage: "/schedule-day <date> <status> [meals] [reason]", Description: "Configure the day schedule, meals, and optional note."},
 		},
 	}
-	if source == "gchat" {
+	if source == "gchat" || source == "discord" {
 		section.Commands = append(section.Commands, helpCommand{Usage: "/admin-init [date]", Description: "Open an interactive admin panel for schedule setup."})
 	}
 	return section

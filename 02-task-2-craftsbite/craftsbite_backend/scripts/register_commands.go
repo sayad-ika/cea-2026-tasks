@@ -241,6 +241,18 @@ func commands() []slashCommand {
 				},
 			},
 		},
+		{
+			Name:        "admin-init",
+			Description: "Open the interactive admin schedule setup panel",
+			Options: []commandOption{
+				{
+					Type:        optTypeString,
+					Name:        "date",
+					Description: "Start date: tomorrow (default), today, +N, or YYYY-MM-DD",
+					Required:    false,
+				},
+			},
+		},
 	}
 }
 

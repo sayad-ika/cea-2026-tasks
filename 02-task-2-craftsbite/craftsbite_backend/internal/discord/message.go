@@ -9,10 +9,14 @@ const (
 	ComponentTypeActionRow    = 1
 	ComponentTypeButton       = 2
 	ComponentTypeStringSelect = 3
+	ComponentTypeTextInput    = 4
 
 	ButtonStylePrimary   = 1
 	ButtonStyleSecondary = 2
 	ButtonStyleSuccess   = 3
+
+	TextInputStyleShort     = 1
+	TextInputStyleParagraph = 2
 
 	BrandColor = 0xF47621
 
@@ -27,6 +31,8 @@ const (
 type NoticeTone string
 
 type Message struct {
+	Title      string      `json:"title,omitempty"`
+	CustomID   string      `json:"custom_id,omitempty"`
 	Content    string      `json:"content,omitempty"`
 	Embeds     []Embed     `json:"embeds,omitempty"`
 	Components []Component `json:"components,omitempty"`
@@ -38,10 +44,12 @@ type Component struct {
 	CustomID    string         `json:"custom_id,omitempty"`
 	Style       int            `json:"style,omitempty"`
 	Label       string         `json:"label,omitempty"`
+	Value       string         `json:"value,omitempty"`
 	Placeholder string         `json:"placeholder,omitempty"`
 	Options     []SelectOption `json:"options,omitempty"`
 	MinValues   *int           `json:"min_values,omitempty"`
 	MaxValues   *int           `json:"max_values,omitempty"`
+	Required    *bool          `json:"required,omitempty"`
 	Disabled    bool           `json:"disabled,omitempty"`
 	Components  []Component    `json:"components,omitempty"`
 }
