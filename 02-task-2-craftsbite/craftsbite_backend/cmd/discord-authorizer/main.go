@@ -19,10 +19,6 @@ func handler(_ context.Context, req events.APIGatewayV2CustomAuthorizerV2Request
 	log.Printf("Method: %s", req.RequestContext.HTTP.Method)
 	log.Printf("Path: %s", req.RequestContext.HTTP.Path)
 	log.Printf("RawPath: %s", req.RawPath)
-	log.Printf("Headers count: %d", len(req.Headers))
-	for k, v := range req.Headers {
-		log.Printf("  %s: %s", k, v)
-	}
 
 	authorized := isAuthorized(req)
 	log.Printf("=== AUTHORIZER RESULT: %v ===", authorized)

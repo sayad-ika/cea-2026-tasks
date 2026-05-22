@@ -165,6 +165,7 @@ func TestCommandMapping(t *testing.T) {
 		9:  "help",
 		10: "init",
 		11: "admin-init",
+		12: "override-init",
 	}
 	for id, want := range expected {
 		got, ok := gchatCommandNames[id]
@@ -234,6 +235,34 @@ func TestToCommandEvent_InitOpen(t *testing.T) {
 	}
 }
 
+func TestToCommandEvent_OverrideInitOpen(t *testing.T) {
+	evt := Event{
+		Chat: ChatEvent{
+			User: Sender{Name: "users/123"},
+			AppCommandPayload: &AppCommandPayload{
+				AppCommandMetadata: AppCommandMetadata{AppCommandID: 12},
+				Space:              Space{Name: "spaces/abc"},
+				Message:            &Message{ArgumentText: "tomorrow"},
+			},
+		},
+	}
+
+	ce, err := ToCommandEvent(evt, "user1", "team_lead")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ce.CommandName != "override-init" {
+		t.Fatalf("CommandName = %q, want override-init", ce.CommandName)
+	}
+	var opts map[string]interface{}
+	if err := json.Unmarshal(ce.Options, &opts); err != nil {
+		t.Fatalf("failed to unmarshal options: %v", err)
+	}
+	if opts["action"] != "open" || opts["date"] != "tomorrow" {
+		t.Fatalf("unexpected override-init options: %#v", opts)
+	}
+}
+
 func TestToCardActionCommandEvent_InitSave(t *testing.T) {
 	evt := Event{
 		Chat: ChatEvent{
@@ -276,6 +305,57 @@ func TestToCardActionCommandEvent_InitSave(t *testing.T) {
 	}
 	if strings.Join(opts.Meals, ",") != "lunch" {
 		t.Fatalf("meals = %#v", opts.Meals)
+	}
+}
+
+func TestToCardActionCommandEvent_OverrideInitSave(t *testing.T) {
+	evt := Event{
+		Chat: ChatEvent{
+			User:                 Sender{Name: "users/123"},
+			Space:                Space{Name: "spaces/abc"},
+			ButtonClickedPayload: &ButtonClickedPayload{},
+		},
+		CommonEventObject: CommonEventObject{
+			Parameters: map[string]string{"action": OverrideInitFunctionSave},
+			FormInputs: map[string]FormInput{
+				"date":        {StringInputs: &StringInputs{Value: []string{"2026-05-21"}}},
+				"team_id":     {StringInputs: &StringInputs{Value: []string{"team-1"}}},
+				"target_mode": {StringInputs: &StringInputs{Value: []string{"members"}}},
+				"members":     {StringInputs: &StringInputs{Value: []string{"u1", "u2"}}},
+				"entry":       {StringInputs: &StringInputs{Value: []string{"meal"}}},
+				"meal":        {StringInputs: &StringInputs{Value: []string{"lunch"}}},
+				"meal_value":  {StringInputs: &StringInputs{Value: []string{"out"}}},
+				"reason":      {StringInputs: &StringInputs{Value: []string{"Late update"}}},
+			},
+		},
+	}
+
+	ce, err := ToCardActionCommandEvent(evt, "user1", "admin")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ce.CommandName != "override-init" || ce.Source != "gchat" {
+		t.Fatalf("unexpected command event: %+v", ce)
+	}
+	var opts struct {
+		Action     string   `json:"action"`
+		Date       string   `json:"date"`
+		TeamID     string   `json:"team_id"`
+		TargetMode string   `json:"target_mode"`
+		Members    []string `json:"members"`
+		Entry      string   `json:"entry"`
+		Meal       string   `json:"meal"`
+		Value      string   `json:"value"`
+		Reason     string   `json:"reason"`
+	}
+	if err := json.Unmarshal(ce.Options, &opts); err != nil {
+		t.Fatalf("failed to unmarshal options: %v", err)
+	}
+	if opts.Action != "apply" || opts.Date != "2026-05-21" || opts.TeamID != "team-1" || opts.TargetMode != "members" || opts.Entry != "meal" || opts.Meal != "lunch" || opts.Value != "out" || opts.Reason != "Late update" {
+		t.Fatalf("unexpected options: %+v", opts)
+	}
+	if strings.Join(opts.Members, ",") != "u1,u2" {
+		t.Fatalf("members = %#v", opts.Members)
 	}
 }
 

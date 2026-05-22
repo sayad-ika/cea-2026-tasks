@@ -21,6 +21,7 @@ var gchatCommandNames = map[int64]string{
 	9:  "help",
 	10: "init",
 	11: "admin-init",
+	12: "override-init",
 }
 
 func ToCommandEvent(evt Event, internalUserID, role string) (payload.CommandEvent, error) {
@@ -53,6 +54,9 @@ func ToCommandEvent(evt Event, internalUserID, role string) (payload.CommandEven
 		opts = parseDateArg(argText)
 		opts["action"] = "open"
 	case 11:
+		opts = parseDateArg(argText)
+		opts["action"] = "open"
+	case 12:
 		opts = parseDateArg(argText)
 		opts["action"] = "open"
 	case 7:
@@ -117,6 +121,14 @@ func ToCardActionCommandEvent(evt Event, internalUserID, role string) (payload.C
 		opts = adminInitScheduleEditOptions(evt.CommonEventObject)
 	case AdminInitFunctionRangeToggle:
 		opts = adminInitScheduleRangeToggleOptions(evt.CommonEventObject)
+	case OverrideInitFunctionSave:
+		opts = overrideInitCardOptions(evt.CommonEventObject, "apply")
+	case OverrideInitFunctionCancel:
+		opts = overrideInitCardOptions(evt.CommonEventObject, "cancel")
+	case OverrideInitFunctionTeamChange:
+		opts = overrideInitCardOptions(evt.CommonEventObject, "team_change")
+	case OverrideInitFunctionEdit:
+		opts = map[string]interface{}{"action": "edit"}
 	default:
 		slog.Warn("gchat unsupported card action", "action", action)
 		return payload.CommandEvent{}, fmt.Errorf("unsupported card action %q", action)
@@ -138,8 +150,33 @@ func cardActionCommandName(action string) string {
 	switch action {
 	case AdminInitFunctionScheduleSave, AdminInitFunctionScheduleCancel, AdminInitFunctionScheduleEdit, AdminInitFunctionRangeToggle:
 		return "admin-init"
+	case OverrideInitFunctionSave, OverrideInitFunctionCancel, OverrideInitFunctionTeamChange, OverrideInitFunctionEdit:
+		return "override-init"
 	default:
 		return "init"
+	}
+}
+
+func overrideInitCardOptions(common CommonEventObject, action string) map[string]interface{} {
+	entry := firstFormStringValue(common.FormInputs, "entry")
+	value := firstFormStringValue(common.FormInputs, "meal_value")
+	if entry == "location" {
+		value = firstFormStringValue(common.FormInputs, "location_value")
+	}
+	date := firstFormStringValue(common.FormInputs, "date")
+	if date == "" {
+		date = cardActionDate(common)
+	}
+	return map[string]interface{}{
+		"action":      action,
+		"date":        date,
+		"team_id":     firstFormStringValue(common.FormInputs, "team_id"),
+		"target_mode": firstFormStringValue(common.FormInputs, "target_mode"),
+		"members":     formStringValues(common.FormInputs, "members"),
+		"entry":       entry,
+		"meal":        firstFormStringValue(common.FormInputs, "meal"),
+		"value":       value,
+		"reason":      firstFormStringValue(common.FormInputs, "reason"),
 	}
 }
 

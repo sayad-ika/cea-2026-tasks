@@ -74,7 +74,10 @@ func handleOverrideInitCommand(ctx context.Context, store overrideInitStore, cfg
 	if event.Source == "discord" {
 		return handleDiscordOverrideInitInteraction(ctx, cfg, store, dateParser, event)
 	}
-	return sendWarningReply(ctx, cfg, event, "`/override-init` is currently available in Discord.")
+	if event.Source == "gchat" {
+		return handleGChatOverrideInitInteraction(ctx, cfg, store, dateParser, event)
+	}
+	return sendWarningReply(ctx, cfg, event, "`/override-init` is currently available in Google Chat and Discord.")
 }
 
 func overrideInitDraftFromOptions(opts payload.OverrideInitOptions) overrideInitDraft {
