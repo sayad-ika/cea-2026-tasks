@@ -26,6 +26,8 @@ func handleManagementCommand(ctx context.Context, deps handlerDeps, event payloa
 		return handleTeamSummaryCommand(ctx, deps.store, deps.cfg, deps.dateParser, event)
 	case "override":
 		return handleOverrideCommand(ctx, deps.store, deps.cfg, deps.dateParser, event)
+	case "override-init":
+		return handleOverrideInitCommand(ctx, deps.store, deps.cfg, deps.dateParser, event)
 	default:
 		return sendWarningReply(ctx, deps.cfg, event, fmt.Sprintf("Unknown command: /%s", event.CommandName))
 	}

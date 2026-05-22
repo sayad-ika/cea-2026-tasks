@@ -852,6 +852,10 @@ func expandInitMeal(meal string) string {
 }
 
 func discordComponentPayload(interaction interactionBody) (string, json.RawMessage, error) {
+	if strings.HasPrefix(interaction.Data.CustomID, overrideInitDiscordCustomIDPrefix+overrideInitDiscordCustomIDSep) {
+		raw, err := discordOverrideInitComponentPayload(interaction)
+		return "override-init", raw, err
+	}
 	if strings.HasPrefix(interaction.Data.CustomID, adminInitDiscordCustomIDPrefix+adminInitDiscordCustomIDSep) {
 		raw, err := discordAdminInitComponentPayload(interaction)
 		return "admin-init", raw, err

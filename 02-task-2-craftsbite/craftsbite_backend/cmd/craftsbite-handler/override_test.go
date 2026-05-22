@@ -29,6 +29,26 @@ func (s *overrideTestStore) ListActiveUsers(ctx context.Context) ([]repository.U
 	return s.users, nil
 }
 
+func (s *overrideTestStore) ListActiveTeams(ctx context.Context) ([]repository.Team, error) {
+	active := make([]repository.Team, 0, len(s.teams))
+	for _, team := range s.teams {
+		if team.Active {
+			active = append(active, team)
+		}
+	}
+	return active, nil
+}
+
+func (s *overrideTestStore) GetUserByID(ctx context.Context, userID string) (*repository.User, error) {
+	for _, user := range s.users {
+		if user.ID == userID {
+			copy := user
+			return &copy, nil
+		}
+	}
+	return nil, nil
+}
+
 func (s *overrideTestStore) FindTeamsByLeadID(ctx context.Context, leadUserID string) ([]repository.Team, error) {
 	return s.teams, nil
 }

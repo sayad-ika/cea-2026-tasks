@@ -77,3 +77,15 @@ type OverrideOptions struct {
 	Value  string `json:"value"`
 	Reason string `json:"reason"`
 }
+
+type OverrideInitOptions struct {
+	Action     string   `json:"action"`
+	Date       string   `json:"date"`
+	TeamID     string   `json:"team_id"`
+	TargetMode string   `json:"target_mode"`
+	Members    []string `json:"members"`
+	Entry      string   `json:"entry"`
+	Meal       string   `json:"meal"`
+	Value      string   `json:"value"`
+	Reason     string   `json:"reason"`
+}

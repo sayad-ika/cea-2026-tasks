@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -64,6 +66,47 @@ func GetTeamMembers(ctx context.Context, client *dynamodb.Client, tableName, tea
 			JoinedAt: joinedAt,
 		})
 	}
+	return results, nil
+}
+
+func ListActiveTeams(ctx context.Context, client *dynamodb.Client, tableName string) ([]Team, error) {
+	users, err := ListActiveUsers(ctx, client, tableName)
+	if err != nil {
+		return nil, fmt.Errorf("repository: ListActiveTeams users: %w", err)
+	}
+
+	seen := make(map[string]struct{}, len(users))
+	teamIDs := make([]string, 0)
+	for _, user := range users {
+		teamID := strings.TrimSpace(user.TeamID)
+		if teamID == "" {
+			continue
+		}
+		if _, ok := seen[teamID]; ok {
+			continue
+		}
+		seen[teamID] = struct{}{}
+		teamIDs = append(teamIDs, teamID)
+	}
+
+	results := make([]Team, 0, len(teamIDs))
+	for _, teamID := range teamIDs {
+		team, err := GetTeamByID(ctx, client, tableName, teamID)
+		if err != nil {
+			return nil, fmt.Errorf("repository: ListActiveTeams team %s: %w", teamID, err)
+		}
+		if team == nil || !team.Active {
+			continue
+		}
+		results = append(results, *team)
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].Name == results[j].Name {
+			return results[i].ID < results[j].ID
+		}
+		return results[i].Name < results[j].Name
+	})
 	return results, nil
 }
 

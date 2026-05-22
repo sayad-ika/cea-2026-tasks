@@ -104,6 +104,18 @@ func commands() []slashCommand {
 			},
 		},
 		{
+			Name:        "override-init",
+			Description: "Open the interactive override panel",
+			Options: []commandOption{
+				{
+					Type:        optTypeString,
+					Name:        "date",
+					Description: "Date: tomorrow (default), today, +N, or YYYY-MM-DD",
+					Required:    false,
+				},
+			},
+		},
+		{
 			Name:        "meal",
 			Description: "Update your meal participation for a date, or toggle it if status is omitted",
 			Options: []commandOption{

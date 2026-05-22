@@ -194,7 +194,7 @@ func getHeader(headers map[string]string, name string) string {
 
 func knownCommand(commandName string) bool {
 	switch commandName {
-	case "help", "init", "meal", "location", "status", "override", "team-summary", "headcount", "schedule-day", "admin", "admin-init":
+	case "help", "init", "meal", "location", "status", "override", "override-init", "team-summary", "headcount", "schedule-day", "admin", "admin-init":
 		return true
 	default:
 		return false

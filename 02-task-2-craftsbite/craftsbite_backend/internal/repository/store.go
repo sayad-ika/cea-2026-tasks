@@ -84,6 +84,10 @@ func (s *Store) GetTeamMembers(ctx context.Context, teamID string) ([]TeamMember
 	return GetTeamMembers(ctx, s.client, s.table, teamID)
 }
 
+func (s *Store) ListActiveTeams(ctx context.Context) ([]Team, error) {
+	return ListActiveTeams(ctx, s.client, s.table)
+}
+
 func (s *Store) FindTeamsByLeadID(ctx context.Context, leadUserID string) ([]Team, error) {
 	return FindTeamsByLeadID(ctx, s.client, s.table, leadUserID)
 }

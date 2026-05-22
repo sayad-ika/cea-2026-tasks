@@ -11,7 +11,7 @@ func route(ctx context.Context, deps handlerDeps, req HandlerRequest) error {
 		switch req.Command.CommandName {
 		case "help", "init", "meal", "location", "status":
 			return handleSelfCommand(ctx, deps, req.Command)
-		case "override", "team-summary":
+		case "override", "override-init", "team-summary":
 			return handleManagementCommand(ctx, deps, req.Command)
 		case "headcount", "schedule-day", "admin", "admin-init":
 			return handleOpsCommand(ctx, deps, req.Command)
